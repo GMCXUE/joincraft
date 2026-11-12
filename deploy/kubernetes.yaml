@@ -1,0 +1,87 @@
+# 示例清单，替换镜像与 PUBLIC_ORIGIN 后再部署；本次未连接或修改 VPS。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: blockroom
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: blockroom-data
+  namespace: blockroom
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blockroom
+  namespace: blockroom
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: blockroom
+  template:
+    metadata:
+      labels:
+        app: blockroom
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: blockroom:0.8.0 # 替换为可拉取的镜像地址
+          ports:
+            - containerPort: 4180
+          env:
+            - name: PUBLIC_ORIGIN
+              value: https://mc.example.com # 替换为实际 HTTPS 访问源
+          resources:
+            requests:
+              cpu: 100m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4180
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4180
+            initialDelaySeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: blockroom-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockroom
+  namespace: blockroom
+spec:
+  selector:
+    app: blockroom
+  ports:
+    - port: 4180
+      targetPort: 4180

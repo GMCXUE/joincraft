@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>joincraft · 本机游戏库</title><link rel="stylesheet" href="./library.css"><script type="module" src="./library.js"></script></head>
+<body>
+  <header class="titlebar"><a class="brand" href="../index.html">joincraft</a><span id="surface-label">本机游戏库</span><button id="rooms">返回房间</button></header>
+  <div id="web-note" class="web-note" hidden>当前是网页预览。读取本机整合包和启动游戏需要桌面客户端。</div>
+  <div class="workspace">
+    <aside class="library-sidebar"><div class="sidebar-title"><h1>游戏库</h1><span id="instance-count">0</span></div><button id="pick-directory" class="import-button">＋ 选择 PCL 目录</button><p id="root-path" class="root-path">选择已安装整合包所在的文件夹</p><nav id="instances" aria-label="已安装实例"></nav><div class="sidebar-foot">使用已有的模组、配置与存档<br>不需要打开 PCL 启动器</div></aside>
+    <main>
+      <div id="empty" class="empty"><span class="empty-mark" aria-hidden="true">▧</span><h2>把整合包放进游戏库</h2><p>选择 PCL 所在目录或 .minecraft 文件夹。<br>这里只读取已安装实例，不会搬动游戏文件。</p><button id="empty-import">选择整合包目录</button></div>
+      <div id="details" hidden>
+        <header class="instance-heading"><span id="pack-icon" class="pack-icon" aria-hidden="true"></span><div><p id="pack-meta" class="eyebrow"></p><h2 id="pack-name"></h2><p id="pack-status">尚未启动</p></div></header>
+        <section class="settings-section"><h3>游戏环境</h3><div class="setting"><div><label for="directory-mode">游戏目录</label><p id="isolation-hint"></p></div><select id="directory-mode"><option value="auto">跟随识别结果</option><option value="isolated">独立版本目录</option><option value="shared">共享 .minecraft 目录</option></select></div><p id="game-path" class="path-line"></p><div class="setting"><div><span class="field-label">Java 运行环境</span><p id="java-path">尚未选择 Java</p></div><button id="pick-java">选择 Java</button></div><div class="setting"><div><label for="memory">游戏内存</label><p>大型整合包通常需要更多内存</p></div><div class="memory-input"><input id="memory" type="number" min="512" max="32768" step="256" value="4096"><span>MB</span></div></div></section>
+        <section class="settings-section"><h3>启动账号</h3><div class="account-tabs" role="group" aria-label="启动账号类型"><button id="offline-tab" aria-pressed="true">离线玩家</button><button id="microsoft-tab" aria-pressed="false">微软正版</button></div><div id="offline-panel" class="account-panel"><label for="player-name">玩家名</label><input id="player-name" maxlength="16" placeholder="3–16 位字母、数字或下划线" autocomplete="off" value="Player"><p>在朋友允许离线玩家的游戏中使用。</p></div><div id="microsoft-panel" class="account-panel" hidden><div class="microsoft-row"><div><strong id="microsoft-name">尚未登录</strong><p id="microsoft-hint">使用拥有 Java 版的微软账号。</p></div><button id="login">登录微软账号</button><button id="logout" hidden>退出</button></div><div id="device-code" hidden><p>在微软授权页输入此代码</p><strong id="code"></strong><button id="open-microsoft">打开微软授权页</button><p>授权完成后会自动返回登录结果。</p></div></div></section>
+        <footer class="launch-footer"><div><p id="check-result" role="status">启动前会检查 Java 和游戏文件</p><small>进入世界后，仍需选择「对局域网开放」。</small></div><div class="launch-actions"><button id="check">检查文件</button><button id="launch" class="primary">启动游戏</button></div></footer>
+      </div>
+      <p id="message" class="message" role="alert" hidden></p>
+    </main>
+  </div>
+</body></html>

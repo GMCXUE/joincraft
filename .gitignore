@@ -1,0 +1,19 @@
+node_modules/
+dist/
+data/
+backups/
+.env
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+public/ui.js
+public/ui.css
+public/blockroom-bridge.cjs
+public/joincraft-bridge.cjs
+
+# Local credentials, logs and historical UI captures
+.env.*
+!.env.example
+*.log
+.DS_Store
+/preview*.png

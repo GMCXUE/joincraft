@@ -1,0 +1,18 @@
+.play-panel { margin: 0 0 28px; padding: 20px; background: var(--input); border: 1px solid var(--border); border-radius: 8px; }
+.play-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.play-heading h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
+.play-heading h3 .icon { width: 20px; height: 20px; color: var(--secondary); }
+.play-heading p { margin-top: 8px; font-size: 12px; color: var(--secondary); }
+.play-status { display: inline-flex; align-items: center; gap: 7px; flex: none; font-size: 11px; color: var(--muted); padding-top: 4px; }
+.play-status>span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.play-status.ready { color: var(--green); }.play-status.ready>span,.connection-state.connected .status-dot { background: var(--green); }
+.play-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 20px; }
+.play-detail,.play-footnote { font-size: 11px; color: var(--muted); }.play-footnote { margin-top: 14px; }
+.play-error { color: var(--error); font-size: 12px; margin-top: 12px; }
+.play-address { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.play-address small { color: var(--secondary); font-size: 11px; }
+.play-address code { font-family: ui-monospace,monospace; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+.bridge-steps { padding-left: 22px; margin: 16px 0 24px; }.bridge-steps li { padding: 0 0 18px 6px; color: var(--secondary); font-size: 13px; }.bridge-steps li:last-child { padding-bottom: 0; }.bridge-steps strong { color: var(--text); font-size: 14px; }.bridge-steps p { margin-top: 6px; font-size: 12px; }.bridge-steps .button { display: flex; width: max-content; margin-top: 10px; }
+.bridge-command { width: 100%; min-height: 84px; padding: 12px; border: 1px solid var(--strong-border); border-radius: 6px; background: var(--input); font: 11px/1.6 ui-monospace,monospace; color: var(--secondary); resize: vertical; margin-bottom: 12px; word-break: break-all; }
+.play-command-status { margin-top: 16px; font-size: 12px; color: var(--secondary); overflow-wrap: anywhere; }.play-command-status.ready { color: var(--green); }.play-command-status.error { color: var(--error); }
+@media(max-width:600px) { .play-panel { padding: 16px; }.play-heading { flex-direction: column; gap: 8px; }.play-heading p { font-size: 12px; }.play-address { gap: 8px; }.play-address small { width: 100%; }.play-address code { font-size: 18px; }.play-controls { gap: 12px; } }

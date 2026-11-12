@@ -1,0 +1,25 @@
+services:
+  blockroom:
+    build: .
+    restart: unless-stopped
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:4180}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+    ports:
+      - "127.0.0.1:4180:4180"
+    volumes:
+      - blockroom-data:/app/data
+      - blockroom-backups:/app/backups
+    mem_limit: 384m
+    cpus: 0.50
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  blockroom-data:
+  blockroom-backups:
