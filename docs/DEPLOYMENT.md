@@ -219,3 +219,16 @@ Windows 真实安装、更新重启、原生窗口控件、完整 Forge 处理�
 缓存先在不开放公网端口的临时 nginx 容器中验证，再验证公网冷/热下载、HEAD、Range、元数据 BYPASS 和限制。该 Mac 到 VPS 的 mixin 文件首次请求 3318 ms，第二次 HIT 127 ms；这不是 Windows 线路测速。已预热并校验 64 个固定官方文件，共 21907097 bytes。真实 Forge 任务 38 个请求全部经 VPS，显示 36/36 文件、10700610 bytes，与实际文件一致。
 
 真实 Forge 验收主动停在 Java 处理器前，没有启动游戏。Windows 完整处理器、末尾登记、应用内更新重启与实际 MC 启动仍待用户实测。
+
+
+## 2026-11-14 · 0.9.25 取消与已安装状态修复
+
+应用服务发布至 `/opt/joincraft/releases/0.9.25-20261114-pack-cancel`，源码检查点 `dbb8e63`；回滚目录 `/opt/joincraft/releases/0.9.22-20261114-client-fixes`（含 0.9.24 进度脚本覆盖）。SQLite schema 7 未变；一致性数据库和当前整合包备份位于 `/opt/joincraft/backups/before-0925.sqlite` 与 `.packs`，数据库备份权限 0600。生产依赖按锁文件重新安装。nginx 缓存配置、端口、中继和语音配置保持原状。
+
+修复 `90ae1c8` 用标准流桥接 yauzl 2，ZIP 读取/解压、哈希及实例检查可取消；`6aaf707` 允许有固定摘要的合法空文件，兼容原实例记录，个人设置及 MCEF/KubeJS 缓存不作为强制副本依据；`47ef841` 防止旧检查与进度覆盖新状态，并将本地检查错误与未安装区分。
+
+已发布 EXE `joincraft-0.9.25-win-x64-setup.exe`，130404320 bytes，SHA-256 `cf6bd8911d84c76f66488d63f15ce0e9fa3b41ef0f159d95fc913a7cdb53b20a`；更新 ZIP `joincraft-0.9.25-win-x64.zip`，167066371 bytes，SHA-256 `c75825dbb9c8d370abbd91570012b379b3442da986453f3b5918a445e22664f3`。稳定安装与更新别名、两份 Ed25519 清单指向 0.9.25；原更新公钥不变，旧 NSIS latest.yml 继续固定 0.9.3。前版签名清单备份 `/opt/joincraft/backups/windows-x64-before-0.9.25.json`。
+
+验证：构建和 224 项完整回归通过，最终客户端实际载荷在 Electron Node CLI 中通过 32 项 HTTP/缓存/Forge/ZIP 取消检查。实际 EXE/ZIP 的签名、大小/SHA-512、核心载荷及源码匹配、Go 更新助手校验和解包通过。VPS 用一致性备份的临时副本完成健康、界面及真实 ZIP 取消预检后切换服务。公网资源匹配源码，0.9.24 客户端可发现 0.9.25，ZIP Range 及完整公网 EXE/ZIP 摘要校验通过。
+
+用户原始 368,241,711-byte 香草 ZIP 中取消可复现旧任务 7 秒仍未结束；新代码约 991ms 发出取消、994ms 结束读取（本机测量）。真实包的 20 个空文件全部提取并通过固定摘要校验。没有运行实际游戏；Windows 实机取消、旧实例重新识别及完整启动仍待用户验证。旧版若已卡住，先退出重开再更新，升级后优先重新检查现有实例。
