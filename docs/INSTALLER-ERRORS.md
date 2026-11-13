@@ -21,3 +21,14 @@ Forge 默认优先使用 HTTPS Maven 地址。聚合错误保留原 cause，并�
 `forge-installer.test.mjs` 使用真实本机 HTTP 和生成的 ZIP/JAR 测试数据运行官方 Forge/NeoForge 安装任务，完成下载、解压 install_profile.json 和 version.json、生成版本文件，并覆盖连接中断、HTTP 503、取消及重定向。测试不执行 Java，不启动游戏，测试服务拒绝访问外部网络。
 
 运行：`npm run test:packs`。这些检查验证安装管线和错误边界；Windows 实机、真实 Forge 处理器及完整整合包启动仍需在新客户端发布后验证。
+
+
+## 0.9.23 主源瞬断与备用源 404
+
+真实 1.20.1 / Forge 47.3.33 验证复现：ForgeAutoRenamingTool 的官方源在 TLS 握手前断开，旧逻辑立即切换至不提供该 Forge 专有文件的 Maven Central。后者的 404 被优先展示，且界面仍保留前一个 installer.jar 文件名。
+
+现为 GET/HEAD 在主源进行最多 3 次有退避的重试，覆盖连接重置、超时和可重试 HTTP 状态；支持取消与重定向。聚合错误保留第一个真实来源失败，忽略随后空文件校验产生的派生错误；最终错误和当前文件同步到真实依赖名。
+
+本机真实官方源验收：安装程序 SHA-1 与 [Forge 官方发布记录](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html) 的 `9184fd6fa83455a2d6cf196551eded07bcc8c984` 一致，36 个带摘要的配置依赖全部通过校验，任务已进入 Java 处理器边界。验收在执行 Java 前主动停止，未启动游戏。
+
+回归覆盖主源两次中断后第三次成功且不访问备用源、依赖失败时当前文件名、主源网络错误不被备用 404 覆盖，以及真实 404 仍被保留。测试服务器仅监听 loopback，并在 DNS 层拒绝外部连接。
