@@ -36,13 +36,13 @@ export async function fakeEnvironment(pack,root,context){
 function manager(root,extra={}){let calls=0;const result=new ManagedPacks({root,platform,engine:fakeEnvironment,fetchImpl:async()=>{calls++;return new Response('synthetic mod, never executed');},...extra});return {manager:result,calls:()=>calls};}
 
 test('mrpack parsing pins exact versions, filters server files and resolves client overrides',async()=>{
-  const f=await sample(),pack=await inspectMrpack(f.archive,{overrides:true});assert.equal(pack.name,'周末生存');assert.equal(pack.loader,'Fabric');assert.equal(pack.loaderVersion,'0.16.14');assert.equal(pack.sha512,f.sha512);assert.equal(pack.files.length,1);assert.equal(pack.totalBytes,f.mod.length);assert.equal(pack.overrides.find(e=>e.path==='config/client.cfg').data.toString(),'client preferred');
+  const f=await sample(),pack=await inspectMrpack(f.archive,{overrides:true});assert.equal(pack.name,'周末生存');assert.equal(pack.loader,'Fabric');assert.equal(pack.loaderVersion,'0.16.14');assert.equal(pack.sha512,f.sha512);assert.equal(pack.files.length,1);assert.equal(pack.totalBytes,f.mod.length+pack.overrides.reduce((sum,file)=>sum+file.size,0));assert.equal(pack.overrides.find(e=>e.path==='config/client.cfg').data.toString(),'client preferred');
 });
-test('pack archives reject missing manifest, hashes, unsupported loaders and protected paths',async()=>{
+test('pack archives reject missing manifest, hashes, unsupported loaders and protected paths',async t=>{
   await assert.rejects(inspectMrpack(await zip([['manifest.json','{}']])),/标准 Modrinth/);
   for(const value of ['../outside','mods/../outside','C:/outside','mods/a:stream','/absolute','mods/CON.jar','mods/name.','versions/attack.json','.joincraft/instance.json'])assert.throws(()=>packPath(value),/路径|运行环境/);
   for(const patch of [{dependencies:{minecraft:'1.20.1',unknown:'1'}},{formatVersion:2},{files:[{path:'mods/a.jar',hashes:{},fileSize:1,downloads:['https://cdn.modrinth.com/a']}]}])await assert.rejects(inspectMrpack((await sample({indexPatch:patch})).archive));
-  await assert.rejects(inspectMrpack(Buffer.alloc(MAX_PACK_BYTES+1)),/16 MB/);
+  const file=path.join(await temporary(t),'oversize.mrpack');await writeFile(file,Buffer.alloc(0));const {truncate}=await import('node:fs/promises');await truncate(file,MAX_PACK_BYTES+1);await assert.rejects(inspectMrpack(file),/600 MB/);
 });
 test('pack download allowlist rejects private targets, credentials and redirect escapes',async()=>{
   for(const url of ['http://cdn.modrinth.com/a','https://localhost/a','https://127.0.0.1/a','https://user:pass@cdn.modrinth.com/a','https://cdn.modrinth.com:123/a'])assert.throws(()=>packURL(url));
@@ -89,7 +89,7 @@ test('progress exposes current file, real bytes, speed and phase ETA without inv
   p.phase('loader','安装 Forge',4);p.detail('processor.jar');assert.equal(p.state().etaSeconds,null);assert.equal(p.state().percent,null);p.end('failed','network failed');assert.equal(events.at(-1).message,'network failed');
 });
 test('schema 5 databases migrate without altering accounts, rooms or membership',async t=>{
-  const temp=await temporary(t),db=path.join(temp,'existing.sqlite');let store=new Store(db);store.db.exec('DROP TABLE room_packs;PRAGMA user_version=5;');store.run('INSERT INTO users VALUES (?,?,?)','old','原来的用户',1);store.close();store=new Store(db);assert.equal(store.get('PRAGMA user_version').user_version,6);assert.equal(store.get('SELECT name FROM users WHERE id=?','old').name,'原来的用户');store.close();
+  const temp=await temporary(t),db=path.join(temp,'existing.sqlite');let store=new Store(db);store.db.exec('DROP TABLE pack_uploads; DROP TABLE room_packs; DROP TABLE pack_files;PRAGMA user_version=5;');store.run('INSERT INTO users VALUES (?,?,?)','old','原来的用户',1);store.close();store=new Store(db);assert.equal(store.get('PRAGMA user_version').user_version,7);assert.equal(store.get('SELECT name FROM users WHERE id=?','old').name,'原来的用户');store.close();
 });
 async function serverFixture(t){const app=await createApp({port:0,dbPath:':memory:'});t.after(()=>app.close());const call=async(url,body,token)=>{const r=await fetch(app.url+url,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{'X-Session':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:r.status,data:await r.json()};};const host=(await call('/api/session',{name:'房主'})).data.id,member=(await call('/api/session',{name:'成员'})).data.id,outsider=(await call('/api/session',{name:'路人'})).data.id,room=(await call('/api/rooms',{name:'整合包测试'},host)).data;await call('/api/join',{code:room.code},member);return {app,call,host,member,outsider,room};}
 test('host publishes one exact pack, member downloads it, outsiders and non-host writes are rejected',async t=>{

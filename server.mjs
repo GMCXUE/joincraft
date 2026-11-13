@@ -5,7 +5,7 @@ export { createApp };
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const app = await createApp({
     port: Number(process.env.PORT || 4180), host: process.env.HOST || '127.0.0.1',
-    dbPath: process.env.DATABASE_PATH, publicOrigin: process.env.PUBLIC_ORIGIN,
+    dbPath: process.env.DATABASE_PATH, publicOrigin: process.env.PUBLIC_ORIGIN, packDir: process.env.PACK_DIRECTORY,
     voice: process.env.LIVEKIT_URL && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET ? {url:process.env.LIVEKIT_URL,apiUrl:process.env.LIVEKIT_API_URL,key:process.env.LIVEKIT_API_KEY,secret:process.env.LIVEKIT_API_SECRET} : undefined,
     logger: process.env.LOG_LEVEL !== 'silent', trustedProxy: process.env.TRUST_PROXY,
   });

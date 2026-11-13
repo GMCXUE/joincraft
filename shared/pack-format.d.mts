@@ -1,7 +1,12 @@
 export const MAX_PACK_BYTES:number;
+export const LEGACY_PACK_BYTES:number;
+export const UPLOAD_CHUNK_BYTES:number;
 export type PackSummary={sha512:string;name:string;versionId:string;minecraft:string;loader:string;loaderVersion:string;archiveSize:number;totalBytes:number};
 export function packURL(value:string):string;
 export function packPath(value:string):string;
-export function inspectMrpack(buffer:Buffer,options?:{overrides?:boolean}):Promise<PackSummary & Record<string,any>>;
+export function archiveSize(source:Buffer|string):Promise<number>;
+export function archiveHash(source:Buffer|string,options?:{signal?:AbortSignal;onProgress?:(state:any)=>void}):Promise<string>;
+export function inspectMrpack(source:Buffer|string,options?:{overrides?:boolean;signal?:AbortSignal;onProgress?:(state:any)=>void}):Promise<PackSummary & Record<string,any>>;
+export function extractMrpackOverrides(source:Buffer|string,entries:any[],root:string,options?:{signal?:AbortSignal;onProgress?:(state:any)=>void}):Promise<void>;
 export function packSummary(pack:PackSummary):PackSummary;
 export function destination(root:string,relative:string):string;

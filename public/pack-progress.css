@@ -17,3 +17,5 @@
 
 .pack-progress[data-state=done] .pack-progress-stages,.pack-progress[data-state=done] .pack-progress-current,.pack-progress[data-state=done] .pack-progress-file-size,.pack-progress[data-state=done] progress,.pack-progress[data-state=done] .pack-progress-stats{display:none;}
 .pack-progress[data-state=done] .pack-progress-end{margin-top:8px;}
+
+.pack-progress:not([data-operation=install]) .pack-progress-stages{display:none;}

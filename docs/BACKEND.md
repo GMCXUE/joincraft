@@ -212,3 +212,14 @@ Compatibility note: the historical REST capabilities.realtime value remains "sse
 ### 客户端会话激活确认（0.9.16）
 
 claim 返回会话所属 userId。原始 token 保持在主进程，写入 HttpOnly Cookie 后，通过同一个 Chromium Session 的带凭据请求读取 /api/state，确认账号一致。托管页面再次读取并校验账号，完成后才关闭登录弹窗；暂时断网自动重试，仍失败保留行内提示与重试连接。旧客户端不依赖新增 userId 字段，兼容托管页面修复。GET /api/state 不再重发 Cookie，避免旧请求的迟到响应覆盖新登录；持久 Cookie 自会话签发起保留 30 天。
+
+## 整合包存储与传输（0.9.20）
+
+- 房主可选择最大 **600 MB（629,145,600 字节）** 的标准 `.mrpack`。原文件不经过网页 IPC/base64；客户端原生读取，按 4 MB 分块上传，断线后可继续。成员通过有房间权限的下载接口流式下载、SHA-512 校验，随后安装。
+- VPS 文件默认放在数据库同级的 `packs/files/<sha512>.mrpack`；生产路径是 `/var/lib/joincraft/packs/files/`。上传暂存于 `packs/uploads/<uploadId>.part`，任务过期后清理。可用 `PACK_DIRECTORY` 指定根目录。
+- SQLite 只保存房间绑定、文件索引与上传状态。启动时自动迁移旧版不超过 16 MB 的 SQLite 整合包，保持指纹、房间和成员权限。迁移前备份数据库；回滚时必须使用支持 schema 7 和文件存储的应用版本。
+- 默认总存储限额 5 GB，最多同时两份上传、每用户一份；有磁盘余量检查，4 MB 分块校验。解除绑定不会移除成员已安装的游戏；服务器无引用文件保留一小时后清理。
+- 客户端默认目录：Windows `文档/Joincraft`，可在游戏库中更改。每个实例为 `instances/<uuid>/.minecraft/`，其中包含 mods、config、saves；原始安装包为实例旁的 `pack.mrpack`。下载缓存为 `downloads/<sha512>.mrpack`，中断暂存为 `.part`，下载依赖缓存为 `cache/`，Java 在 `runtimes/`。房主选择原文件不会自动移动或删除该文件。
+- `npm run backup -- /backup/app.sqlite` 同时生成数据库快照及 `app.sqlite.packs/`（有绑定整合包时）。恢复时一并保留两者，将文件目录作为 `PACK_DIRECTORY`；只复制 SQLite 无法恢复 0.9.20 起的整合包原文件。未完成上传可重新开始。
+- Nginx 保持普通接口的小请求限制，只给 `/api/rooms/<id>/pack/uploads/<uploadId>/chunk` 放行 4m，并关闭请求缓冲。旧 24m JSON 接口仅用于兼容 <=16 MB 的旧客户端；大文件要求更新客户端。
+- 验证：`npm run test:packs`；`npm run test:packs:large` 会生成约 600 MB 的临时包，实际上传、成员下载、流式解压和本地登记，完成后清理；游戏环境用模拟器，不启动真实 MC。

@@ -1,8 +1,14 @@
 import {createHash} from 'node:crypto';
 import path from 'node:path';
-import {open,walkEntriesGenerator,readEntry} from '@xmcl/unzip';
+import {stat,mkdir} from 'node:fs/promises';
+import {createReadStream,createWriteStream} from 'node:fs';
+import {Transform,Writable} from 'node:stream';
+import {pipeline} from 'node:stream/promises';
+import {open,walkEntriesGenerator,readEntry,openEntryReadStream} from '@xmcl/unzip';
 
-export const MAX_PACK_BYTES=16*1024*1024;
+export const MAX_PACK_BYTES=600*1024*1024;
+export const LEGACY_PACK_BYTES=16*1024*1024;
+export const UPLOAD_CHUNK_BYTES=4*1024*1024;
 const allowedHosts=new Set(['cdn.modrinth.com','github.com','raw.githubusercontent.com','objects.githubusercontent.com','release-assets.githubusercontent.com','gitlab.com']);
 export function packURL(value){
   let url;try{url=new URL(value);}catch{throw Error('整合包包含无效下载地址');}
@@ -37,32 +43,59 @@ export function inspectIndex(index){
   if(totalBytes>20*1024**3)throw Error('整合包超过首版 20 GB 安装上限');
   return {name,versionId,minecraft,loader,loaderKey,loaderVersion,files,totalBytes};
 }
-export async function inspectMrpack(buffer,{overrides=false}={}){
-  if(!Buffer.isBuffer(buffer)||buffer.length<20||buffer.length>MAX_PACK_BYTES)throw Error('首版支持 16 MB 以内的 .mrpack 文件（模组由客户端另外下载）');
-  const zip=await open(buffer);const seen=new Set(),entries=[];let index,total=0,count=0;
+export async function archiveSize(source){
+  const size=Buffer.isBuffer(source)?source.length:typeof source==='string'?await stat(source).then(info=>info.isFile()?info.size:0):0;
+  if(size<20||size>MAX_PACK_BYTES)throw Error('整合包文件最大支持 600 MB');return size;
+}
+export async function archiveHash(source,{signal,onProgress}={}){
+  const total=await archiveSize(source),hash=createHash('sha512');let completed=0;
+  const stream=Buffer.isBuffer(source)?[source]:createReadStream(source,{highWaterMark:256*1024});
+  try{for await(const chunk of stream){signal?.throwIfAborted();hash.update(chunk);completed+=chunk.length;onProgress?.({file:'校验整合包文件',completed,total});}}
+  finally{stream.destroy?.();}
+  return hash.digest('hex');
+}
+export async function inspectMrpack(source,{overrides=false,signal,onProgress}={}){
+  const size=await archiveSize(source),zip=await open(source),seen=new Set(),entries=[];let index,total=0,count=0,buffered=0;
   try{
     for await(const entry of walkEntriesGenerator(zip)){
-      if(++count>12000)throw Error('整合包文件数量过多');
-      const name=entry.fileName;
-      packPath(name.endsWith('/')?name.slice(0,-1):name);
+      signal?.throwIfAborted();if(++count>12000)throw Error('整合包文件数量过多');
+      const name=entry.fileName;packPath(name.endsWith('/')?name.slice(0,-1):name);
       if(seen.has(name.toLowerCase()))throw Error('整合包包含重复压缩条目');seen.add(name.toLowerCase());
       const mode=entry.externalFileAttributes>>>16;if((mode&0xf000)===0xa000)throw Error('整合包不支持符号链接');
-      total+=entry.uncompressedSize;if(total>128*1024*1024||entry.uncompressedSize>32*1024*1024)throw Error('整合包内置文件超过首版限制');
+      if(!Number.isSafeInteger(entry.uncompressedSize)||entry.uncompressedSize<0)throw Error('整合包文件大小无效');
+      total+=entry.uncompressedSize;if(total>4*1024**3||entry.uncompressedSize>1024**3)throw Error('整合包解压后总大小不得超过 4 GB，单个文件不得超过 1 GB');
       if(name==='modrinth.index.json'){
-        if(entry.uncompressedSize>2*1024*1024)throw Error('整合包清单过大');
-        index=JSON.parse((await readEntry(zip,entry)).toString('utf8'));
+        if(entry.uncompressedSize>2*1024*1024)throw Error('整合包清单过大');index=JSON.parse((await readEntry(zip,entry)).toString('utf8'));
       }else if(!name.endsWith('/')&&/^(?:overrides|client-overrides)\//.test(name)){
-        const relative=packPath(name.slice(name.indexOf('/')+1));
-        const data=await readEntry(zip,entry);
-        entries.push({path:relative,priority:name.startsWith('client-overrides/')?1:0,sha512:createHash('sha512').update(data).digest('hex'),...(overrides?{data}:{})});
+        const relative=packPath(name.slice(name.indexOf('/')+1)),hash=createHash('sha512'),chunks=[];let completed=0;
+        if(overrides&&(buffered+=entry.uncompressedSize)>LEGACY_PACK_BYTES)throw Error('大整合包需要使用文件流模式解压');
+        const stream=await openEntryReadStream(zip,entry);
+        // yauzl 2 streams override destroy() without the modern close contract.
+        // pipeline uses their end events, including tiny stored ZIP entries.
+        try{await pipeline(stream,new Writable({write(chunk,_encoding,callback){try{signal?.throwIfAborted();hash.update(chunk);completed+=chunk.length;if(completed>entry.uncompressedSize)throw Error('整合包文件大小不一致');if(overrides)chunks.push(chunk);onProgress?.({file:relative,completed,total:entry.uncompressedSize});callback();}catch(error){callback(error);}}}),{signal});if(completed!==entry.uncompressedSize)throw Error('整合包文件大小不一致');}
+        finally{stream.destroy();}
+        entries.push({path:relative,entryName:name,size:entry.uncompressedSize,priority:name.startsWith('client-overrides/')?1:0,sha512:hash.digest('hex'),...(overrides?{data:Buffer.concat(chunks)}:{})});
       }
     }
   }finally{zip.close();}
-  const parsed=inspectIndex(index),selected=new Map();
-  for(const entry of entries.sort((a,b)=>a.priority-b.priority))selected.set(entry.path.toLowerCase(),entry);
-  const files=new Set(parsed.files.map(f=>f.path.toLowerCase()));
-  for(const entry of selected.values())if(files.has(entry.path.toLowerCase()))throw Error('整合包下载清单与内置文件重复');
-  return {...parsed,sha512:createHash('sha512').update(buffer).digest('hex'),archiveSize:buffer.length,overrides:[...selected.values()]};
+  const parsed=inspectIndex(index),selected=new Map();for(const entry of entries.sort((a,b)=>a.priority-b.priority))selected.set(entry.path.toLowerCase(),entry);
+  const files=new Set(parsed.files.map(f=>f.path.toLowerCase()));for(const entry of selected.values())if(files.has(entry.path.toLowerCase()))throw Error('整合包下载清单与内置文件重复');
+  return {...parsed,totalBytes:parsed.totalBytes+[...selected.values()].reduce((sum,entry)=>sum+entry.size,0),sha512:await archiveHash(source,{signal,onProgress}),archiveSize:size,overrides:[...selected.values()]};
+}
+export async function extractMrpackOverrides(source,entries,root,{signal,onProgress}={}){
+  const selected=new Map(entries.map(entry=>[entry.entryName,entry])),zip=await open(source);let written=0;
+  try{
+    for await(const entry of walkEntriesGenerator(zip)){
+      signal?.throwIfAborted();const expected=selected.get(entry.fileName);if(!expected)continue;
+      const file=destination(root,expected.path);await mkdir(path.dirname(file),{recursive:true});
+      const hash=createHash('sha512');let bytes=0;
+      const meter=new Transform({transform(chunk,_encoding,callback){try{signal?.throwIfAborted();bytes+=chunk.length;if(bytes>expected.size)throw Error('整合包文件大小不一致');hash.update(chunk);onProgress?.({file:expected.path,completed:bytes,total:expected.size});callback(null,chunk);}catch(error){callback(error);}}});
+      await pipeline(await openEntryReadStream(zip,entry),meter,createWriteStream(file,{flags:'wx',mode:0o600}),{signal});
+      if(bytes!==expected.size||hash.digest('hex')!==expected.sha512)throw Error('解压校验失败：'+expected.path);
+      onProgress?.({file:expected.path,completed:bytes,total:expected.size,done:true});written++;
+    }
+    if(written!==entries.length)throw Error('整合包缺少内置文件');
+  }finally{zip.close();}
 }
 export function packSummary(pack){const {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes}=pack;return {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes};}
 export function destination(root,relative){return path.join(root,...packPath(relative).split('/'));}

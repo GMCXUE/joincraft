@@ -1,10 +1,10 @@
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {mkdir,readFile,writeFile,readdir,rm,rename,stat,chmod,symlink,statfs} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,readdir,rm,rename,stat,chmod,symlink,statfs,copyFile} from 'node:fs/promises';
 import {randomUUID,createHash} from 'node:crypto';
 import {Version,getPlatform} from '@xmcl/core';
 import {installFabric,installQuiltVersion,installForgeTask,installNeoForgedTask} from '@xmcl/installer';
-import {inspectMrpack,packSummary,packURL,destination} from '../shared/pack-format.mjs';
+import {inspectMrpack,extractMrpackOverrides,archiveHash,packSummary,packURL,destination} from '../shared/pack-format.mjs';
 import {safePart,inside,resolveInstance} from './library.mjs';
 import {probeJava,validateFiles} from './launch.mjs';
 import {InstallProgress} from './install-progress.mjs';
@@ -50,7 +50,7 @@ export class ManagedPacks {
     this.busy=true;this.controller=new AbortController();const signal=this.controller.signal;
     let stage;this.progress.sha512=undefined;this.progress.begin('整合包');
     try{
-      const pack=await inspectMrpack(buffer,{overrides:true});this.progress.name=pack.name;this.progress.sha512=pack.sha512;
+      const pack=await inspectMrpack(buffer,{signal,onProgress:state=>this.progress.update(state.file,state.completed,state.total)});this.progress.name=pack.name;this.progress.sha512=pack.sha512;
       if(expectedHash&&pack.sha512!==expectedHash)throw Error('下载的整合包与房间版本不一致，请重新获取');
       const match=await this.matching(pack.sha512);if(match.status==='ready'){this.progress.end('done','整合包已安装');return match.instance;}
       await mkdir(this.root,{recursive:true});const space=await statfs(this.root).catch(()=>null);
@@ -62,12 +62,14 @@ export class ManagedPacks {
       signal.throwIfAborted();
       this.progress.phase('mods','下载模组',5,pack.files);
       await downloadMany(pack.files,game,{...context,checkURL:packURL});
-      this.progress.phase('verify','解压配置与校验',6,pack.overrides.map(entry=>({path:entry.path,size:entry.data.length})));
-      for(const entry of pack.overrides){signal.throwIfAborted();const file=destination(game,entry.path);await mkdir(path.dirname(file),{recursive:true});await writeFile(file,entry.data,{flag:'wx'});this.progress.update(entry.path,entry.data.length,entry.data.length,{done:true});}
+      this.progress.phase('verify','解压配置与校验',6,pack.overrides.map(entry=>({path:entry.path,size:entry.size})));
+      await extractMrpackOverrides(buffer,pack.overrides,game,{signal,onProgress:state=>this.progress.update(state.file,state.completed,state.total,{done:state.done})});
       const lock=[...pack.files.map(f=>({path:f.path,sha512:f.hashes.sha512})),...pack.overrides.filter(e=>/^(mods|config|defaultconfigs|scripts|kubejs)\//.test(e.path)).map(e=>({path:e.path,sha512:e.sha512}))];
       const packInfo=packSummary(pack),record={schema:1,id:'managed-'+uuid,pack:packInfo,version:installed.version,javaPath:installed.java.path,javaMajor:installed.java.major,lock,createdAt:Date.now()};
       await mkdir(path.join(game,'.joincraft'));await writeFile(path.join(game,'.joincraft','instance.json'),JSON.stringify({schema:1,version:record.version}));
-      await writeFile(path.join(stage,'pack.mrpack'),buffer);await writeFile(path.join(stage,'instance.json'),JSON.stringify(record));
+      if(typeof buffer==='string')await copyFile(buffer,path.join(stage,'pack.mrpack'));else await writeFile(path.join(stage,'pack.mrpack'),buffer);
+      if(await archiveHash(path.join(stage,'pack.mrpack'),{signal})!==pack.sha512)throw Error('整合包原文件已变化，请重新选择');
+      await writeFile(path.join(stage,'instance.json'),JSON.stringify(record));
       signal.throwIfAborted();const final=path.join(parent,uuid);await rename(stage,final);stage=null;
       this.progress.end('done','安装完成，已加入游戏库');return (await this.list()).find(item=>item.id===record.id);
     }catch(error){const cancelled=signal.aborted;this.progress.end(cancelled?'cancelled':'failed',cancelled?'安装已取消':error.message||'安装失败，请重试');throw cancelled?Error('安装已取消'):error;}

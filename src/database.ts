@@ -93,6 +93,11 @@ const migrations = [String.raw`
   ) STRICT;
 `, String.raw`
   CREATE TABLE room_packs (room_id TEXT PRIMARY KEY REFERENCES rooms(id), summary TEXT NOT NULL, archive BLOB NOT NULL CHECK(length(archive)<=16777216), updated_at INTEGER NOT NULL) STRICT;
+`, String.raw`
+  CREATE TABLE pack_files (sha512 TEXT PRIMARY KEY,size INTEGER NOT NULL CHECK(size BETWEEN 20 AND 629145600),summary TEXT NOT NULL,created_at INTEGER NOT NULL,released_at INTEGER) STRICT;
+  ALTER TABLE room_packs ADD COLUMN file_hash TEXT REFERENCES pack_files(sha512);
+  CREATE TABLE pack_uploads (id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES rooms(id),user_id TEXT NOT NULL REFERENCES users(id),sha512 TEXT NOT NULL,size INTEGER NOT NULL CHECK(size BETWEEN 20 AND 629145600),expected_hash TEXT,state TEXT NOT NULL DEFAULT 'uploading',error TEXT,expires_at INTEGER NOT NULL) STRICT;
+  CREATE INDEX pack_uploads_owner ON pack_uploads(user_id,room_id,sha512);
 `];
 
 export class Store {

@@ -45,7 +45,7 @@ async function api(path,body,token=session){
 }
 const realtimeRequest=(type,body)=>realtime?realtime.request(type,body):Promise.reject(new Error('实时连接正在建立，请稍后重试'));
 const socialUI=createSocialUI({api,realtime:realtimeRequest,getState:()=>state,getVersion:()=>authVersion,icon,escape,initials,setHTML,toast,openAuth,smallDialog,formHandler,refresh});
-const roomPacksUI=createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,getRoom:()=>route().room});
+const roomPacksUI=createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,getRoom:()=>route().room,getSession:()=>session});
 const playUI=createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion:()=>authVersion});
 const communityUI=createCommunityUI({api,realtime:realtimeRequest,getState:()=>state,getVersion:()=>authVersion,escape,initials,icon,setHTML,toast,smallDialog,formHandler,refresh});
 const profileUI=createProfileUI({api,getState:()=>state,getVersion:()=>authVersion,icon,escape,setHTML,toast,openAuth,formHandler,refresh});

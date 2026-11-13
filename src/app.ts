@@ -1,4 +1,6 @@
 import Fastify, { LogController, type FastifyRequest } from 'fastify';
+import type {Readable} from 'node:stream';
+import {UPLOAD_CHUNK_BYTES} from '../shared/pack-format.mjs';
 import { readFile } from 'node:fs/promises';
 import type { ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +21,7 @@ import { ApiError, fail, object } from './validation.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export type AppOptions = {
-  port?: number; host?: string; dbPath?: string; publicOrigin?: string;
+  port?: number; host?: string; dbPath?: string; publicOrigin?: string; packDir?:string;
   voice?: VoiceConfig; voiceGateway?: VoiceGateway; logger?: boolean; now?: () => number; trustedProxy?: string;
 };
 export async function createApp(options: AppOptions = {}) {
@@ -33,7 +35,7 @@ export async function createApp(options: AppOptions = {}) {
   const store = new Store(options.dbPath ?? resolve(root, 'data/blockroom.sqlite'));
   const service = new RoomService(store, options.now);
   const accounts = await Accounts.create(service);
-  const packs=new RoomPacks(service);service.packState=id=>packs.summary(id);
+  const packs=await RoomPacks.create(service,options.packDir);service.packState=id=>packs.summary(id);
   const social = new SocialService(service);
   const community = new Community(service);
   const voice = new Voice(community,options.voice,options.voiceGateway);
@@ -55,6 +57,7 @@ export async function createApp(options: AppOptions = {}) {
     logController: new LogController({disableRequestLogging: req=>req.url.startsWith('/voice/')}), bodyLimit: 400000, requestTimeout: 120000, connectionTimeout: 30000,
     trustProxy: options.trustedProxy || false, forceCloseConnections: true,
   });
+  app.addContentTypeParser('application/octet-stream',(_request,payload,done)=>done(null,payload));
   let origins: string[] = [];
   const relay = new Relay(service, app.server, () => origins);
   const voiceProxy=new VoiceProxy(voice,app.server,()=>origins);
@@ -109,7 +112,7 @@ export async function createApp(options: AppOptions = {}) {
       else if (!stream.raw.write(': heartbeat\n\n')) stream.raw.end();
     }
   }, 15000).unref();
-  const cleanup = setInterval(() => store.prune(service.now()), 3600000).unref();
+  const cleanup = setInterval(() => {store.prune(service.now());void packs.cleanup().catch(error=>app.log.error({err:error},'Pack cleanup failed'));}, 3600000).unref();
   store.prune(service.now());
   app.addHook('onRequest', async (request, reply) => {
     reply.headers({
@@ -131,6 +134,7 @@ export async function createApp(options: AppOptions = {}) {
         if (token) try { actors.set(request, service.authenticate(token)); }
         catch (error) { if (path === '/api/auth/register' && explicitToken(request)) throw error; }
       } else actors.set(request, service.authenticate(token));
+      if(request.method==='PUT'){if(!/^\/api\/rooms\/[^/]+\/pack\/uploads\/[^/]+\/chunk$/.test(path||''))fail('不支持此上传地址',404);service.consume('pack-chunks:'+actors.get(request)!.id,300,60000);}
       if(request.method==='POST'&&/^\/api\/rooms\/[^/]+\/pack$/.test(path||'')){service.consume('pack-upload:global',4,60000);service.consume('pack-upload:'+actors.get(request)!.id,3,60000);}
     }
   });
@@ -190,6 +194,17 @@ export async function createApp(options: AppOptions = {}) {
   for (const action of ['stop', 'disconnect'] as const) app.post<{Params:{id:string}}>(`/api/rooms/:id/play/${action}`, async request => { object(request.body); return relay.stop(request.params.id, actor(request), action === 'disconnect'); });
   app.post<{Params:{id:string}}>('/api/rooms/:id/pack',{bodyLimit:24*1024*1024},async request=>packs.publish(actor(request),request.params.id,object(request.body)));
   app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack',async request=>packs.download(actor(request),request.params.id,request.query.sha512));
+  app.post<{Params:{id:string}}>('/api/rooms/:id/pack/uploads',async request=>packs.begin(actor(request),request.params.id,object(request.body)));
+  app.get<{Params:{id:string;upload:string}}>('/api/rooms/:id/pack/uploads/:upload',async request=>packs.info(actor(request),request.params.id,request.params.upload));
+  app.put<{Params:{id:string;upload:string};Querystring:{offset?:string}}>('/api/rooms/:id/pack/uploads/:upload/chunk',{bodyLimit:UPLOAD_CHUNK_BYTES},async request=>packs.chunk(actor(request),request.params.id,request.params.upload,request.query.offset,request.body as Readable,request.headers['content-length'],request.headers['x-chunk-sha256']));
+  app.post<{Params:{id:string;upload:string}}>('/api/rooms/:id/pack/uploads/:upload/commit',async request=>{object(request.body);return packs.commit(actor(request),request.params.id,request.params.upload);});
+  app.post<{Params:{id:string;upload:string}}>('/api/rooms/:id/pack/uploads/:upload/cancel',async request=>{object(request.body);return packs.cancelUpload(actor(request),request.params.id,request.params.upload);});
+  app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack/meta',async request=>packs.descriptor(actor(request),request.params.id,request.query.sha512));
+  app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack/archive',async(request,reply)=>{
+    const result=await packs.archive(actor(request),request.params.id,request.query.sha512,request.headers.range);
+    reply.code(result.status).headers({'Content-Type':'application/x-modrinth-modpack+zip','Content-Length':String(result.end-result.start+1),'Accept-Ranges':'bytes',ETag:'"'+result.pack.sha512+'"','Content-Disposition':'attachment; filename="joincraft-'+result.pack.sha512.slice(0,16)+'.mrpack"'});
+    if(result.status===206)reply.header('Content-Range','bytes '+result.start+'-'+result.end+'/'+result.pack.archiveSize);return reply.send(result.stream);
+  });
   app.post<{Params:{id:string}}>('/api/rooms/:id/pack/remove',async request=>packs.remove(actor(request),request.params.id,object(request.body).expected));
   app.post('/api/join', async request => service.join(actor(request), object(request.body), request.ip));
   for (const action of ['settings', 'game', 'close', 'leave'] as const) {
@@ -284,7 +299,7 @@ export async function createApp(options: AppOptions = {}) {
     reply.code(code).send({ error: message });
   });
   const dispose = () => { for(const stream of streams)stream.raw.removeAllListeners('close'); realtime.close(); relay.close(); voiceProxy.close(); clearInterval(heartbeat); clearInterval(cleanup); for (const stream of streams) stream.raw.end(); streams.clear(); };
-  app.addHook('onClose', async () => { dispose(); await voice.close(); store.close(); });
+  app.addHook('onClose', async () => { dispose(); await voice.close(); await packs.close(); store.close(); });
   let url: string;
   try {
     url = await app.listen({ port, host });

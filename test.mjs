@@ -87,7 +87,7 @@ test('SQLite restart preserves identity, room, password, members, settings and e
   assert.throws(()=>execFileSync(process.execPath,['scripts/backup.mjs',backupPath],{env:{...process.env,DATABASE_PATH:dbPath},stdio:'pipe'}));
   await app.close();app=null;
   const db=new DatabaseSync(dbPath);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version,6);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,7);
   assert.equal(db.prepare('SELECT count(*) AS n FROM sessions WHERE token_hash=?').get(host).n,0);
   assert.notEqual(db.prepare('SELECT password FROM rooms').get().password,'persist-secret');
   db.close();
