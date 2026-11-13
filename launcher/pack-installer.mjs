@@ -4,7 +4,8 @@ import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,readdir,rm,rename,stat,chmod,symlink,statfs,copyFile} from 'node:fs/promises';
 import {randomUUID,createHash} from 'node:crypto';
 import {Version,getPlatform} from '@xmcl/core';
-import {installFabric,installQuiltVersion,installForgeTask,installNeoForgedTask} from '@xmcl/installer';
+import {installFabric,installQuiltVersion} from '@xmcl/installer';
+import {loaderInstallTask,loaderErrorMessage} from './installer-compat.mjs';
 import {inspectMrpack,extractMrpackOverrides,archiveHash,packSummary,packURL,destination} from '../shared/pack-format.mjs';
 import {safePart,inside,resolveInstance} from './library.mjs';
 import {probeJava,validateFiles} from './launch.mjs';
@@ -126,6 +127,7 @@ export class ManagedPacks {
   async runTask(task,context){
     const cancel=()=>{void task.cancel(15000).catch(()=>{});};context.signal.addEventListener('abort',cancel,{once:true});
     try{return await task.startAndWait({onStart:t=>{if(t.to)this.progress.detail(path.basename(t.to));},onUpdate:t=>{const name=t.to?path.basename(t.to):t.from?new URL(t.from).pathname.split('/').at(-1):'处理加载器组件';if(t.total>0)this.progress.update(name,Math.max(0,t.progress),t.total);else this.progress.detail(name);}});}
+    catch(error){if(context.signal.aborted)throw context.signal.reason;throw Error(loaderErrorMessage(error),{cause:error});}
     finally{context.signal.removeEventListener('abort',cancel);}
   }
   async installEnvironment(pack,game,context){
@@ -142,8 +144,7 @@ export class ManagedPacks {
     const fetchImpl=(url,init)=>this.fetchImpl(url,{...init,signal:AbortSignal.any([context.signal,AbortSignal.timeout(30000)])});
     if(pack.loaderKey==='fabric-loader')id=await installFabric({minecraft:game,minecraftVersion:pack.minecraft,version:pack.loaderVersion,fetch:fetchImpl});
     if(pack.loaderKey==='quilt-loader')id=await installQuiltVersion({minecraft:game,minecraftVersion:pack.minecraft,version:pack.loaderVersion,fetch:fetchImpl});
-    if(pack.loaderKey==='forge')id=await this.runTask(installForgeTask({mcversion:pack.minecraft,version:pack.loaderVersion},game,{java:java.path,spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
-    if(pack.loaderKey==='neoforge')id=await this.runTask(installNeoForgedTask('neoforge',pack.loaderVersion,game,{java:java.path,spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
+    if(['forge','neoforge'].includes(pack.loaderKey))id=await this.runTask(loaderInstallTask(pack,game,{java:java.path,spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
     context.signal.throwIfAborted();safePart(id);
     const version=id===pack.minecraft?await Version.parse(game,id,this.platform):await this.dependencies(game,id,context,4);
     this.progress.detail('校验 Minecraft 文件');await validateFiles(game,version);return {version:id,java};

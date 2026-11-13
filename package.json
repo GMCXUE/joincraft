@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit",
     "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env server.mjs",
-    "test": "npm run build && node --test test.mjs desktop-login.test.mjs client-platform.test.mjs realtime.test.mjs interaction.test.mjs profile.test.mjs relay.test.mjs launcher.test.mjs community.test.mjs updater.test.mjs desktop-surfaces.test.mjs bundle-updater.test.mjs packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs",
+    "test": "npm run build && node --test test.mjs desktop-login.test.mjs client-platform.test.mjs realtime.test.mjs interaction.test.mjs profile.test.mjs relay.test.mjs launcher.test.mjs community.test.mjs updater.test.mjs desktop-surfaces.test.mjs bundle-updater.test.mjs packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs",
     "backup": "node scripts/backup.mjs",
     "build:ui": "node scripts/build-ui.mjs",
     "desktop": "electron .",
@@ -25,7 +25,7 @@
     "build:icons": "node scripts/build-icons.mjs",
     "build:home": "node scripts/build-home.mjs",
     "preview:motion": "node scripts/preview-motion.mjs",
-    "test:packs": "node --test --test-timeout=60000 packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs",
+    "test:packs": "node --test --test-timeout=60000 packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs",
     "test:packs:large": "npm run build && node --max-old-space-size=192 scripts/test-large-pack.mjs",
     "benchmark:packs": "node scripts/benchmark-pack-download.mjs"
   },
@@ -36,7 +36,7 @@
     "@awesome.me/webawesome": "^3.14.0",
     "@azure/msal-node": "^7.2.1",
     "@xmcl/core": "2.15.1",
-    "@xmcl/installer": "6.0.1",
+    "@xmcl/installer": "6.1.2",
     "@xmcl/unzip": "2.1.2",
     "builder-util-runtime": "^9.7.0",
     "electron-updater": "^6.8.11",
@@ -64,7 +64,10 @@
   "author": "GMCXUE",
   "overrides": {
     "@xmcl/installer": {
-      "undici": "7.30.1"
+      "undici": "7.30.2"
+    },
+    "@xmcl/file-transfer": {
+      "undici": "7.30.2"
     }
   }
 }
