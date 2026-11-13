@@ -102,3 +102,30 @@ test('retrying a failed upload still enforces one active upload per host',async 
  const active=await s.json(s.route+'/uploads',{sha512:'9'.repeat(128),size:1024},s.host);assert.equal(active.status,200);
  assert.equal((await s.json(s.route+'/uploads',{sha512:f.pack.sha512,size:f.pack.archiveSize},s.host)).status,409);
 });
+
+test('host installs its retained upload without downloading the archive again, including after restart',async t=>{
+  const dir=await temporary(t),f=await fixtureFile(dir,{size:1024}),s=await server(t);let archives=0;
+  const options={serverURL:s.app.url,getDirectory:()=>dir+'/host',getHeaders:async()=>({'X-Session':s.host}),fetchImpl:async(url,init)=>{if(new URL(url).pathname.endsWith('/archive'))archives++;return fetch(url,init);}};
+  const host=new PackTransfer(options),chosen=await host.inspect(f.file);
+  await host.publish({roomId:s.room.id,draftId:chosen.draftId});
+  await rm(f.file);
+  const reopened=new PackTransfer(options),local=await reopened.download({roomId:s.room.id,sha512:f.pack.sha512});
+  assert.equal(sha(await readFile(local.file)),f.pack.sha512);assert.equal(archives,0);
+  assert.equal(local.pack.sha512,f.pack.sha512);
+  // A damaged retained copy is never accepted merely because its name and size match.
+  const bytes=await readFile(local.file);bytes[bytes.length-1]^=1;await writeFile(local.file,bytes);
+  await reopened.download({roomId:s.room.id,sha512:f.pack.sha512});assert.equal(archives,1);
+  // Local caches do not bypass current room membership or pinned-version checks.
+  assert.equal((await s.json('/api/rooms/'+s.room.id+'/close',{},s.host)).status,200);
+  await assert.rejects(reopened.download({roomId:s.room.id,sha512:f.pack.sha512}));
+});
+
+test('host rejects a changed source before publishing and removes an incomplete retained copy',async t=>{
+  const dir=await temporary(t),f=await fixtureFile(dir,{size:1024}),s=await server(t);
+  const host=new PackTransfer({serverURL:s.app.url,getDirectory:()=>dir+'/host',getHeaders:async()=>({'X-Session':s.host})}),chosen=await host.inspect(f.file);
+  const draft=host.drafts.get(chosen.draftId),bytes=await readFile(f.file);bytes[bytes.length-1]^=1;await writeFile(f.file,bytes);
+  draft.mtime=(await stat(f.file)).mtimeMs;
+  await assert.rejects(host.publish({roomId:s.room.id,draftId:chosen.draftId}),/已变化/);
+  assert.deepEqual(await readdir(dir+'/host/downloads'),[]);
+  assert.equal((await s.json('/api/state',undefined,s.host)).value.rooms[0].pack,null);
+});

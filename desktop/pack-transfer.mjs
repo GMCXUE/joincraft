@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {stat,mkdir,open,rename,rm} from 'node:fs/promises';
+import {stat,mkdir,open,rename,rm,copyFile} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {inspectMrpack,packSummary,archiveHash,MAX_PACK_BYTES} from '../shared/pack-format.mjs';
@@ -35,16 +35,29 @@ export class PackTransfer {
   }
   async json(url,options={}){const signal=AbortSignal.any([...(options.signal?[options.signal]:[]),AbortSignal.timeout(options.raw?120000:30000)]);return (await this.request(url,{...options,signal})).json();}
   async retry(fn,signal){let error;for(let i=0;i<3;i++){signal.throwIfAborted();try{return await fn();}catch(e){error=e;if(signal.aborted)throw signal.reason;if(e.status&&e.status<500&&![408,429].includes(e.status))throw e;if(i<2)await delay(700*(i+1),signal);}}throw error;}
+  async retainArchive(file,pack,signal){
+    const directory=path.join(this.getDirectory(),'downloads');await mkdir(directory,{recursive:true});
+    const target=path.join(directory,pack.sha512+'.mrpack');
+    if(await stat(target).then(info=>info.isFile()&&info.size===pack.archiveSize,()=>false)&&await archiveHash(target,{signal})===pack.sha512)return target;
+    const temporary=target+'.'+randomUUID()+'.part';
+    try{
+      signal.throwIfAborted();await copyFile(file,temporary);signal.throwIfAborted();
+      if(await stat(temporary).then(info=>info.size!==pack.archiveSize)||await archiveHash(temporary,{signal})!==pack.sha512)throw Error('整合包文件已变化，请重新选择');
+      signal.throwIfAborted();await rename(temporary,target);return target;
+    }finally{await rm(temporary,{force:true}).catch(()=>{});}
+  }
   async publish({roomId,draftId,expected=null,token}){
     const draft=this.drafts.get(draftId);if(!draft||draft.expiresAt<Date.now())throw Error('整合包选择已过期，请重新选择');
     const route=this.roomPath(roomId);
     return this.run('upload',draft.pack.name,async signal=>{
       const metadata=await stat(draft.file);if(metadata.size!==draft.size||metadata.mtimeMs!==draft.mtime)throw Error('整合包文件已变化，请重新选择');
+      this.progress.sha512=draft.pack.sha512;this.progress.phase('prepare','保留本地整合包',1);
+      const local=await this.retainArchive(draft.file,draft.pack,signal);
       const headers=await this.getHeaders(token);this.progress.sha512=draft.pack.sha512;const name=path.basename(draft.file);this.progress.phase('upload','上传房间整合包',1,[{path:name,size:draft.size}]);
       let upload=await this.retry(()=>this.json(route+'/uploads',{method:'POST',body:{sha512:draft.pack.sha512,size:draft.size,expected,replace:true},headers,signal}),signal);
       if(upload.state==='ready')return upload.pack;
       const uploadRoute=route+'/uploads/'+upload.uploadId;this.currentUpload={route:uploadRoute,headers};
-      const handle=await open(draft.file,'r');
+      const handle=await open(local,'r');
       try{
         while(upload.offset<draft.size){
           signal.throwIfAborted();const offset=upload.offset,length=Math.min(upload.chunkSize||4*MB,draft.size-offset);if(!Number.isInteger(offset)||offset<0||length<=0||length>4*MB)throw Error('服务器上传位置无效');
