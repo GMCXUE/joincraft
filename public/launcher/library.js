@@ -9,7 +9,7 @@ const api = window.blockroomLauncher;
 mountDesktopNotifications();
 let preferences = {};
 try { preferences = JSON.parse(localStorage.getItem('blockroom-launcher-preferences') || '{}'); if (!preferences || typeof preferences !== 'object') preferences = {}; } catch {}
-const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, javaInstallations:[], javaScanning:false, pclProfile:null,installBusy:false,arch:'x64' };
+const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, javaInstallations:[], javaScanning:false, installBusy:false,arch:'x64' };
 const text = (selector, value) => { $(selector).textContent = value; };
 function message(error) { $('#message').hidden = !error; text('#message', error?.message || error || ''); }
 function item() { return state.instances.find(i => i.id === state.selected); }
@@ -34,13 +34,7 @@ function pathLabel() {
   const sep = selected.root.includes('\\') ? '\\' : '/';
   text('#game-path', mode === 'isolated' ? `${selected.root}${sep}versions${sep}${selected.version}` : mode === 'shared' ? selected.root : '启动前需确认目录，避免读取错误的存档位置');
 }
-function renderPlayer(){
-  const custom=preferences.playerNames?.[playerRoot()],pcl=item()?.managed?null:state.pclProfile;
-  $('#player-name').value=typeof custom==='string'?custom:pcl?.name||'';
-  $('#pcl-player-names').replaceChildren(...(pcl?.names||[]).map(name=>{const option=document.createElement('option');option.value=name;return option;}));
-  text('#player-source',pcl?`${pcl.source} · ${pcl.name}`:item()?.managed?'':'未找到 PCL 离线启动记录');
-  $('#use-pcl-name').hidden=!pcl||$('#player-name').value===pcl.name;
-}
+function renderPlayer(){const custom=preferences.playerNames?.[playerRoot()];$('#player-name').value=typeof custom==='string'?custom:'';}
 function renderJava(){
   const selected=item(),compatible=java=>java.major===selected?.javaMajor&&java.arch===state.arch;
   const entries=[...state.javaInstallations].sort((a,b)=>Number(compatible(b))-Number(compatible(a)));
@@ -66,11 +60,11 @@ function setJava(java){
 function controls() {
   const selected = item();
   const running = state.installBusy || state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
-  for (const id of ['#import-pack','#empty-install','#pick-install-root','#pick-directory', '#empty-import', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
-  $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;$('#pick-directory').disabled ||= state.javaScanning;$('#empty-import').disabled ||= state.javaScanning;
+  for (const id of ['#import-pack','#empty-install','#pick-install-root', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
+  $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
   $('#launch').disabled = $('#check').disabled || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
-  for (const id of ['#directory-mode', '#player-name', '#offline-tab', '#microsoft-tab', '#use-pcl-name']) $(id).disabled = state.busy || running;
+  for (const id of ['#directory-mode', '#player-name', '#offline-tab', '#microsoft-tab']) $(id).disabled = state.busy || running;
   $('#directory-mode').disabled ||= !!selected?.managed;
   $('#login').disabled = !api || !state.account.configured || state.account.busy || state.busy || running;
   $('#logout').disabled = state.account.busy || state.busy || running;
@@ -93,8 +87,6 @@ function renderAccount() {
 function render() {
   text('#instance-count', state.instances.length);
   text('#managed-root',state.managedRoot||'');$('#managed-root').title=state.managedRoot||'';
-  text('#root-path', state.root || '选择已安装整合包所在的文件夹');
-  $('#root-path').hidden=!state.instances.some(instance=>!instance.managed);
   $('#instances').replaceChildren(...state.instances.map(instance => {
     const button = document.createElement('button'); button.className = 'instance'; button.setAttribute('aria-current', String(instance.id === state.selected));
     const avatar = document.createElement('span'); avatar.className = 'instance-avatar'; avatar.textContent = instance.name.slice(0, 2).toUpperCase();
@@ -116,14 +108,11 @@ function render() {
   renderPlayer();renderJava();renderAccount();
 }
 async function action(fn) { message(null); state.busy = true; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false; controls(); } }
-async function pick() { await action(async () => { const result = await api.pickDirectory(); if (result) { Object.assign(state, result); state.selected = state.instances[0]?.id; render(); await scanJava(); if (!state.instances.length) message('这个目录里没有可识别的版本，请选择已经安装好的整合包。'); } }); }
-$('#pick-directory').onclick = pick; $('#empty-import').onclick = pick;
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
-$('#use-pcl-name').onclick=()=>{if(!state.pclProfile)return;preferences.playerNames||={};delete preferences.playerNames[playerRoot()];renderPlayer();remember();};
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
-$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;$('#use-pcl-name').hidden=!state.pclProfile||$('#player-name').value===state.pclProfile.name;remember();};
+$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;remember();};
 $('#offline-tab').onclick = () => { state.accountMode = 'offline'; remember(); renderAccount(); };
 $('#microsoft-tab').onclick = () => { state.accountMode = 'microsoft'; remember(); renderAccount(); };
 $('#login').onclick = () => action(async () => { try { state.account = await api.login(); renderAccount(); } finally { $('#device-code').hidden = true; } });

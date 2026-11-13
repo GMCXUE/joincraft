@@ -5,20 +5,20 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {probeJava} from './launch.mjs';
 
-export function javaSearchLocations({platform=process.platform,env=process.env,home=os.homedir(),root,selected}={}){
+export function javaSearchLocations({platform=process.platform,env=process.env,home=os.homedir(),root,selected,externalRuntimes=true}={}){
   const p=platform==='win32'?path.win32:path.posix;
   const folders=[],executables=[];
   const add=(base,...parts)=>{if(base&&p.isAbsolute(base))folders.push(p.join(base,...parts));};
   add(env.JAVA_HOME);add(env.JDK_HOME);add(home,'.jdks');add(home,'.sdkman','candidates','java');
   for(const bin of (env.PATH||env.Path||'').split(platform==='win32'?';':':'))if(p.isAbsolute(bin.replace(/^"|"$/g,'')))executables.push(p.join(bin.replace(/^"|"$/g,''),platform==='win32'?'java.exe':'java'));
-  for(const base of new Set([selected,root,root&&p.dirname(root)].filter(Boolean))){
-    for(const folder of ['java','jre','jdk','runtime','PCL/Java'])add(base,...folder.split('/'));
+  for(const base of new Set([selected,root,externalRuntimes&&root&&p.dirname(root)].filter(Boolean))){
+    for(const folder of ['java','jre','jdk','runtime','runtimes',...(externalRuntimes?['PCL/Java']:[])])add(base,...folder.split('/'));
   }
   if(platform==='win32'){
     for(const base of new Set([env.ProgramFiles,env['ProgramFiles(x86)'],env.ProgramW6432].filter(Boolean))){
-      for(const vendor of ['Java','Eclipse Adoptium','Eclipse Foundation','Microsoft','Amazon Corretto','Zulu','BellSoft','Semeru','Minecraft Launcher/runtime','Minecraft/runtime'])add(base,...vendor.split('/'));
+      for(const vendor of ['Java','Eclipse Adoptium','Eclipse Foundation','Microsoft','Amazon Corretto','Zulu','BellSoft','Semeru',...(externalRuntimes?['Minecraft Launcher/runtime','Minecraft/runtime']:[])])add(base,...vendor.split('/'));
     }
-    add(env.APPDATA,'.minecraft','runtime');add(env.LOCALAPPDATA,'Programs','Eclipse Adoptium');add(env.LOCALAPPDATA,'.ftba','bin','runtime');add(home,'curseforge','minecraft','Install','runtime');
+    if(externalRuntimes){add(env.APPDATA,'.minecraft','runtime');add(env.LOCALAPPDATA,'Programs','Eclipse Adoptium');add(env.LOCALAPPDATA,'.ftba','bin','runtime');add(home,'curseforge','minecraft','Install','runtime');}
   }else if(platform==='darwin'){
     add('/Library/Java/JavaVirtualMachines');add(home,'Library','Java','JavaVirtualMachines');
     add('/opt/homebrew/opt');add('/usr/local/opt');
@@ -35,8 +35,8 @@ async function registryJavaPaths(){
   }catch{}
   return result;
 }
-export async function discoverJava({root,selected,savedPath,platform=process.platform,locations,probe=probeJava,maxCandidates=48,maxDirectories=600}={}){
-  const search=locations||javaSearchLocations({root,selected,platform});
+export async function discoverJava({root,selected,savedPath,platform=process.platform,externalRuntimes=true,locations,probe=probeJava,maxCandidates=48,maxDirectories=600}={}){
+  const search=locations||javaSearchLocations({root,selected,platform,externalRuntimes});
   const candidates=[savedPath,...search.executables].filter(Boolean);
   if(!locations&&platform==='win32')candidates.push(...await registryJavaPaths());
   const queue=search.folders.map(folder=>({folder,depth:0})),visited=new Set();
