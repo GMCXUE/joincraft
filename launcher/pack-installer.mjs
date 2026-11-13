@@ -15,8 +15,8 @@ import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} fr
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
 export class ManagedPacks {
-  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],resourceRoots=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=clientFetch,engine}={}){
-    Object.assign(this,{root:path.resolve(root),roots:[...new Set([path.resolve(root),...roots.map(p=>path.resolve(p))])],notify,javaCandidates,resourceRoots,probe,platform,fetchImpl,engine});this.progress=new InstallProgress(notify);this.busy=false;
+  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],resourceRoots=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=clientFetch,gatewayOrigin,engine}={}){
+    Object.assign(this,{root:path.resolve(root),roots:[...new Set([path.resolve(root),...roots.map(p=>path.resolve(p))])],notify,javaCandidates,resourceRoots,probe,platform,fetchImpl,gatewayOrigin,engine});this.progress=new InstallProgress(notify);this.busy=false;
   }
   state(){return {...this.progress.state(),root:this.root};}
   async list(){
@@ -145,7 +145,7 @@ export class ManagedPacks {
     const fetchImpl=(url,init)=>this.fetchImpl(url,{...init,signal:AbortSignal.any([context.signal,AbortSignal.timeout(30000)])});
     if(pack.loaderKey==='fabric-loader')id=await installFabric({minecraft:game,minecraftVersion:pack.minecraft,version:pack.loaderVersion,fetch:fetchImpl});
     if(pack.loaderKey==='quilt-loader')id=await installQuiltVersion({minecraft:game,minecraftVersion:pack.minecraft,version:pack.loaderVersion,fetch:fetchImpl});
-    if(['forge','neoforge'].includes(pack.loaderKey))id=await this.runTask(loaderInstallTask(pack,game,{java:java.path,onFile:file=>this.progress.detail(file),spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
+    if(['forge','neoforge'].includes(pack.loaderKey))id=await this.runTask(loaderInstallTask(pack,game,{java:java.path,gatewayOrigin:this.gatewayOrigin,onFile:file=>this.progress.detail(file),spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
     context.signal.throwIfAborted();safePart(id);
     const version=id===pack.minecraft?await Version.parse(game,id,this.platform):await this.dependencies(game,id,context,4);
     this.progress.detail('校验 Minecraft 文件');await validateFiles(game,version);return {version:id,java};

@@ -51,3 +51,13 @@ test('a Maven Central 404 cannot hide the primary Forge connection failure or th
   assert.match(loaderErrorMessage(failure),/连接中断/);assert.doesNotMatch(loaderErrorMessage(failure),/404/);assert.equal(loaderErrorFile(failure),'ForgeAutoRenamingTool-0.1.22-all.jar');
   assert.match(loaderErrorMessage(new AggregateError([fallback,primary])),/HTTP 404/);
 });
+
+
+test('Forge installer and pinned tool dependencies use the configured VPS gateway over real HTTP',async t=>{
+  const f=await forgeFixture({library:true});t.after(f.close);const {manager,context}=runner(f);
+  const install=loaderInstallTask(f.pack,f.root,{gatewayOrigin:f.origin,dispatcher:f.dispatcher,java:'fixture-java',spawn:()=>{throw Error('fixture must never execute Java');}});
+  assert.equal(await manager.runTask(install,context),f.id);
+  assert.ok(f.requests.some(r=>r.path.startsWith('/game-downloads/forge/')&&r.path.endsWith('installer.jar')));
+  assert.ok(f.requests.some(r=>r.path==='/game-downloads/forge'+f.libraryPath));
+  assert.deepEqual(f.blocked,[],'a working cache never contacts an external origin');
+});

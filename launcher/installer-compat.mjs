@@ -1,4 +1,5 @@
 import {createRequire} from 'node:module';
+import {acceleratedURLs} from './download-gateway.mjs';
 import {installForgeTask,installNeoForgedTask} from '@xmcl/installer';
 
 // XMCL 6.1.2 removes the old success-path instanceof check. Its downloader
@@ -44,6 +45,13 @@ function checkedStatus(dispatcher,onFile){
 }
 export function loaderInstallTask(pack,game,options={}){
   const configured={...options,dispatcher:checkedStatus(options.dispatcher||loaderTransport(),options.onFile)};
+  if(options.gatewayOrigin){
+    configured.libraryHost=library=>{
+      const hosts=options.mavenHost?[options.mavenHost].flat():[pack.loaderKey==='forge'?'https://maven.minecraftforge.net':'https://maven.neoforged.net/releases'];
+      const urls=options.libraryHost?.(library)||[...hosts.map(host=>host.replace(/\/$/,'')+'/'+library.download.path),library.download.url,'https://repo1.maven.org/maven2/'+library.download.path].filter(Boolean);
+      return acceleratedURLs(urls,options.gatewayOrigin);
+    };
+  }
   if(pack.loaderKey==='forge')return installForgeTask({mcversion:pack.minecraft,version:pack.loaderVersion},game,{mavenHost:'https://maven.minecraftforge.net',...configured});
   if(pack.loaderKey==='neoforge')return installNeoForgedTask('neoforge',pack.loaderVersion,game,configured);
   throw Error('不支持的加载器安装任务');

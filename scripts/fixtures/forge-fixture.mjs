@@ -17,7 +17,8 @@ export async function forgeFixture({loaderKey='forge',mode='success',library=fal
   let reached;const entered=new Promise(resolve=>reached=resolve),requests=[],blocked=[],sockets=new Set();
   const server=createServer((req,res)=>{
     requests.push({method:req.method,path:req.url});reached();
-    const libraryRequest=req.url===libraryPath;
+    const requestPath=req.url.replace(/^\/game-downloads\/[a-z-]+/,'');
+    const libraryRequest=requestPath===libraryPath;
     if(mode==='flaky-library'&&libraryRequest&&requests.filter(request=>request.path===libraryPath).length<=2){res.destroy();return;}
     if(mode==='library-503'&&libraryRequest){res.writeHead(503,{'Content-Length':11});res.end('unavailable');return;}
     if(mode==='reset'){res.destroy();return;}

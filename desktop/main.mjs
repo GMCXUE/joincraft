@@ -19,6 +19,7 @@ import { GameLauncher, probeJava } from '../launcher/launch.mjs';
 import {windowChromeOptions,TITLEBAR_COLOR} from './window-chrome.mjs';
 import {PackTransfer} from './pack-transfer.mjs';
 import {ManagedPacks} from '../launcher/pack-installer.mjs';
+import {createDownloadFetch} from '../launcher/download-gateway.mjs';
 import {inspectMrpack,packSummary,MAX_PACK_BYTES,LEGACY_PACK_BYTES} from '../shared/pack-format.mjs';
 import {createHash} from 'node:crypto';
 import {stat} from 'node:fs/promises';
@@ -142,7 +143,7 @@ else {
   account = new MicrosoftAccount({ clientId, client, notify: emit });
   launcher = new GameLauncher({ library, account, cacheDir: app.getPath('userData'), notify: emit });
   launcher.javaPath = prefs.javaPath || null;
-  managedPacks=new ManagedPacks({root:prefs.managedRoot||path.join(app.getPath('documents'),'Joincraft'),roots:prefs.managedRoots||[],notify:emit,resourceRoots:async()=>[...externalLibrary.values()].flatMap(instance=>[instance.root,path.join(instance.root,'versions',instance.version)]),javaCandidates:async()=>{const candidates=await discoverJava({root:prefs.root,selected:prefs.selectedRoot,savedPath:launcher.javaPath});if(launcher.javaPath&&!candidates.some(java=>java.path===launcher.javaPath))try{candidates.unshift(await probeJava(launcher.javaPath));}catch{}return candidates;}});
+  managedPacks=new ManagedPacks({gatewayOrigin:new URL(serverURL()).origin,fetchImpl:createDownloadFetch({origin:new URL(serverURL()).origin}),root:prefs.managedRoot||path.join(app.getPath('documents'),'Joincraft'),roots:prefs.managedRoots||[],notify:emit,resourceRoots:async()=>[...externalLibrary.values()].flatMap(instance=>[instance.root,path.join(instance.root,'versions',instance.version)]),javaCandidates:async()=>{const candidates=await discoverJava({root:prefs.root,selected:prefs.selectedRoot,savedPath:launcher.javaPath});if(launcher.javaPath&&!candidates.some(java=>java.path===launcher.javaPath))try{candidates.unshift(await probeJava(launcher.javaPath));}catch{}return candidates;}});
   packTransfer=new PackTransfer({serverURL:serverURL(),getDirectory:()=>managedPacks.root,notify:emit,getHeaders:async token=>{
     if(token!==undefined&&token!==null&&(typeof token!=='string'||token.length>200))throw Error('登录会话无效');
     const cookies=await roomWindow.webContents.session.cookies.get({url:serverURL()});const allowed=cookies.filter(cookie=>['blockroom_session','__Host-blockroom_session'].includes(cookie.name));
