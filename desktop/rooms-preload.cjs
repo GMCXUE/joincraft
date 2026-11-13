@@ -9,3 +9,6 @@ let surfaceCovered=false;
 function syncSurfaceCoverage(){if(document.body){document.body.inert=surfaceCovered;document.body.setAttribute('aria-hidden',String(surfaceCovered));}}
 ipcRenderer.on('shell:covered',(_event,covered)=>{surfaceCovered=covered===true;syncSurfaceCoverage();});
 window.addEventListener('DOMContentLoaded',syncSurfaceCoverage);
+
+const packCall=name=>async input=>{const result=await ipcRenderer.invoke('packs:'+name,input);if(!result.ok)throw new Error(result.error);return result.value;};
+contextBridge.exposeInMainWorld('joincraftPacks',Object.freeze({list:packCall('list'),retry:packCall('retry'),choose:packCall('choose'),status:packCall('status'),install:packCall('install'),open:packCall('open'),cancel:packCall('cancel'),progress:packCall('progress'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('packs:event',listener);return()=>ipcRenderer.removeListener('packs:event',listener);}}));

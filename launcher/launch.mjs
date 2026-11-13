@@ -106,7 +106,8 @@ export class GameLauncher {
     // Checking files never opens Microsoft sign-in or creates a game process.
     const identity = input.accountMode === 'offline' ? offlineIdentity(input.name) : realLaunch ? await this.account.forLaunch() : { name: 'AccountCheck', id: '00000000000000000000000000000000', accessToken: '0', userType: 'msa', clientId: this.account.clientId || '0', xuid: '0' };
     const java = await this.probe(this.javaPath);
-    return buildPlan({ instance, java, memoryMB: resolveMemory(input,await this.memoryProvider()), mode: input.mode, identity, cacheDir: this.cacheDir, platform: this.platform });
+    try { return await buildPlan({ instance, java, memoryMB: resolveMemory(input,await this.memoryProvider()), mode: input.mode, identity, cacheDir: this.cacheDir, platform: this.platform }); }
+    catch(error){if(instance.managed&&/PCL/.test(error.message))throw new Error(error.message.replace(/请先在 PCL 中补齐|请先在 PCL 中修复该实例|请先在 PCL 中修复该实例/g,'请重新安装此整合包，旧实例和存档会保留'));throw error;}
   }
   async check(input) {
     const plan = await this.plan(input);

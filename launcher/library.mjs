@@ -59,6 +59,7 @@ export async function resolveInstance(instance, platform = getPlatform()) {
 }
 
 export async function isolationFor(root, id, hierarchy) {
+  try { const managed=JSON.parse(await readFile(path.join(root,'.joincraft','instance.json'),'utf8'));if(managed.schema===1&&managed.version===id)return {mode:'shared',source:'joincraft 独立实例'}; } catch {}
   const dir = path.join(root, 'versions', id);
   const ini = await readIni(path.join(dir, 'PCL', 'Setup.ini'));
   // PCL launch scripts and injected authentication need explicit adapters. Never replay a .bat.

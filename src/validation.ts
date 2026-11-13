@@ -53,7 +53,7 @@ export function roomFields(body: Record<string, unknown>) {
 }
 export function gameFields(body: Record<string, unknown>) {
   const version = text(body.version, '版本号', 30, true), loader = body.loader ?? '原版';
-  if (typeof loader !== 'string' || !['原版', 'Fabric', 'Forge', 'NeoForge'].includes(loader)) fail('请选择游戏环境');
+  if (typeof loader !== 'string' || !['原版', 'Fabric', 'Forge', 'NeoForge', 'Quilt'].includes(loader)) fail('请选择游戏环境');
   const raw = body.port;
   const port = raw === undefined || raw === null || raw === '' ? null : Number(raw);
   if (typeof raw === 'boolean' || port !== null && (!Number.isInteger(port) || port < 1024 || port > 65535)) fail('端口需要为 1024–65535 的整数');

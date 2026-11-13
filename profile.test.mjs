@@ -20,14 +20,14 @@ test('legacy database migrates without changing identity; old profile updates pr
  assert.equal((await call('/api/profile',{name:'换个昵称'},token)).status,200);
  await restart();const after=(await call('/api/state',undefined,token)).data.profile;
  assert.equal(after.id,before.id);assert.equal(after.createdAt,before.createdAt);assert.equal(after.name,'换个昵称');assert.equal(after.avatarId,'skeleton');assert.equal(after.bio,'建筑与红石\n周末在线');
- const db=new DatabaseSync(dbPath,{readOnly:true});assert.equal(db.prepare('PRAGMA user_version').get().user_version,5);db.close();
+ const db=new DatabaseSync(dbPath,{readOnly:true});assert.equal(db.prepare('PRAGMA user_version').get().user_version,6);db.close();
 }));
 test('additive migration preserves a real v4 database and its existing records',()=>{
  const store=new Store(':memory:');store.run('INSERT INTO users VALUES (?,?,?)','old-user','旧账号',1234);
- store.db.exec('DROP TABLE user_profiles; PRAGMA user_version=4;');
+ store.db.exec('DROP TABLE room_packs; DROP TABLE user_profiles; PRAGMA user_version=4;');
  // Migrate a disk copy through the actual Store constructor.
  return (async()=>{const folder=await mkdtemp(join(tmpdir(),'joincraft-v4-profile-')),file=join(folder,'old.sqlite');
- try{store.db.exec(`VACUUM INTO '${file}'`);store.close();const migrated=new Store(file);assert.equal(migrated.get('SELECT name FROM users WHERE id=?','old-user').name,'旧账号');assert.equal(migrated.get('PRAGMA user_version').user_version,5);migrated.close();}finally{await rm(folder,{recursive:true,force:true});}
+ try{store.db.exec(`VACUUM INTO '${file}'`);store.close();const migrated=new Store(file);assert.equal(migrated.get('SELECT name FROM users WHERE id=?','old-user').name,'旧账号');assert.equal(migrated.get('PRAGMA user_version').user_version,6);migrated.close();}finally{await rm(folder,{recursive:true,force:true});}
  })();
 });
 test('profile validation is atomic and only permits local catalog avatars',()=>fixture(async({call,session})=>{

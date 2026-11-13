@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
+import type {PackSummary} from '../shared/pack-format.mjs';
 import { Store } from './database.js';
 import {avatarFor,avatarIds} from './avatars.js';
 import { fail, text, roomFields, gameFields, hashPassword, verifyPassword } from './validation.js';
@@ -14,6 +15,7 @@ export const digest = (input: string) => createHash('sha256').update(input).dige
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export class RoomService {
+  packState: (id:string)=>PackSummary|null = ()=>null;
   gameState: (id: string, actor: Principal) => unknown = () => ({ status: 'offline' });
   communityState: (id: string, actor: Principal) => unknown = () => ({});
   onChange: (users: string[], change?:RealtimeChange) => void = () => {};
@@ -84,7 +86,7 @@ export class RoomService {
     return {
       id: room.id, code: room.code, name: room.name, image: room.image, description: room.description,
       capacity: room.capacity, version: room.version, loader: room.loader, port: room.port,
-      connection: this.gameState(room.id, actor), community: this.communityState(room.id, actor),
+      pack:this.packState(room.id), connection: this.gameState(room.id, actor), community: this.communityState(room.id, actor),
       createdAt: room.created_at, closed: Boolean(room.closed), hasPassword: Boolean(room.password),
       hostName: members.find(m => m.id === room.owner_id)?.name ?? '房主', isHost: room.owner_id === actor.id,
       status: room.closed ? 'closed' : 'joined',
@@ -174,6 +176,7 @@ export class RoomService {
     if (action !== 'leave' && initial.owner_id !== actor.id) fail('只有房主可以操作', 403);
     const fields = action === 'settings' ? roomFields(body) : null;
     const game = action === 'game' ? gameFields(body) : null;
+    const pack=this.packState(id);if(game&&pack&&(game.version!==pack.minecraft||game.loader!==pack.loader))fail('游戏版本由房间整合包确定，请通过更换整合包修改');
     const mode = body.passwordMode ?? 'keep';
     if (fields && !['keep', 'set', 'remove'].includes(String(mode))) fail('密码操作无效');
     const changedPassword = fields && mode === 'set' ? await hashPassword(body.password) : null;

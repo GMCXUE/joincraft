@@ -41,3 +41,10 @@ test('privileged IPC accepts only the exact local main frame, never room or chil
 test('desktop room URL skips the official homepage and preserves explicit paths and queries',async()=>{
  const {roomPageURL}=await import('./desktop/room-url.mjs');assert.equal(roomPageURL('https://www.joincraft.top/'),'https://www.joincraft.top/app/');assert.equal(roomPageURL('http://127.0.0.1:4180/'),'http://127.0.0.1:4180/app/');assert.equal(roomPageURL('https://www.joincraft.top/app'),'https://www.joincraft.top/app/');assert.equal(roomPageURL('https://www.joincraft.top/app/?a=1#friends'),'https://www.joincraft.top/app/?a=1#friends');assert.equal(roomPageURL('https://example.com/custom/'),'https://example.com/custom/');
 });
+
+test('room pack IPC permits room navigation hashes but rejects other pages, origins and frames',async()=>{
+ const {trustedRoomFrame}=await import('./desktop/surfaces.mjs');const frame={url:'https://www.joincraft.top/app/#room/local/overview'},webContents={isDestroyed:()=>false,mainFrame:frame},view={webContents},event={sender:webContents,senderFrame:frame};
+ assert.equal(trustedRoomFrame(event,view,'https://www.joincraft.top/app/'),true);
+ for(const url of ['https://evil.invalid/app/#room','https://www.joincraft.top/login','https://www.joincraft.top/app/?different=1','https://www.joincraft.top:444/app/']){frame.url=url;assert.equal(trustedRoomFrame(event,view,'https://www.joincraft.top/app/'),false);}
+ frame.url='https://www.joincraft.top/app/#room';assert.equal(trustedRoomFrame({...event,senderFrame:{...frame}},view,'https://www.joincraft.top/app/'),false);assert.equal(trustedRoomFrame({...event,sender:{}},view,'https://www.joincraft.top/app/'),false);
+});

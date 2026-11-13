@@ -3,7 +3,7 @@ import electronUpdater from 'electron-updater';
 import {ClientUpdater} from './updater.mjs';
 import {BundleUpdater,acknowledgeBundle,previousBundleResult} from './bundle-updater.mjs';
 import {UpdateNotifications} from './update-notifications.mjs';
-import {DesktopSurfaces,alive,trustedFrame} from './surfaces.mjs';
+import {DesktopSurfaces,alive,trustedFrame,trustedRoomFrame} from './surfaces.mjs';
 import { PublicClientApplication } from '@azure/msal-node';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,6 +16,10 @@ import {readPclProfile} from '../launcher/pcl-profile.mjs';
 import {discoverJava} from '../launcher/java-discovery.mjs';
 import { MicrosoftAccount } from '../launcher/auth.mjs';
 import { GameLauncher, probeJava } from '../launcher/launch.mjs';
+import {ManagedPacks} from '../launcher/pack-installer.mjs';
+import {inspectMrpack,packSummary,MAX_PACK_BYTES} from '../shared/pack-format.mjs';
+import {createHash} from 'node:crypto';
+import {stat} from 'node:fs/promises';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -31,12 +35,21 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
+let managedPacks, managedSelection=null,lastPackInput=null;
+const externalLibrary=new Map();
+async function reloadLibrary(){library.clear();for(const item of [...externalLibrary.values(),...await managedPacks.list()])library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:prefs.root||managedPacks.root,pclProfile,managedRoot:managedPacks.root});}
+const anyGameBusy=()=>launcher.states().some(run=>['checking','starting','running'].includes(run.state));
+async function pickMrpack(){const result=await dialog.showOpenDialog(roomWindow,{title:'导入整合包',properties:['openFile'],filters:[{name:'Modrinth 整合包',extensions:['mrpack']}]});if(result.canceled)return null;const file=result.filePaths[0];if((await stat(file)).size>MAX_PACK_BYTES)throw Error('首版支持 16 MB 以内的 .mrpack 文件');return readFile(file);}
+async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');lastPackInput={buffer,sha512:hash||createHash('sha512').update(buffer).digest('hex')};const instance=await managedPacks.install(buffer,hash);managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
+async function choosePack(input){let buffer;if(input?.id){const instance=(await managedPacks.list()).find(i=>i.id===input.id);if(!instance)throw Error('未找到本地整合包');buffer=await readFile(path.join(path.dirname(instance.root),'pack.mrpack'));}else buffer=await pickMrpack();if(!buffer)return null;const pack=packSummary(await inspectMrpack(buffer));return {archive:buffer.toString('base64'),pack};}
+
 let pclProfile=null, javaInstallations=[], javaScan=null;
 let saving = Promise.resolve();
 const prefsPath = () => path.join(app.getPath('userData'), 'launcher.json');
 const save = () => { const content = JSON.stringify(prefs); saving = saving.catch(() => {}).then(() => writeFile(prefsPath(), content, { mode: 0o600 })); return saving; };
 const emit = event => {
   for(const view of [surfaces?.library,surfaces?.notifications])if(alive(view))view.webContents.send('launcher:event',event);
+  if(event.type==='pack-install'&&alive(roomWindow))roomWindow.webContents.send('packs:event',event);
   if(event.type==='update')surfaces?.notifyFocus();
 };
 function shellSender(event){
@@ -65,13 +78,14 @@ function handle(name, fn) {
 async function scan(selected) {
   emit({type:'library-scanning'});
   const result = await scanLibrary(selected);
-  library.clear();
-  for (const item of result.instances) library.set(item.id, item);
+  externalLibrary.clear();
+  for (const item of result.instances) externalLibrary.set(item.id, item);
   pclProfile=await readPclProfile({selected,root:result.root});
   prefs.root = result.root;prefs.selectedRoot=selected;
   javaInstallations=[];
   await save();
-  const discovered={...result,pclProfile};emit({type:'library',...discovered});
+  await reloadLibrary();
+  const discovered={...result,instances:[...library.values()],pclProfile,managedRoot:managedPacks.root};
   return discovered;
 }
 function protect(win, allowedURL) {
@@ -105,8 +119,8 @@ function openRooms() {
     view.setBackgroundColor(name==='notifications'?'#00000000':'#17181a');return view;
   }});
   roomWindow.on('close',event=>{
-    if(launcher.states().some(run=>['checking','starting','running'].includes(run.state))){
-      event.preventDefault();surfaces.closeNotifications();void openLibrary().then(()=>emit({type:'close-blocked',message:'游戏仍在运行，请先退出游戏再关闭 joincraft。'}));
+    if(anyGameBusy()||managedPacks?.busy){
+      event.preventDefault();surfaces.closeNotifications();void openLibrary().then(()=>emit({type:'close-blocked',message:managedPacks?.busy?'整合包仍在安装，请完成或取消安装后再关闭。':'游戏仍在运行，请先退出游戏再关闭 joincraft。'}));
     }
   });
   target.hash='friends';void loadRooms(roomWindow,target.href);
@@ -124,12 +138,13 @@ else {
   account = new MicrosoftAccount({ clientId, client, notify: emit });
   launcher = new GameLauncher({ library, account, cacheDir: app.getPath('userData'), notify: emit });
   launcher.javaPath = prefs.javaPath || null;
+  managedPacks=new ManagedPacks({root:prefs.managedRoot||path.join(app.getPath('documents'),'Joincraft'),roots:prefs.managedRoots||[],notify:emit,javaCandidates:async()=>{const candidates=await discoverJava({root:prefs.root,selected:prefs.selectedRoot,savedPath:launcher.javaPath});if(launcher.javaPath&&!candidates.some(java=>java.path===launcher.javaPath))try{candidates.unshift(await probeJava(launcher.javaPath));}catch{}return candidates;}});
   const {autoUpdater}=electronUpdater;
   // Keep signed update URLs and release contents out of renderer logs.
   autoUpdater.logger=null;
   const updateEngine=process.platform==='win32'?new BundleUpdater({app,currentVersion:app.getVersion()}):autoUpdater;
   clientUpdater=new ClientUpdater({updater:updateEngine,currentVersion:app.getVersion(),packaged:app.isPackaged,
-    notify:emit,gameBusy:()=>launcher.states().some(r=>['checking','starting','running'].includes(r.state)),
+    notify:emit,gameBusy:()=>anyGameBusy()||managedPacks.busy,
     beforeInstall:()=>saving,
     confirmInstall:version=>new Promise(resolve=>{
       if(!surfaces?.modal||!alive(surfaces.notifications)){resolve(false);return;}
@@ -151,8 +166,13 @@ else {
       await openNotifications();return {ok:true,value:null};
     }catch(error){return {ok:false,error:error.message||'操作失败'};}
   });
+  handle('import-pack',async()=>{const buffer=await pickMrpack();return buffer?installPack(buffer):null;});
+  handle('install-state',()=>managedPacks.state());
+  handle('cancel-pack',()=>managedPacks.cancel());
+  handle('retry-pack',()=>{if(!lastPackInput)throw Error('请重新导入整合包');return installPack(lastPackInput.buffer,lastPackInput.sha512);});
+  handle('pick-install-root',async()=>{if(anyGameBusy()||managedPacks.busy)throw Error('请先结束游戏或安装任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择游戏安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
-  handle('state', async () => ({ memory:await readSystemMemory(), root: prefs.root || null, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), pclProfile, javaInstallations, arch:process.arch }));
+  handle('state', async () => ({ memory:await readSystemMemory(), root: prefs.root || managedPacks.root, managedRoot:managedPacks.root,install:managedPacks.state(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), pclProfile, javaInstallations, arch:process.arch }));
   handle('pick-directory', async () => {
     if (launcher.states().some(r => ['checking', 'starting', 'running'].includes(r.state))) throw new Error('请先退出当前游戏，再切换目录');
     const result = await dialog.showOpenDialog(roomWindow, { title: '选择 PCL 整合包目录或 .minecraft', properties: ['openDirectory'] });
@@ -176,11 +196,34 @@ else {
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
   handle('check', input => launcher.check(input));
-  handle('start', input => {clientUpdater.assertCanLaunch();return launcher.start(input);});
+  handle('start', async input => {clientUpdater.assertCanLaunch();if(managedPacks.busy)throw Error('请等待整合包安装完成');const result=await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
   handle('rooms', openRooms);
+  for(const action of ['list','choose','status','install','open','cancel','progress','retry'])ipcMain.handle('packs:'+action,async(event,input)=>{
+    try{
+      if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本地整合包');
+      if(action==='list')return {ok:true,value:(await managedPacks.list()).map(i=>({id:i.id,name:i.name,pack:i.pack}))};
+      if(action==='choose')return {ok:true,value:await choosePack(input)};
+      if(action==='status'){const match=await managedPacks.matching(input?.sha512);return {ok:true,value:{status:match.status,id:match.instance?.id}};}
+      if(action==='retry'){if(!lastPackInput||input?.sha512!==lastPackInput.sha512)throw Error('请重新获取房间整合包');const result=await installPack(lastPackInput.buffer,lastPackInput.sha512);return {ok:true,value:{id:result.id}};}
+      if(action==='progress')return {ok:true,value:managedPacks.state()};
+      if(action==='cancel'){managedPacks.cancel();return {ok:true,value:null};}
+      if(action==='install'){
+        if(typeof input?.archive!=='string'||input.archive.length>Math.ceil(MAX_PACK_BYTES/3)*4||!/^[a-f0-9]{128}$/.test(input.sha512||''))throw Error('整合包文件无效');
+        const instance=await installPack(Buffer.from(input.archive,'base64'),input.sha512);return {ok:true,value:{id:instance.id,pack:instance.pack}};
+      }
+      if(action==='open'){
+        const match=await managedPacks.matching(input?.sha512);if(match.status!=='ready')throw Error(match.status==='changed'?'本地模组或配置已变化，请安装房间版本后启动':'请先安装房间整合包');
+        managedSelection=match.instance.id;if(match.instance.javaPath){launcher.javaPath=match.instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
+        const configured=prefs.managedLaunchInputs?.[managedSelection];
+        if(launcher.states().some(run=>run.id===managedSelection&&run.state==='running'))return {ok:true,value:{id:managedSelection,started:true}};
+        if(configured){try{clientUpdater.assertCanLaunch();if(managedPacks.busy)throw Error('请等待整合包安装完成');await launcher.start({...configured,id:managedSelection,mode:'auto'});return {ok:true,value:{id:managedSelection,started:true}};}catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}}
+        await openLibrary();emit({type:'pack-selected',id:managedSelection});return {ok:true,value:{id:managedSelection,needsSetup:true}};
+      }
+    }catch(error){return {ok:false,error:error.message||'整合包操作失败'};}
+  });
   ipcMain.handle('rooms:library', async event => {
     if (!roomWindow || event.sender !== roomWindow.webContents || event.senderFrame !== roomWindow.webContents.mainFrame) return;
     const target = new URL(serverURL());
@@ -208,6 +251,7 @@ else {
     roomWindow.webContents.once('did-finish-load',()=>void acknowledgeBundle(app,app.getVersion()));
     const message=await previousBundleResult(app);if(message)clientUpdater.set({message});
   }
+  await reloadLibrary();
   if(prefs.root)await scan(prefs.selectedRoot||prefs.root).catch(()=>{});
   if(app.isPackaged){
     const initialCheck=setTimeout(()=>void clientUpdater.check(),3000);initialCheck.unref();

@@ -1,4 +1,5 @@
 import '../focus.js';
+import {mountPackInstaller} from './packs.js';
 import {miningFeedback,animatePage} from '../motion.js';
 let libraryScanMotion=null;
 import {createMemoryControls} from './memory.js';
@@ -8,10 +9,11 @@ const api = window.blockroomLauncher;
 mountDesktopNotifications();
 let preferences = {};
 try { preferences = JSON.parse(localStorage.getItem('blockroom-launcher-preferences') || '{}'); if (!preferences || typeof preferences !== 'object') preferences = {}; } catch {}
-const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, javaInstallations:[], javaScanning:false, pclProfile:null, arch:'x64' };
+const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, javaInstallations:[], javaScanning:false, pclProfile:null,installBusy:false,arch:'x64' };
 const text = (selector, value) => { $(selector).textContent = value; };
 function message(error) { $('#message').hidden = !error; text('#message', error?.message || error || ''); }
 function item() { return state.instances.find(i => i.id === state.selected); }
+const playerRoot=()=>item()?.root||state.root;
 const prefKey = selected => `${selected.root}/${selected.version}`;
 const memoryUI=createMemoryControls({api,locked:()=>state.busy||state.runs.some(r=>['checking','starting','running'].includes(r.state)),getRun:()=>state.runs.find(r=>r.id===state.selected),onChange:()=>remember(),onRefresh:()=>controls()});
 window.addEventListener('beforeunload',()=>memoryUI.dispose());
@@ -33,11 +35,11 @@ function pathLabel() {
   text('#game-path', mode === 'isolated' ? `${selected.root}${sep}versions${sep}${selected.version}` : mode === 'shared' ? selected.root : '启动前需确认目录，避免读取错误的存档位置');
 }
 function renderPlayer(){
-  const custom=preferences.playerNames?.[state.root];
-  $('#player-name').value=typeof custom==='string'?custom:state.pclProfile?.name||'';
-  $('#pcl-player-names').replaceChildren(...(state.pclProfile?.names||[]).map(name=>{const option=document.createElement('option');option.value=name;return option;}));
-  text('#player-source',state.pclProfile?`${state.pclProfile.source} · ${state.pclProfile.name}`:'未找到 PCL 离线启动记录');
-  $('#use-pcl-name').hidden=!state.pclProfile||$('#player-name').value===state.pclProfile.name;
+  const custom=preferences.playerNames?.[playerRoot()],pcl=item()?.managed?null:state.pclProfile;
+  $('#player-name').value=typeof custom==='string'?custom:pcl?.name||'';
+  $('#pcl-player-names').replaceChildren(...(pcl?.names||[]).map(name=>{const option=document.createElement('option');option.value=name;return option;}));
+  text('#player-source',pcl?`${pcl.source} · ${pcl.name}`:item()?.managed?'':'未找到 PCL 离线启动记录');
+  $('#use-pcl-name').hidden=!pcl||$('#player-name').value===pcl.name;
 }
 function renderJava(){
   const selected=item(),compatible=java=>java.major===selected?.javaMajor&&java.arch===state.arch;
@@ -63,12 +65,13 @@ function setJava(java){
 }
 function controls() {
   const selected = item();
-  const running = state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
-  for (const id of ['#pick-directory', '#empty-import', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
+  const running = state.installBusy || state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
+  for (const id of ['#import-pack','#empty-install','#pick-install-root','#pick-directory', '#empty-import', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
   $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;$('#pick-directory').disabled ||= state.javaScanning;$('#empty-import').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
   $('#launch').disabled = $('#check').disabled || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
   for (const id of ['#directory-mode', '#player-name', '#offline-tab', '#microsoft-tab', '#use-pcl-name']) $(id).disabled = state.busy || running;
+  $('#directory-mode').disabled ||= !!selected?.managed;
   $('#login').disabled = !api || !state.account.configured || state.account.busy || state.busy || running;
   $('#logout').disabled = state.account.busy || state.busy || running;
   memoryUI.sync();
@@ -89,7 +92,9 @@ function renderAccount() {
 }
 function render() {
   text('#instance-count', state.instances.length);
+  text('#managed-root',state.managedRoot||'');$('#managed-root').title=state.managedRoot||'';
   text('#root-path', state.root || '选择已安装整合包所在的文件夹');
+  $('#root-path').hidden=!state.instances.some(instance=>!instance.managed);
   $('#instances').replaceChildren(...state.instances.map(instance => {
     const button = document.createElement('button'); button.className = 'instance'; button.setAttribute('aria-current', String(instance.id === state.selected));
     const avatar = document.createElement('span'); avatar.className = 'instance-avatar'; avatar.textContent = instance.name.slice(0, 2).toUpperCase();
@@ -102,7 +107,8 @@ function render() {
     text('#pack-meta', selected.error ? '已安装实例' : `${selected.loader} / ${selected.minecraft}`);
     text('#isolation-hint', selected.isolation?.mode === 'unknown' ? '请选择游戏目录' : '');
     const saved = preferences.instances?.[prefKey(selected)];
-    $('#directory-mode').value = ['auto', 'shared', 'isolated'].includes(saved?.mode) ? saved.mode : 'auto';
+    $('#directory-mode').options[0].textContent=selected.managed?'独立实例目录':'跟随识别结果';
+    $('#directory-mode').value=selected.managed?'auto':['auto','shared','isolated'].includes(saved?.mode)?saved.mode:'auto';
     memoryUI.restore(saved);
     pathLabel(); text('#check-result', '');
     if (selected.error) message(selected.error);
@@ -115,9 +121,9 @@ $('#pick-directory').onclick = pick; $('#empty-import').onclick = pick;
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
-$('#use-pcl-name').onclick=()=>{if(!state.pclProfile)return;preferences.playerNames||={};delete preferences.playerNames[state.root];renderPlayer();remember();};
+$('#use-pcl-name').onclick=()=>{if(!state.pclProfile)return;preferences.playerNames||={};delete preferences.playerNames[playerRoot()];renderPlayer();remember();};
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
-$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[state.root]=$('#player-name').value;$('#use-pcl-name').hidden=!state.pclProfile||$('#player-name').value===state.pclProfile.name;remember();};
+$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;$('#use-pcl-name').hidden=!state.pclProfile||$('#player-name').value===state.pclProfile.name;remember();};
 $('#offline-tab').onclick = () => { state.accountMode = 'offline'; remember(); renderAccount(); };
 $('#microsoft-tab').onclick = () => { state.accountMode = 'microsoft'; remember(); renderAccount(); };
 $('#login').onclick = () => action(async () => { try { state.account = await api.login(); renderAccount(); } finally { $('#device-code').hidden = true; } });
@@ -135,9 +141,15 @@ else {
     if(event.type==='close-blocked'){message(event.message);document.querySelector('#message').scrollIntoView({block:'nearest'});}
     if(event.type==='library-scanning'){libraryScanMotion?.cancel();libraryScanMotion=miningFeedback.start('正在识别整合包',{success:'游戏库已更新'});}
     if(event.type==='library'){libraryScanMotion?.done();libraryScanMotion=null;const key=item()&&prefKey(item());Object.assign(state,event);state.selected=state.instances.find(i=>prefKey(i)===key)?.id||state.instances[0]?.id;render();}
+    if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
     if (event.type === 'device-code') { text('#code', event.code); $('#device-code').hidden = false; }
     if (event.type === 'account') { state.account = event; renderAccount(); }
     if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
   });
-  api.state().then(result => { Object.assign(state, result);if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[state.root]??=preferences.name.slice(0,16);delete preferences.name;}render();void scanJava(); }).catch(message);
+  api.state().then(result => { Object.assign(state, result);if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();void scanJava(); }).catch(message);
+}
+
+if(api){
+  mountPackInstaller({api,onBusy:value=>{state.installBusy=value;controls();},onError:message,onInstalled:async instance=>{const result=await api.state();Object.assign(state,result);state.selected=instance.id;state.javaInstallations=await api.scanJava();render();remember();},});
+  $('#pick-install-root').onclick=()=>action(async()=>{const value=await api.pickInstallRoot();if(value){state.managedRoot=value;render();}});
 }

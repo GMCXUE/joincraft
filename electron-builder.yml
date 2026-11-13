@@ -8,7 +8,9 @@ directories:
 files:
   - desktop/**/*
   - launcher/**/*
+  - shared/**/*
   - public/launcher/**/*
+  - public/pack-progress.*
   - public/desktop-notifications.*
   - public/type.css
   - public/pixel-theme.css

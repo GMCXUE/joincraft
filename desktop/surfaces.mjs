@@ -3,6 +3,11 @@ export function trustedFrame(event,view,url){
   return alive(view)&&event.sender===view.webContents&&event.senderFrame===view.webContents.mainFrame&&event.senderFrame.url===url;
 }
 
+export function trustedRoomFrame(event,view,url){
+  if(typeof event.senderFrame?.url!=='string'||!trustedFrame(event,view,event.senderFrame.url))return false;
+  try{return event.senderFrame.url.split('#')[0]===new URL(url).href.split('#')[0];}catch{return false;}
+}
+
 // Local privileged surfaces live above the remote room page in one native window.
 // Hiding a surface never navigates or destroys the room, so voice stays connected.
 export class DesktopSurfaces {

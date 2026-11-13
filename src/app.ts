@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import type { ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
+import {RoomPacks} from './room-packs.js';
 import { Store } from './database.js';
 import {avatarIds} from './avatars.js';
 import { RoomService, digest, type Principal } from './service.js';
@@ -32,6 +33,7 @@ export async function createApp(options: AppOptions = {}) {
   const store = new Store(options.dbPath ?? resolve(root, 'data/blockroom.sqlite'));
   const service = new RoomService(store, options.now);
   const accounts = await Accounts.create(service);
+  const packs=new RoomPacks(service);service.packState=id=>packs.summary(id);
   const social = new SocialService(service);
   const community = new Community(service);
   const voice = new Voice(community,options.voice,options.voiceGateway);
@@ -50,7 +52,7 @@ export async function createApp(options: AppOptions = {}) {
   };
   const app = Fastify({
     logger: options.logger ? { level: 'info', redact: ['req.headers.authorization', 'req.headers.x-session', 'req.headers.cookie', 'res.headers.set-cookie'] } : false,
-    logController: new LogController({disableRequestLogging: req=>req.url.startsWith('/voice/')}), bodyLimit: 400000, requestTimeout: 15000, connectionTimeout: 30000,
+    logController: new LogController({disableRequestLogging: req=>req.url.startsWith('/voice/')}), bodyLimit: 400000, requestTimeout: 120000, connectionTimeout: 30000,
     trustProxy: options.trustedProxy || false, forceCloseConnections: true,
   });
   let origins: string[] = [];
@@ -129,6 +131,7 @@ export async function createApp(options: AppOptions = {}) {
         if (token) try { actors.set(request, service.authenticate(token)); }
         catch (error) { if (path === '/api/auth/register' && explicitToken(request)) throw error; }
       } else actors.set(request, service.authenticate(token));
+      if(request.method==='POST'&&/^\/api\/rooms\/[^/]+\/pack$/.test(path||'')){service.consume('pack-upload:global',4,60000);service.consume('pack-upload:'+actors.get(request)!.id,3,60000);}
     }
   });
   const actor = (request: FastifyRequest) => actors.get(request)!;
@@ -185,10 +188,13 @@ export async function createApp(options: AppOptions = {}) {
   app.post('/api/rooms', async (request, reply) => reply.code(201).send(await service.createRoom(actor(request), object(request.body))));
   for (const action of ['start', 'connect'] as const) app.post<{Params:{id:string}}>(`/api/rooms/:id/play/${action}`, async request => relay.issue(request.params.id, action, actor(request), object(request.body)));
   for (const action of ['stop', 'disconnect'] as const) app.post<{Params:{id:string}}>(`/api/rooms/:id/play/${action}`, async request => { object(request.body); return relay.stop(request.params.id, actor(request), action === 'disconnect'); });
+  app.post<{Params:{id:string}}>('/api/rooms/:id/pack',{bodyLimit:24*1024*1024},async request=>packs.publish(actor(request),request.params.id,object(request.body)));
+  app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack',async request=>packs.download(actor(request),request.params.id,request.query.sha512));
+  app.post<{Params:{id:string}}>('/api/rooms/:id/pack/remove',async request=>packs.remove(actor(request),request.params.id,object(request.body).expected));
   app.post('/api/join', async request => service.join(actor(request), object(request.body), request.ip));
   for (const action of ['settings', 'game', 'close', 'leave'] as const) {
     app.post<{ Params: { id: string } }>(`/api/rooms/:id/${action}`, async request =>
-      { const result=await service.mutate(request.params.id, action, actor(request), object(request.body));if(action==='leave'||action==='close')await voice.reconcile();return result; });
+      { const result=await service.mutate(request.params.id, action, actor(request), object(request.body));if(action==='close')packs.release(request.params.id);if(action==='leave'||action==='close')await voice.reconcile();return result; });
   }
   for(const path of ['/voice/rtc/validate','/voice/rtc/v1/validate'])app.get<{Querystring:{access_token?:string}}>(path,{logLevel:'silent'},async req=>{await voice.authorize(req.query.access_token||'');return {ok:true};});
   app.post('/api/realtime/ticket',async request=>{object(request.body);return realtime.ticket(actor(request));});
@@ -229,6 +235,7 @@ export async function createApp(options: AppOptions = {}) {
     '/launcher/library.js': ['launcher/library.js', 'text/javascript'],
     '/launcher/memory.js':['launcher/memory.js','text/javascript'],
     '/launcher/library.css': ['launcher/library.css', 'text/css'],
+    '/room-packs.js':['room-packs.js','text/javascript'],'/pack-progress.js':['pack-progress.js','text/javascript'],'/pack-progress.css':['pack-progress.css','text/css'],
     '/play.js': ['play.js', 'text/javascript'], '/play.css': ['play.css', 'text/css'],
     '/ui.js': ['ui.js', 'text/javascript'], '/ui.css': ['ui.css', 'text/css'], '/polish.css': ['polish.css', 'text/css'],
     '/': ['home/index.html', 'text/html'], '/app/':['index.html','text/html'], '/app':['index.html','text/html'],

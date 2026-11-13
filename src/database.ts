@@ -91,6 +91,8 @@ const migrations = [String.raw`
     user_id TEXT PRIMARY KEY REFERENCES users(id), avatar_id TEXT NOT NULL,
     bio TEXT NOT NULL DEFAULT '' CHECK(length(bio)<=240), updated_at INTEGER NOT NULL
   ) STRICT;
+`, String.raw`
+  CREATE TABLE room_packs (room_id TEXT PRIMARY KEY REFERENCES rooms(id), summary TEXT NOT NULL, archive BLOB NOT NULL CHECK(length(archive)<=16777216), updated_at INTEGER NOT NULL) STRICT;
 `];
 
 export class Store {
