@@ -10,8 +10,8 @@ function username(value: unknown) {
   return name;
 }
 function accountPassword(value: unknown, registering = false): string {
-  if (typeof value !== 'string' || value.length > 64 || value.length < (registering ? 15 : 1)) {
-    fail(registering ? '密码需要 15–64 个字符，可使用一句好记的话' : '用户名或密码不正确', registering ? 400 : 401);
+  if (typeof value !== 'string' || value.length > 64 || value.length < (registering ? 10 : 1)) {
+    fail(registering ? '密码需要 10–64 个字符，可使用一句好记的话' : '用户名或密码不正确', registering ? 400 : 401);
   }
   return value;
 }
@@ -82,6 +82,12 @@ export class Accounts {
     const result = this.service.store.transaction(() => this.issue(account.user_id));
     this.service.onRevoke(result.revoked);
     return result;
+  }
+  issueDesktopSession(userId: string) {
+    if (!this.service.store.get('SELECT 1 FROM accounts WHERE user_id=?', userId)) fail('账号不存在', 401);
+    const result = this.service.store.transaction(() => this.issue(userId));
+    this.service.onRevoke(result.revoked);
+    return { token: result.token, expiresAt: result.expiresAt };
   }
   logout(actor?: Principal) {
     if (actor) {

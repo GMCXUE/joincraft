@@ -1,8 +1,11 @@
-import { RoomService, type Principal } from './service.js';
+import { RoomService, type Principal, type RealtimeChange } from './service.js';
 import { fail, text } from './validation.js';
+import {avatarFor} from './avatars.js';
 type Link = { low_id: string; high_id: string; requester: string; status: string; created_at: number };
 type Message = { id: number; sender_id: string; recipient_id: string; content: string; created_at: number; client_id: string };
 export class SocialService {
+  online:(user:string)=>boolean=()=>false;
+  friendIds(user:string){return this.store.all<{id:string}>("SELECT CASE WHEN low_id=? THEN high_id ELSE low_id END AS id FROM friendships WHERE (low_id=? OR high_id=?) AND status='accepted'",user,user,user).map(row=>row.id);}
   constructor(readonly rooms: RoomService) {}
   private get store() { return this.rooms.store; }
   private account(actor: Principal) { if (!actor.username) fail('请先注册或登录账号，再使用好友与聊天', 403); }
@@ -12,7 +15,7 @@ export class SocialService {
     this.account(actor);
     if (this.link(actor.id, peer)?.status !== 'accepted') fail('成为好友后才可以聊天', 403);
   }
-  private notify(ids: string[]) { this.rooms.onChange(ids); }
+  private notify(ids: string[],change?:RealtimeChange) { this.rooms.onChange(ids,change); }
   summary(actor: Principal) {
     if (!actor.username) return { friends: [], requests: [], conversations: [], unread: 0 };
     const links = this.store.all<Link>('SELECT * FROM friendships WHERE low_id=? OR high_id=?', actor.id, actor.id);
@@ -20,9 +23,10 @@ export class SocialService {
     let totalUnread = 0;
     for (const link of links) {
       const id = link.low_id === actor.id ? link.high_id : link.low_id;
-      const peer = this.store.get<{id: string; name: string; username: string}>('SELECT u.id,u.name,a.username FROM users u JOIN accounts a ON a.user_id=u.id WHERE u.id=?', id)!;
+      const row = this.store.get<{id: string; name: string; username: string;avatarId:string|null}>('SELECT u.id,u.name,a.username,p.avatar_id AS avatarId FROM users u JOIN accounts a ON a.user_id=u.id LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=?', id)!;
+      const peer={...row,avatarId:avatarFor(row.id,row.avatarId)};
       if (link.status === 'pending') { requests.push({ ...peer, incoming: link.requester !== actor.id, createdAt: link.created_at }); continue; }
-      friends.push(peer);
+      friends.push({...peer,online:this.online(id)});
       const last = this.store.get<Message>('SELECT * FROM messages WHERE low_id=? AND high_id=? ORDER BY id DESC LIMIT 1', link.low_id, link.high_id);
       const cursor = this.store.get<{last_id: number}>('SELECT last_id FROM read_cursors WHERE user_id=? AND peer_id=?', actor.id, id);
       const unread = this.store.get<{n: number}>('SELECT count(*) AS n FROM messages WHERE low_id=? AND high_id=? AND recipient_id=? AND id>?', link.low_id, link.high_id, actor.id, cursor?.last_id ?? 0)!.n;
@@ -65,8 +69,18 @@ export class SocialService {
   private serialize(message: Message, actor: Principal) {
     return {id:message.id,content:message.content,at:message.created_at,self:message.sender_id===actor.id,clientId:message.client_id};
   }
-  messages(actor: Principal, peer: string, before?: string) {
+  message(actor:Principal,peer:string,id:number){
     this.accepted(actor,peer);
+    const row=this.store.get<Message>('SELECT * FROM messages WHERE id=? AND low_id=? AND high_id=?',id,...this.pair(actor.id,peer));
+    if(!row)fail('消息不存在',404);return this.serialize(row,actor);
+  }
+  messages(actor: Principal, peer: string, before?: string,after?:string) {
+    this.accepted(actor,peer);
+    if(after!==undefined){
+      const cursor=Number(after);if(before!==undefined||!Number.isSafeInteger(cursor)||cursor<0)fail('消息游标无效');
+      const rows=this.store.all<Message>('SELECT * FROM messages WHERE low_id=? AND high_id=? AND id>? ORDER BY id ASC LIMIT 101',...this.pair(actor.id,peer),cursor);
+      return {messages:rows.slice(0,100).map(message=>this.serialize(message,actor)),hasMore:rows.length>100};
+    }
     const boundary = before === undefined ? Number.MAX_SAFE_INTEGER : Number(before);
     if (!Number.isSafeInteger(boundary) || boundary < 1) fail('消息游标无效');
     const rows = this.store.all<Message>('SELECT * FROM messages WHERE low_id=? AND high_id=? AND id<? ORDER BY id DESC LIMIT 51',...this.pair(actor.id,peer),boundary);
@@ -83,7 +97,7 @@ export class SocialService {
       const inserted=this.store.run('INSERT INTO messages(low_id,high_id,sender_id,recipient_id,content,created_at,client_id) VALUES (?,?,?,?,?,?,?)',...this.pair(actor.id,peer),actor.id,peer,content,this.rooms.now(),clientId);
       this.store.bump();return this.store.get<Message>('SELECT * FROM messages WHERE id=?',inserted.lastInsertRowid)!;
     });
-    this.notify([actor.id,peer]);return this.serialize(row,actor);
+    this.notify([actor.id,peer],{type:'chat.message',senderId:actor.id,peerId:peer,id:row.id});return this.serialize(row,actor);
   }
   read(actor: Principal, peer: string, body: Record<string, unknown>) {
     this.accepted(actor,peer);

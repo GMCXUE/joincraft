@@ -8,7 +8,7 @@
 | 接口 | Fastify 5 + TypeScript strict | 明确接口边界、统一请求限制、错误处理、日志与类型检查 |
 | 数据库 | SQLite，WAL + 外键 + 事务 | 低并发房间控制服务不必额外运行数据库进程；数据目录需持久卷 |
 | 数据库驱动 | Node 内置 node:sqlite，隔离在 Store 层 | 不依赖原生 npm 扩展编译；运行时固定到已验证的 Node 24 系列，升级需回归测试 |
-| 状态同步 | REST 写入 + SSE 失效通知 | 服务端推送变化，客户端再读取完整授权状态；无需每 1.8 秒轮询 |
+| 状态同步 | WebSocket 消息收发及状态差量推送；HTTP 初始 / 历史数据 | 发送落库后确认；重连补拉；旧 SSE 入口保留兼容 |
 | 桌面端后续 | 建议 Tauri 2 | 复用网页界面，Windows exe / macOS dmg；本轮不生成安装包 |
 | 游戏数据通道后续 | 独立客户端代理与中继 | Fastify 负责房间与鉴权，不转发 MC 游戏流量；FRP / 自建代理需单独选型和实测 |
 
@@ -24,7 +24,7 @@ SQLite WAL 支持读写并发，但写事务仍串行；不把数据库文件放
 - 设备会话空闲 30 天失效，活跃访问最多每分钟续期一次；服务重启不丢会话。
 - 密码使用随机盐和 scrypt；不向客户端返回密码或摘要。
 - 房主权限、成员可见性、请求体限制、同源检查、IP 与设备限流；日志隐藏认证头。
-- SSE 首次连接和每次重连都同步全量状态；断开后退避重连，心跳检测停滞，慢连接释放。
+- WS 首次连接和重连接收授权快照，平时直接接收消息与状态差量；断开后退避重连，历史游标补拉，心跳检测停滞，慢连接释放。
 - 在线一致性备份、健康检查、Docker Compose 和 Kubernetes 示例。
 
 ## 身份的实际含义
@@ -38,11 +38,12 @@ v0.5 已加入用户名和密码账号。注册可绑定当前访客的房间；
 ## 目录
 
 ```text
-src/app.ts         HTTP 路由、鉴权边界、SSE、健康检查与退出
+src/app.ts         HTTP 路由、鉴权边界、健康检查与退出
+src/realtime.ts    WS 鉴权、命令、状态差量、消息广播与心跳
 src/service.ts     会话、房间权限、事务和限流
 src/database.ts    SQLite 访问与版本化迁移
 src/validation.ts  输入校验与密码计算
-public/realtime.js SSE 客户端重连与心跳
+public/realtime.js WS 客户端、请求确认、状态合并、重连与旧 SSE 兼容
 server.mjs        启动与环境变量
 scripts/backup.mjs 一致性在线备份
 ```
@@ -56,7 +57,9 @@ scripts/backup.mjs 一致性在线备份
 | GET | /healthz | 进程与数据库可访问检查，不返回房间数据 |
 | POST | /api/session | `{name}` 创建当前设备身份，返回 `{id, name, expiresAt}`，id 为令牌 |
 | GET | /api/state | 当前成员有权访问的房间、资料和能力状态 |
-| GET | /api/events | 带鉴权的 SSE；只向关联成员发送 `change` 通知，不在事件中传房间数据 |
+| POST | /api/realtime/ticket | 当前身份领取单次、30 秒有效的 WS 凭据 |
+| GET / Upgrade | /api/realtime | 凭据首帧鉴权，消息收发与授权状态差量推送 |
+| GET | /api/events | 旧版 SSE 兼容；只向关联成员发送 `change` 通知 |
 | POST | /api/profile | `{name}` 修改展示昵称 |
 | POST | /api/rooms | `{name, capacity, password?, image?, description?, version?, loader?, port?}` |
 | POST | /api/join | `{code, password?}`，无审批，验证通过直接加入 |
@@ -67,7 +70,7 @@ scripts/backup.mjs 一致性在线备份
 
 错误返回 `{error}`。400 输入 / 业务限制，401 会话失效，403 权限或密码错误，404 不存在，409 密码在验证中变更，413 内容过大，429 限流，500 内部错误。
 
-当前限制：创建会话每 IP 每小时 30 次；写请求每 IP 每分钟 120 次；加入每设备每分钟 12 次 / 每 IP 60 次；单设备最多创建 10 个活跃房间；单房间 2–32 人；全局最多 1000 个房间 / 10000 个设备；SSE 每身份 6 条 / 全局 200 条。旧房间清理和管理后台待补，不会通过重启绕过数据库计数。
+当前限制：创建会话每 IP 每小时 30 次；写请求每 IP 每分钟 120 次；加入每设备每分钟 12 次 / 每 IP 60 次；单设备最多创建 10 个活跃房间；单房间 2–32 人；全局最多 1000 个房间 / 10000 个设备；WS / SSE 合计每身份 6 条 / 全局 200 条。旧房间清理和管理后台待补，不会通过重启绕过数据库计数。
 
 ## 本地启动与验证
 
@@ -119,15 +122,15 @@ node scripts/backup.mjs /absolute/path/backup.sqlite
 ## v0.5 账号登录（取代上文仅设备身份的限制）
 
 - 新增 `accounts` 表，数据库自动迁移至版本 2，已有房间和访客会话保留。
-- 用户名支持 3–24 位字母 / 数字 / 下划线，按小写规范化且唯一；账号密码为 15–64 字符。
+- 用户名支持 3–24 位字母 / 数字 / 下划线，按小写规范化且唯一；账号密码为 10–64 字符。
 - 账号密码采用带随机盐的 scrypt（N=32768、r=8、p=3），算法参数随摘要保存；并发账号密码运算最多 2 个。
 - `POST /api/auth/register` 接收 `{username,password,name?}`。当前为访客时绑定原 user_id，保留房主和成员关系，并撤销旧访客会话。已登录账号不能再次注册覆盖身份。
 - `POST /api/auth/login` 接收 `{username,password}`，新的设备获得独立会话；不存在账号和错误密码统一提示。已有账号登录不会自动合并访客房间。
-- `POST /api/auth/logout` 撤销当前会话，并立即断开该会话的 SSE；其他设备会话不受影响。
+- `POST /api/auth/logout` 撤销当前会话，并立即断开该会话的 WS / SSE；其他设备会话不受影响。
 - 网页账号会话由 HttpOnly + SameSite=Strict Cookie 保存；HTTPS 部署使用 Secure 和 `__Host-` 前缀。账号令牌不返回 JSON，不写 localStorage，不放 URL。成功读取 state 会续期 Cookie；服务端会话沿用 30 天空闲过期。
 - Bearer 仅用于访客体验及原有设备会话迁移，显式 Bearer 优先于 Cookie。API 写入仍需 JSON、通过 Host / Origin 检查；默认不启用 CORS。
 - 每账号最多保留 10 个设备会话。登录每 IP 每 15 分钟最多 30 次、每用户名最多 15 次；注册每 IP 每小时最多 10 次。计数持久化，限流窗口结束后可重试。
-- 外栏头像是唯一账号入口。登录、注册、修改昵称、退出都从这里进入；内部个人信息行已移除。新用户可选登录 / 注册或显式访客体验。
+- 自己的账号入口位于左下角外栏头像；个人主页可编辑昵称、简介、默认头像及退出登录，内部重复个人信息行已移除。新用户可选登录 / 注册或显式访客体验。
 - 暂未提供邮箱验证、密码找回、修改密码、MFA 或微软账号认证；账号系统仅用于joincraft房间身份。
 
 验证：12 项后端测试通过；隔离数据库的浏览器验收覆盖访客建房、注册保留房间、退出、错误密码提示和重新登录恢复。现有本地数据库升级前已生成一致性备份，测试账号未写入用户的正式预览数据库。
@@ -149,7 +152,7 @@ node scripts/backup.mjs /absolute/path/backup.sqlite
 | POST /api/chats/:peer/messages | `{content,clientId}`，1–2000 字符；同一发送者的 clientId 唯一，失败重试不重复入库 |
 | POST /api/chats/:peer/read | `{uptoId}`，只更新自己的已读游标，不允许引用其他对话或未来消息 |
 
-好友关系每对账号唯一；待处理申请不能绕过同意直接发消息。消息变化仅向双方 SSE 会话发送失效通知；已读变化仅通知本人各设备。消息由服务端鉴权读取，文本存储在 SQLite，未实现端到端加密。
+好友关系每对账号唯一；待处理申请不能绕过同意直接发消息。消息内容通过 WS 仅推送给双方，旧 SSE 会话继续接收失效通知；已读状态变更同步到本人各设备。消息由服务端鉴权读取，文本存储在 SQLite，未实现端到端加密。
 
 每账号最多 200 个好友和待处理关系，好友申请每分钟 20 次，发消息每分钟 60 次，同时受写请求 IP 限流约束。接口测试覆盖申请权限、非好友和第三方读取拦截、重试去重、未读游标、消息长度、分页与重启恢复；共 15 项测试通过。
 
@@ -178,3 +181,34 @@ node scripts/backup.mjs /absolute/path/backup.sqlite
 保持单副本，因为中继配对与控制会话在进程内；保留 SQLite 持久卷。反向代理需要把 `/bridge/` 的 WebSocket Upgrade 转发到同一个后端，设置长连接超时并禁用该路径缓冲，配置 PUBLIC_ORIGIN 为可信 HTTPS 源和实际 TRUST_PROXY。只需公开 HTTPS 入口，无需额外公网游戏端口。现有容器资源限制只是初始值，尚未用真实玩家流量测试。
 
 验收方法和边界见 [Windows 联机测试](WINDOWS-TEST.md)。
+
+
+## 个人资料与默认头像
+`POST /api/profile` 更新当前身份，接受可选 `name`（1–24 字符）、`avatarId`（10 个本地白名单 ID）和 `bio`（0–240 字符），省略字段保留原值，以兼容旧客户端。所有字段在写入前一起校验，修改后通知好友/申请关系与房间成员。默认头像由用户 ID 稳定计算；旧账号无需重新注册。
+
+`GET /api/profiles/:id` 需要登录或访客会话，仅本人、存在好友/申请关系或同处未关闭房间的玩家可读；其他情况统一 404。响应仅包含公开资料、关系和当前双方都加入的房间，用户私有房间、口令和会话不会返回。`/api/state` 中本人/成员和 social 摘要提供 avatarId，房间消息历史也返回当前发送者头像。
+
+SQLite schema v5 为新增 user_profiles 表，保留 users 原列结构和原有 ID。头像为本地自绘 SVG，不接受远程头像 URL，不添加自定义上传。
+
+## 客户端浏览器登录
+`POST /api/auth/desktop/start` 接收 SHA-256 challenge 和 login/register mode；返回五分钟请求 ID、核对编号和过期时间。浏览器 `/login?desktop=ID` 先调用 `info`，绑定独立 HttpOnly / SameSite=Strict / HTTPS Secure 的临时 cookie，随后通过已有账号登录接口和需要账号鉴权的 `authorize` 明确确认。主进程持有 verifier，通过 `poll` 和一次性 `claim` 获取独立客户端会话；网址、渲染进程、持久化存储均不传递 verifier 或原始会话 token。原始 token 仅由主进程写入 Electron 的 HttpOnly 会话 cookie。`cancel` 需要 verifier，能撤销竞态中新签发的会话；网页 `deny` 只取消未完成请求。退出网页会话后不能领取已授权请求。请求集合只驻留内存（最多 500），服务重启使待登录请求失效，不迁移数据库。
+
+
+## 2026-11-13 - Business WebSocket protocol
+New hosted clients use one business WebSocket per page at /api/realtime. Existing REST routes and /api/events remain compatible with older tabs. Game relay and voice signalling retain their separate channels. No additional service, dependency, database migration or public port is required.
+
+Authentication: POST /api/realtime/ticket with the existing cookie or bearer identity returns a single-use 30-second ticket. Send {type:"auth",ticket} as the first text frame within five seconds; credentials are never placed in the socket URL. The upgrade checks configured Host and Origin. Revocation closes the affected sockets and discards pending tickets; every command and heartbeat checks session validity. Limits are six authenticated real-time connections per user and 200 in total across SSE and WS, a 16 KiB inbound frame, 120 raw frames per second per socket, 240 commands per minute per user, and a 4 MiB outbound queue boundary. Existing message and room access limits still apply.
+
+Server frames carry a connection-local monotonically increasing sequence starting at one. ready contains schema:1 and an authorized initial state. state.patch replaces changed profile/social sections and supplies changed room upserts, removed membership IDs and authoritative room order. event contains chat.message (peerId,message) or room.message (roomId,message). Private messages carry recipient-specific self flags; room events only go to authorized current members. Membership removal is pushed to the departing user. Accepted friends also receive online booleans, accounting for multiple devices and legacy SSE.
+
+Client commands use {type,requestId,body}: chat.send (peerId,content,clientId), room.send (roomId,content,clientId), chat.read (peerId,uptoId), room.read (roomId,lastId). reply returns the original requestId and either ok:true/result or ok:false/status/error. Message ACK means the message is committed to SQLite, not that another person has read it. Reused sender/clientId values return the original stored message; conflicting content or destinations return 409. Queued requests retry with their original IDs on reconnect and expire after 20 seconds. Manual send retries retain the original clientId.
+
+The server sends heartbeat frames and WebSocket ping every 15 seconds; missing pong terminates stale peers. The client detects 35 seconds of inactivity and reconnects with randomized exponential delay from one to 15 seconds. Each reconnect starts with a fresh authorized snapshot; sequence gaps force a resync. Active chats catch up through their authenticated HTTP history endpoint using ?after=<lastId>, in ascending pages of 100, with ID deduplication. Existing ?before= pagination is unchanged. Cursor recovery is limited to server-retained history (room history keeps the newest 5,000 messages). Background cached conversations are invalidated when messages arrive and load fresh history when opened. Input drafts, scroll anchors and pending form state are preserved during normal pushes and reconnects.
+
+Compatibility: historical loading, login, profile/settings and room/friend mutations continue over HTTP. New message sending, read markers and data pushes use WS. No per-message /api/state or latest-message-list refetch is required. The installed desktop shell loads these hosted assets, so the existing 0.9.15 installer and signed update feed remain valid.
+
+Compatibility note: the historical REST capabilities.realtime value remains "sse" for existing consumers. New business WS availability is negotiated through the authenticated ticket endpoint and ready schema:1.
+
+### 客户端会话激活确认（0.9.16）
+
+claim 返回会话所属 userId。原始 token 保持在主进程，写入 HttpOnly Cookie 后，通过同一个 Chromium Session 的带凭据请求读取 /api/state，确认账号一致。托管页面再次读取并校验账号，完成后才关闭登录弹窗；暂时断网自动重试，仍失败保留行内提示与重试连接。旧客户端不依赖新增 userId 字段，兼容托管页面修复。GET /api/state 不再重发 Cookie，避免旧请求的迟到响应覆盖新登录；持久 Cookie 自会话签发起保留 30 天。

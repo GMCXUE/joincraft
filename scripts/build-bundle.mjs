@@ -1,0 +1,28 @@
+import {spawnSync} from 'node:child_process';
+import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
+import {createPrivateKey,createPublicKey,createHash,sign} from 'node:crypto';
+import path from 'node:path';
+import os from 'node:os';
+const root=path.resolve(import.meta.dirname,'..'),pkg=JSON.parse(await readFile(path.join(root,'package.json')));
+const run=(cmd,args,options={})=>{const r=spawnSync(cmd,args,{cwd:root,stdio:'inherit',...options});if(r.error)throw r.error;if(r.status!==0)throw Error(`${cmd} failed`);};
+const go=process.env.JOINCRAFT_GO||'go';
+const config=JSON.parse(await readFile(path.join(root,'desktop/update-config.json')));
+const publicDer=createPublicKey(config.publicKey).export({format:'der',type:'spki'}).toString('base64');
+const helper=path.join(root,'build-resources/generated/joincraft-update.exe');await mkdir(path.dirname(helper),{recursive:true});
+run(go,['build','-trimpath','-ldflags',`-s -w -H=windowsgui -X main.updatePublicKey=${publicDer}`,'-o',helper,'.'],{cwd:path.join(root,'desktop/update-helper'),env:{...process.env,GOOS:'windows',GOARCH:'amd64',CGO_ENABLED:'0'}});
+if(!process.env.npm_execpath)throw Error('Run this builder through npm run dist:win');
+run(process.execPath,[process.env.npm_execpath,'exec','--','electron-builder','--win','--x64','--dir','--publish','never']);
+const output=path.join(root,'release'),bundle=path.join(output,'win-unpacked');
+await writeFile(path.join(bundle,'joincraft-release.json'),JSON.stringify({version:pkg.version,distribution:'bundle',platform:'win32',arch:'x64'})+'\n');
+const artifact=`joincraft-${pkg.version}-win-x64.zip`,file=path.join(output,artifact);await rm(file,{force:true});
+// Use the pinned builder toolset; no archive runtime is required on user PCs.
+const {getPath7za}=await import('app-builder-lib/out/toolsets/7zip.js');const path7za=await getPath7za();
+run(path7za,['a','-tzip','-mx=6',file,'.'],{cwd:bundle});
+const data=await readFile(file);
+const manifest={schema:1,version:pkg.version,platform:'win32',arch:'x64',file:artifact,size:data.length,sha512:createHash('sha512').update(data).digest('hex'),notes:process.env.JOINCRAFT_UPDATE_NOTES||'应用内下载并重启更新，无需安装向导。',publishedAt:new Date().toISOString()};
+const keyPath=process.env.JOINCRAFT_UPDATE_SIGNING_KEY||path.join(os.homedir(),'.config/joincraft-release/update-ed25519.pem');
+const key=createPrivateKey(await readFile(keyPath));
+if(createPublicKey(key).export({format:'der',type:'spki'}).toString('base64')!==publicDer)throw Error('Release signing key does not match pinned client key');
+const payload=Buffer.from(JSON.stringify(manifest));
+await writeFile(path.join(output,'windows-x64.json'),JSON.stringify({payload:payload.toString('base64'),signature:sign(null,payload,key).toString('base64')})+'\n');
+console.log('Signed bundle:',artifact,manifest.size,createHash('sha256').update(data).digest('hex'));

@@ -6,3 +6,11 @@ backups
 .git
 *.png
 *.sqlite*
+
+release
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+.env.*

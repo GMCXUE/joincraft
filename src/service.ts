@@ -1,8 +1,10 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { Store } from './database.js';
+import {avatarFor,avatarIds} from './avatars.js';
 import { fail, text, roomFields, gameFields, hashPassword, verifyPassword } from './validation.js';
 
 export type Principal = { id: string; name: string; tokenHash: string; expiresAt: number; username: string | null };
+export type RealtimeChange = {type:'chat.message';senderId:string;peerId:string;id:number}|{type:'room.message';roomId:string;id:number};
 type Room = {
   id: string; code: string; owner_id: string; name: string; description: string; image: string;
   capacity: number; version: string; loader: string; port: number | null;
@@ -13,7 +15,8 @@ const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export class RoomService {
   gameState: (id: string, actor: Principal) => unknown = () => ({ status: 'offline' });
-  onChange: (users: string[]) => void = () => {};
+  communityState: (id: string, actor: Principal) => unknown = () => ({});
+  onChange: (users: string[], change?:RealtimeChange) => void = () => {};
   onRevoke: (hashes: string[]) => void = () => {};
   constructor(readonly store: Store, readonly now = Date.now) {}
   consume(key: string, limit: number, windowMs: number) {
@@ -60,13 +63,13 @@ export class RoomService {
   private member(roomId: string, userId: string) {
     return Boolean(this.store.get('SELECT 1 FROM members WHERE room_id=? AND user_id=?', roomId, userId));
   }
-  private accessible(id: string, actor: Principal) {
+  accessible(id: string, actor: Principal) {
     const room = this.room(id);
     if (!this.member(id, actor.id)) fail('房间不存在或你尚未加入', 404);
     if (room.closed) fail('房间已经关闭');
     return room;
   }
-  private members(id: string) { return this.store.all<{ user_id: string }>('SELECT user_id FROM members WHERE room_id=?', id).map(x => x.user_id); }
+  members(id: string) { return this.store.all<{ user_id: string }>('SELECT user_id FROM members WHERE room_id=?', id).map(x => x.user_id); }
   private record(id: string, message: string) {
     this.store.run('INSERT INTO events(room_id, at, message) VALUES (?, ?, ?)', id, this.now(), message);
     this.store.run('DELETE FROM events WHERE room_id=? AND seq NOT IN (SELECT seq FROM events WHERE room_id=? ORDER BY seq DESC LIMIT 100)', id, id);
@@ -74,31 +77,54 @@ export class RoomService {
   }
   private notify(id: string, extra: string[] = []) { this.onChange([...new Set([...this.members(id), ...extra])]); }
   snapshot(room: Room, actor: Principal) {
-    const members = this.store.all<{ id: string; name: string }>(`SELECT u.id, u.name FROM members m
-      JOIN users u ON u.id=m.user_id WHERE m.room_id=? ORDER BY m.joined_at, u.id`, room.id);
+    const members = this.store.all<{ id: string; name: string; avatarId:string|null }>(`SELECT u.id, u.name,p.avatar_id AS avatarId FROM members m
+      JOIN users u ON u.id=m.user_id LEFT JOIN user_profiles p ON p.user_id=u.id WHERE m.room_id=? ORDER BY m.joined_at, u.id`, room.id);
     const events = this.store.all<{ seq: number; at: number; message: string }>(
       'SELECT seq, at, message FROM events WHERE room_id=? ORDER BY seq DESC LIMIT 12', room.id).reverse();
     return {
       id: room.id, code: room.code, name: room.name, image: room.image, description: room.description,
       capacity: room.capacity, version: room.version, loader: room.loader, port: room.port,
-      connection: this.gameState(room.id, actor),
+      connection: this.gameState(room.id, actor), community: this.communityState(room.id, actor),
       createdAt: room.created_at, closed: Boolean(room.closed), hasPassword: Boolean(room.password),
       hostName: members.find(m => m.id === room.owner_id)?.name ?? '房主', isHost: room.owner_id === actor.id,
       status: room.closed ? 'closed' : 'joined',
-      members: members.map(m => ({ ...m, host: m.id === room.owner_id, self: m.id === actor.id })),
+      members: members.map(m => ({ ...m, avatarId:avatarFor(m.id,m.avatarId), host: m.id === room.owner_id, self: m.id === actor.id })),
       events: events.map(e => ({ id: String(e.seq), at: e.at, message: e.message })),
     };
   }
   state(actor: Principal) {
     const rooms = this.store.all<Room>(`SELECT r.* FROM rooms r JOIN members m ON m.room_id=r.id
       WHERE m.user_id=? ORDER BY r.closed, r.created_at DESC LIMIT 100`, actor.id);
-    return { profile: { name: actor.name, username: actor.username, kind: actor.username ? 'account' : 'guest' }, revision: this.store.revision(),
+    return { profile: this.person(actor.id), revision: this.store.revision(),
       rooms: rooms.map(r => this.snapshot(r, actor)), mode: 'persistent-backend',
       capabilities: { persistence: true, realtime: 'sse', gameTunnel: true, identity: actor.username ? 'account' : 'device' } };
   }
+  person(id:string) {
+    const row=this.store.get<{id:string;name:string;username:string|null;avatarId:string|null;bio:string|null;createdAt:number}>(
+      `SELECT u.id,u.name,a.username,p.avatar_id AS avatarId,p.bio,u.created_at AS createdAt FROM users u
+       LEFT JOIN accounts a ON a.user_id=u.id LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=?`,id);
+    if(!row)fail('个人主页不存在或暂时无法查看',404);
+    return {...row,avatarId:avatarFor(row.id,row.avatarId),bio:row.bio||'',kind:row.username?'account':'guest'};
+  }
+  publicProfile(actor:Principal,id:string) {
+    const self=actor.id===id;
+    const friendship=this.store.get<{status:string;requester:string}>('SELECT status,requester FROM friendships WHERE (low_id=? AND high_id=?) OR (low_id=? AND high_id=?)',actor.id,id,id,actor.id);
+    const rooms=this.store.all<{id:string;name:string;image:string}>(`SELECT r.id,r.name,r.image FROM rooms r JOIN members a ON a.room_id=r.id JOIN members b ON b.room_id=r.id
+      WHERE a.user_id=? AND b.user_id=? AND r.closed=0 ORDER BY r.created_at DESC LIMIT 100`,actor.id,id);
+    if(!self&&!friendship&&!rooms.length)fail('个人主页不存在或暂时无法查看',404);
+    return {...this.person(id),self,friendship:friendship?.status||null,requestIncoming:!!friendship&&friendship.requester!==actor.id,rooms};
+  }
   profile(actor: Principal, body: Record<string, unknown>) {
-    const name = text(body.name, '昵称', 24);
-    this.store.transaction(() => { this.store.run('UPDATE users SET name=? WHERE id=?', name, actor.id); this.store.bump(); });
+    const current=this.person(actor.id);
+    const name=body.name===undefined?current.name:text(body.name,'昵称',24);
+    const bio=body.bio===undefined?current.bio:text(body.bio,'个人简介',240,true);
+    const avatarId=body.avatarId===undefined?current.avatarId:body.avatarId;
+    if(typeof avatarId!=='string'||!avatarIds.includes(avatarId as typeof avatarIds[number]))fail('请选择列表中的头像');
+    this.store.transaction(() => {
+      this.store.run('UPDATE users SET name=? WHERE id=?',name,actor.id);
+      this.store.run(`INSERT INTO user_profiles VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_id=excluded.avatar_id,bio=excluded.bio,updated_at=excluded.updated_at`,actor.id,avatarId,bio,this.now());
+      this.store.bump();
+    });
     const related = this.store.all<{ user_id: string }>(`SELECT DISTINCT b.user_id FROM members a
       JOIN members b ON a.room_id=b.room_id WHERE a.user_id=?`, actor.id).map(m => m.user_id);
     const friends = this.store.all<{id:string}>('SELECT CASE WHEN low_id=? THEN high_id ELSE low_id END AS id FROM friendships WHERE low_id=? OR high_id=?',actor.id,actor.id,actor.id).map(p=>p.id);
@@ -117,6 +143,7 @@ export class RoomService {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, code, actor.id, fields.name, fields.description,
         fields.image, fields.capacity, game.version, game.loader, game.port, password, this.now());
       this.store.run('INSERT INTO members VALUES (?, ?, ?)', id, actor.id, this.now());
+      this.store.run('INSERT INTO voice_groups VALUES (?,?,?,1,0,?)', 'game-'+id, id, '游戏', this.now());
       this.record(id, `${actor.name} 创建了房间`);
     });
     this.notify(id); return this.snapshot(this.room(id), actor);

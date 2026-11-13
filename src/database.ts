@@ -59,6 +59,38 @@ const migrations = [String.raw`
     user_id TEXT NOT NULL REFERENCES accounts(user_id), peer_id TEXT NOT NULL REFERENCES accounts(user_id),
     last_id INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(user_id,peer_id)
   ) STRICT;
+`, String.raw`
+  CREATE TABLE voice_groups (
+    id TEXT PRIMARY KEY, room_id TEXT NOT NULL REFERENCES rooms(id), name TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX voice_groups_room ON voice_groups(room_id);
+  INSERT INTO voice_groups SELECT 'game-' || id,id,'游戏',1,0,created_at FROM rooms;
+  CREATE TABLE room_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, room_id TEXT NOT NULL REFERENCES rooms(id),
+    sender_id TEXT NOT NULL REFERENCES users(id), content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 2000),
+    client_id TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(sender_id,client_id)
+  ) STRICT;
+  CREATE INDEX room_messages_room ON room_messages(room_id,id);
+  CREATE TABLE room_reads (
+    room_id TEXT NOT NULL REFERENCES rooms(id), user_id TEXT NOT NULL REFERENCES users(id),
+    last_id INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(room_id,user_id)
+  ) STRICT;
+  CREATE TABLE voice_rules (
+    room_id TEXT NOT NULL REFERENCES rooms(id), user_id TEXT NOT NULL REFERENCES users(id),
+    muted INTEGER NOT NULL DEFAULT 0, blocked_until INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(room_id,user_id)
+  ) STRICT;
+  CREATE TABLE voice_leases (
+    identity TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), token_hash TEXT NOT NULL,
+    room_id TEXT NOT NULL REFERENCES rooms(id), group_id TEXT NOT NULL REFERENCES voice_groups(id),
+    expires_at INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0
+  ) STRICT;
+  CREATE INDEX voice_leases_user ON voice_leases(user_id);
+`, String.raw`
+  CREATE TABLE user_profiles (
+    user_id TEXT PRIMARY KEY REFERENCES users(id), avatar_id TEXT NOT NULL,
+    bio TEXT NOT NULL DEFAULT '' CHECK(length(bio)<=240), updated_at INTEGER NOT NULL
+  ) STRICT;
 `];
 
 export class Store {

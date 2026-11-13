@@ -87,7 +87,7 @@ test('SQLite restart preserves identity, room, password, members, settings and e
   assert.throws(()=>execFileSync(process.execPath,['scripts/backup.mjs',backupPath],{env:{...process.env,DATABASE_PATH:dbPath},stdio:'pipe'}));
   await app.close();app=null;
   const db=new DatabaseSync(dbPath);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version,3);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,5);
   assert.equal(db.prepare('SELECT count(*) AS n FROM sessions WHERE token_hash=?').get(host).n,0);
   assert.notEqual(db.prepare('SELECT password FROM rooms').get().password,'persist-secret');
   db.close();
@@ -306,4 +306,80 @@ test('friendships and chat history survive restart',async()=>{
   const restored=(await bob.call('/api/state')).data.social;assert.equal(restored.friends[0].id,aliceId);assert.equal(restored.unread,1);
   assert.equal((await bob.call(`/api/chats/${aliceId}/messages`)).data.messages[0].content,'重启后还能看到');
  }finally{if(app)await app.close();await rm(dir,{recursive:true,force:true});}
+});
+
+
+test('registration accepts 10–64 character passwords and rejects either side of the boundary',()=>fixture(async({app})=>{
+ const client=authClient(app);
+ const short=await client.call('/api/auth/register',{username:'short_pw',password:'123456789'});
+ assert.equal(short.status,400);assert.match(short.data.error,/10–64/);
+ assert.equal((await client.call('/api/auth/register',{username:'long_pw',password:'a'.repeat(65)})).status,400);
+ assert.equal((await client.call('/api/auth/register',{username:'ten_chars',password:'0123456789'})).status,201);
+ await client.call('/api/auth/logout',{});
+ assert.equal((await client.call('/api/auth/login',{username:'ten_chars',password:'0123456789'})).status,200);
+ const other=authClient(app);
+ assert.equal((await other.call('/api/auth/register',{username:'max_chars',password:'a'.repeat(64)})).status,201);
+}));
+
+test('official homepage and app have separate entries while old desktop root stays compatible',async()=>{
+ const app=await createApp({port:0,dbPath:':memory:'});
+ try{
+  const home=await fetch(app.url+'/');const html=await home.text();assert.equal(home.status,200);assert.match(html,/一起上线，/);assert.match(html,/href="\/login"/);assert.match(html,/href="\/downloads\/client\/windows"/);assert.ok(!html.includes('src="/app.js"'));assert.equal(home.headers.get('set-cookie'),null);
+  for(const path of ['/app','/app/']){const response=await fetch(app.url+path);assert.equal(response.status,200);assert.match(await response.text(),/src="\/app.js"/);}
+  const download=await fetch(app.url+'/downloads/client/windows',{redirect:'manual'});assert.equal(download.status,302);assert.equal(download.headers.get('location'),'https://www.joincraft.top/updates/joincraft-setup.exe');
+  const old=await fetch(app.url+'/',{headers:{'User-Agent':'Mozilla/5.0 joincraft/0.9.7 Chrome/146.0 Electron/45.3.1 Safari/537.36'}});assert.match(await old.text(),/src="\/app.js"/);
+  const other=await fetch(app.url+'/',{headers:{'User-Agent':'Mozilla/5.0 Codex/1.0 Electron/45.3.1'}});assert.match(await other.text(),/hero-title/);
+  const libraryModule=await fetch(app.url+'/launcher/memory.js');assert.equal(libraryModule.status,200);assert.match(await libraryModule.text(),/createMemoryControls/);
+  const picture=await fetch(app.url+'/home/world-v1.webp');assert.equal(picture.status,200);assert.equal(picture.headers.get('content-type'),'image/webp');assert.match(picture.headers.get('cache-control'),/immutable/);const bytes=new Uint8Array(await picture.arrayBuffer());assert.equal(Buffer.from(bytes.slice(0,4)).toString(),'RIFF');
+  const font=await fetch(app.url+'/home/display-900-v1.woff2');assert.equal(font.status,200);assert.equal(font.headers.get('content-type'),'font/woff2');assert.equal(Buffer.from(await font.arrayBuffer()).toString('ascii',0,4),'wOF2');
+  assert.equal((await fetch(app.url+'/api/state')).status,401);
+ }finally{await app.close();}
+});
+
+
+test('login return destinations stay inside the account app and preserve room links',async()=>{
+ const {appDestination,loginPagePath,useLoginPage}=await import('./public/auth/session.js');
+ const origin='https://www.joincraft.top';
+ for(const value of [null,'','https://evil.example/app/','//evil.example/app/','/\\evil.example/app/','javascript:alert(1)','/downloads/client/windows','/login','/app/../login','/app/%2e%2e/login'])assert.equal(appDestination(value,origin),'/app/#friends');
+ assert.equal(appDestination('/app/?code=123456#room/demo',origin),'/app/?code=123456#room/demo');
+ assert.equal(appDestination('/app?guest=1&code=123456#home',origin),'/app/?code=123456#home');
+ assert.equal(loginPagePath('register','/app/#friends',origin),'/login?mode=register');
+ assert.equal(new URL('https://www.joincraft.top'+loginPagePath('login','/app/?code=123456#room/demo',origin)).searchParams.get('next'),'/app/?code=123456#room/demo');
+ assert.equal(useLoginPage({desktop:true,guest:false,profile:null}),false);
+ assert.equal(useLoginPage({desktop:false,guest:true,profile:null}),false);
+ assert.equal(useLoginPage({desktop:false,guest:false,profile:{kind:'guest'}}),false);
+ assert.equal(useLoginPage({desktop:false,guest:false,profile:null}),true);
+});
+
+test('standalone password login is public and its cookie authenticates the app',async()=>{
+ const app=await createApp({port:0,dbPath:':memory:'});
+ try{
+  for(const path of ['/login','/login/']){
+   const response=await fetch(app.url+path);assert.equal(response.status,200);assert.equal(response.headers.get('set-cookie'),null);
+   const html=await response.text();assert.match(html,/id="account-form" method="post" action="\/api\/auth\/login"/);assert.match(html,/autocomplete="current-password"/);assert.match(html,/src="\/auth\/world-v1.webp"/);assert.doesNotMatch(html,/扫码|短信|QQ|微信/);
+   assert.match(response.headers.get('content-security-policy'),/form-action 'self'/);
+  }
+  for(const [path,type] of [['/auth/login.js','text/javascript'],['/auth/session.js','text/javascript'],['/auth/style.css','text/css'],['/auth/world-v1.webp','image/webp']]){
+   const response=await fetch(app.url+path);assert.equal(response.status,200);assert.ok(response.headers.get('content-type').startsWith(type));
+   if(type==='image/webp'){assert.match(response.headers.get('cache-control'),/immutable/);assert.equal(Buffer.from(await response.arrayBuffer()).toString('ascii',0,4),'RIFF');}
+  }
+  const first=authClient(app),returning=authClient(app);
+  assert.equal((await returning.call('/api/state')).status,401);
+  assert.equal((await first.call('/api/auth/register',{username:'LoginPreview',password:accountSecret})).status,201);
+  assert.equal((await returning.call('/api/auth/login',{username:'LoginPreview',password:'incorrect-password'})).status,401);
+  assert.equal((await returning.call('/api/auth/login',{username:'LoginPreview',password:accountSecret})).status,200);
+  const state=await returning.call('/api/state');assert.equal(state.data.profile.kind,'account');assert.equal(state.data.profile.username,'loginpreview');
+  assert.equal((await returning.call('/api/auth/logout',{})).status,200);
+  assert.equal((await returning.call('/api/state')).status,401);
+ }finally{await app.close();}
+});
+
+
+test('legacy web game-library pages lead to the official homepage without serving native UI',async()=>{
+ const app=await createApp({port:0,dbPath:':memory:'});try{
+  for(const path of ['/launcher','/launcher/','/launcher/index.html']){
+   const response=await fetch(app.url+path,{redirect:'manual',headers:{'User-Agent':'joincraft/0.9.15 Electron/45.3.1'}});
+   assert.equal(response.status,302);assert.equal(response.headers.get('location'),'/');
+  }
+ }finally{await app.close();}
 });

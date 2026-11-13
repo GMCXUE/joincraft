@@ -1,0 +1,69 @@
+appId: com.joincraft.desktop
+productName: joincraft
+asar: true
+npmRebuild: false
+directories:
+  output: release
+  buildResources: build-resources
+files:
+  - desktop/**/*
+  - launcher/**/*
+  - public/launcher/**/*
+  - public/desktop-notifications.*
+  - public/type.css
+  - public/pixel-theme.css
+  - public/focus.js
+  - public/motion.js
+  - public/motion.css
+  - public/mining.js
+  - public/brand/mining-atlas-v2.png
+  - public/brand/ui-pixel-v1.woff2
+  - public/brand/app-512.png
+  - public/brand/mark.svg
+  - public/brand/wordmark-*
+  - public/brand/favicon.svg
+  - package.json
+  - '!desktop/update-helper/**/*'
+  - '!**/*.test.*'
+  - '!**/*.map'
+extraMetadata:
+  main: desktop/main.mjs
+artifactName: joincraft-${version}-${os}-${arch}.${ext}
+publish:
+  provider: generic
+  url: https://www.joincraft.top/updates/
+win:
+  icon: build-resources/joincraft.ico
+  extraResources:
+    - from: build-resources/generated/joincraft-update.exe
+      to: updater/joincraft-update.exe
+  target:
+    - target: nsis
+      arch: [x64]
+  verifyUpdateCodeSignature: true
+nsis:
+  artifactName: joincraft-${version}-win-${arch}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  packElevateHelper: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  uninstallDisplayName: joincraft
+  installerLanguages: [zh_CN]
+  include: build-resources/installer.nsh
+mac:
+  icon: build-resources/joincraft.icns
+  category: public.app-category.games
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: joincraft 使用麦克风与你所在语音分组的成员通话。

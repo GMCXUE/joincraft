@@ -1,0 +1,17 @@
+
+# Existing Caddy owns 80/443 and certificate renewal; Joincraft is proxied by Nginx.
+www.joincraft.top {
+    encode gzip
+    reverse_proxy joincraft-nginx:8080
+}
+# Keep the first testing feed working so old test clients can migrate.
+joincraft.121.43.102.154.sslip.io {
+    handle_path /updates/* {
+        root * /data/joincraft-releases
+        header Cache-Control "no-cache"
+        file_server
+    }
+    handle {
+        redir https://www.joincraft.top{uri} permanent
+    }
+}

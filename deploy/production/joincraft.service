@@ -1,0 +1,26 @@
+[Unit]
+Description=joincraft rooms, chat and game relay
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=joincraft
+Group=joincraft
+WorkingDirectory=/opt/joincraft/current
+EnvironmentFile=/etc/joincraft/app.env
+ExecStart=/opt/joincraft/runtime/bin/node /opt/joincraft/current/server.mjs
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/joincraft
+MemoryMax=384M
+CPUQuota=100%
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

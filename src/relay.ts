@@ -114,6 +114,7 @@ export class Relay {
     socket.on('error', () => {});
     try {
       const path = request.url || '';
+      if(path.startsWith('/voice/')||path.split('?')[0]==='/api/realtime')return;
       if (!this.origins().some(o => new URL(o).host === request.headers.host) || request.headers.origin && !this.origins().includes(request.headers.origin)) fail('Forbidden', 403);
       if (path !== '/bridge/control' && !/^\/bridge\/data\/(new|[0-9a-f-]{36})$/.test(path)) fail('Not found', 404);
       this.service.consume(`bridge-upgrade:${digest(request.socket.remoteAddress || '')}`, 240, 60000);

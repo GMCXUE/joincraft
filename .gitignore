@@ -17,3 +17,17 @@ public/joincraft-bridge.cjs
 *.log
 .DS_Store
 /preview*.png
+
+public/voice-sdk.js
+
+# Desktop build outputs and signing material
+release/
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Native update helper build output (source in desktop/update-helper)
+/build-resources/generated/
+*.pem

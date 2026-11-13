@@ -1,0 +1,84 @@
+name: Build desktop clients
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build platform
+        type: choice
+        options: [windows, mac, all]
+        default: windows
+permissions:
+  contents: read
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platform == 'windows' && '["windows-latest"]' || inputs.platform == 'mac' && '["macos-latest"]' || '["windows-latest","macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:updater
+      - uses: actions/setup-go@v5
+        if: runner.os == 'Windows'
+        with:
+          go-version-file: desktop/update-helper/go.mod
+          cache: false
+      - name: Test update helper
+        if: runner.os == 'Windows'
+        run: go -C desktop/update-helper test ./...
+      - name: Prepare bundle signing key
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          JOINCRAFT_UPDATE_PRIVATE_KEY: ${{ secrets.JOINCRAFT_UPDATE_PRIVATE_KEY }}
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; import path from "node:path"; if(!process.env.JOINCRAFT_UPDATE_PRIVATE_KEY)throw Error("Missing JOINCRAFT_UPDATE_PRIVATE_KEY");fs.writeFileSync(path.join(process.env.RUNNER_TEMP,"joincraft-update.pem"),process.env.JOINCRAFT_UPDATE_PRIVATE_KEY,{mode:0o600});'
+      - name: Build Windows installer and in-app update bundle
+        if: runner.os == 'Windows'
+        run: npm run dist:win
+        env:
+          JOINCRAFT_UPDATE_SIGNING_KEY: ${{ runner.temp }}/joincraft-update.pem
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      - name: Require Mac release credentials
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          for key in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!key}" ]; then echo "Missing signing/notarization secret: $key"; exit 1; fi
+          done
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Build signed Mac installers and update archives
+        if: runner.os == 'macOS'
+        run: npm run dist:mac -- --config.forceCodeSigning=true
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest*.yml
+            release/windows-*.json

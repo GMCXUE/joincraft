@@ -1,0 +1,48 @@
+/* One reading rhythm across rooms, chat and the native game library. */
+:root {
+  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --ui-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --wa-font-family-body: var(--ui-font);
+  --wa-font-family-heading: var(--ui-font);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: var(--ui-font); }
+h1, h2, h3, strong, .field-label { font-weight: 600; }
+h1, h2, h3 { letter-spacing: 0; }
+.wordmark, .brand { font-size: 19px; font-weight: 700; letter-spacing: -.5px; }
+.room-heading-line h2, .content-header h1 { font-size: 16px; font-weight: 600; }
+.identity-title h2, .instance-heading h2, .page-intro h2 { font-size: 22px; font-weight: 600; line-height: 1.35; }
+.button, .button.small, button, .account-tabs button { font-weight: 500; }
+wa-button.ui-action::part(button) { font-family: var(--ui-font); font-size: 13px; font-weight: 500; }
+.room-code, .play-address code { font-family: var(--ui-mono); font-variant-numeric: tabular-nums; }
+.room-code { font-size: 24px; font-weight: 500; letter-spacing: 2px; }
+.summary-fields dt, .identity-meta, .event time, .connection-state strong, .room-number { font-size: 12px; }
+.summary-fields dd { font-size: 14px; }
+.member-row strong, .dm-row.active strong, .dm-row.has-unread strong, .message-byline strong { font-weight: 600; }
+.message-content p { font-size: 14px; line-height: 1.7; }
+.friend-copy strong { font-size: 14px; }
+.readonly-caption { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+#pack-status:empty, #isolation-hint:empty, #check-result:empty { display: none; }
+@media (max-width: 600px) {
+  .identity-title h2, .instance-heading h2 { font-size: 20px; }
+  .channel { font-size: 13px; }
+  .content-header h1 { font-size: 15px; }
+}
+.field label, .sidebar-member, .member-row { font-size: 13px; }
+.field-label { font-weight: 500; }
+.message-byline time, .dm-title time, .chat-day, .chat-peer-handle,
+.composer-tools > span, .instance-text small, .eyebrow { font-size: 12px; }
+
+/* Drawn wordmark: consistent geometry on Windows, macOS and web. */
+.wordmark,.brand{display:inline-flex;align-items:center;flex:none;color:#e9ece6;line-height:1;}
+.brand-wordmark{display:block;width:114px;height:26px;overflow:visible;}
+@media(max-width:600px){.brand-wordmark{width:105px;height:24px;}}
+
+.wordmark,.brand{gap:4px;}
+.brand-symbol{display:block;width:32px;height:32px;flex:none;}
+@media(max-width:600px){.brand-symbol{width:28px;height:28px;}}

@@ -1,0 +1,1 @@
+import '/focus.js';document.getElementById('badge-count').addEventListener('change',event=>{const n=Number(event.target.value);document.querySelectorAll('[data-count]').forEach(badge=>badge.textContent=n>99?'99+':String(n));document.querySelector('[data-room-count]').textContent=n+1>99?'99+':String(n+1);});

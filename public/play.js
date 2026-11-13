@@ -1,15 +1,18 @@
-export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion}) {
+export function isDesktopClient(bridge=globalThis.blockroomDesktop){return typeof bridge?.openLibrary==='function';}
+export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion,desktop=isDesktopClient,download=()=>location.assign('/downloads/client/windows')}) {
  const $=s=>document.querySelector(s);
  let pending=null,expiryTimer;
  const labels={offline:'尚未开房',waiting:'等待房主连接',online:'可以加入游戏',error:'连接已断开'};
+ function requiredPanel(){return `<section class="play-panel client-required" aria-label="客户端联机"><div class="play-heading"><h3>${icon('gamepad')}在客户端中联机</h3><p>游戏库与 MC 联机请使用 joincraft 客户端。</p></div><div class="client-required-actions"><a class="button primary small" href="/downloads/client/windows">下载客户端</a><span>Windows x64</span></div></section>`;}
  function panel(room){
+  if(!desktop())return requiredPanel();
   const c=room.connection||{status:'offline'},local=c.local;
-  const hint=room.isHost?(c.status==='online'?'保持 MC 世界和连接程序运行，朋友就能加入。':'在 MC 中开放局域网，然后开始联机。'):c.status==='online'?'连接后，在 MC 多人游戏中输入下方的本机地址。':'等房主开始联机后，就可以连接游戏。';
-  return `<section class="play-panel" aria-label="游戏联机"><div class="play-heading"><div><h3>${icon('gamepad')}Java 版联机</h3><p>${hint}</p></div><span class="play-status ${c.status==='online'?'ready':''}"><span></span>${labels[c.status]||labels.offline}</span></div>${c.error?`<p class="play-error" role="alert">${escape(c.error)}</p>`:''}<div class="play-controls">${room.isHost?`${['online','waiting'].includes(c.status)?'<button class="button" data-action="play-stop">停止联机</button>':`<button class="button primary" data-action="play-start">${icon('gamepad')}${c.status==='error'?'重新开房':'开始联机'}</button>`}${c.status==='online'?`<span class="play-detail">${escape(c.version||'Java 版')} · ${c.connections} 条游戏连接</span>`:''}`:local?.status==='ready'?`<div class="play-address"><small>本机连接地址</small><code>${escape(local.address)}</code><button class="icon-button" data-action="play-copy-address" aria-label="复制游戏地址">${icon('copy')}</button></div><button class="text-button" data-action="play-disconnect">断开连接</button>`:local?'<span class="play-detail">等待本地连接程序…</span><button class="text-button" data-action="play-connect">重新生成指令</button>':`<button class="button primary" data-action="play-connect" ${c.status!=='online'?'disabled':''}>${icon('link')}连接游戏</button>`}</div><p class="play-footnote">${room.isHost?'世界运行在房主电脑上。关闭世界或停止联机后，朋友会断开。':'此地址仅供运行连接程序的那台电脑使用。版本与模组需和房主一致。'}</p></section>`;
+
+  return `<section class="play-panel" aria-label="游戏联机"><div class="play-heading"><div><h3>${icon('gamepad')}游戏联机</h3></div><span class="play-status ${c.status==='online'?'ready':''}"><span></span>${labels[c.status]||labels.offline}</span></div>${c.error?`<p class="play-error" role="alert">${escape(c.error)}</p>`:''}<div class="play-controls">${room.isHost?`${['online','waiting'].includes(c.status)?'<button class="button" data-action="play-stop">停止联机</button>':`<button class="button primary" data-action="play-start">${icon('gamepad')}${c.status==='error'?'重新开房':'开始联机'}</button>`}${c.status==='online'?`<span class="play-detail">${escape(c.version||'Java 版')} · ${c.connections} 条游戏连接</span>`:''}`:local?.status==='ready'?`<div class="play-address"><small>本机连接地址</small><code>${escape(local.address)}</code><button class="icon-button" data-action="play-copy-address" aria-label="复制游戏地址">${icon('copy')}</button></div><button class="text-button" data-action="play-disconnect">断开连接</button>`:local?'<span class="play-detail">等待本地连接程序…</span><button class="text-button" data-action="play-connect">重新生成指令</button>':`<button class="button primary" data-action="play-connect" ${c.status!=='online'?'disabled':''}>${icon('link')}连接游戏</button>`}</div></section>`;
  }
  function sync(room){
   const c=room.connection||{status:'offline'};
-  const status=$('.connection-state');
+  const status=$('.connection-state');if(status)status.hidden=!desktop();
   if(status){status.classList.toggle('connected',c.status==='online');status.querySelector('strong').textContent=c.status==='online'?'Java 联机已开启':labels[c.status]||'尚未开房';}
   if(!pending||pending.roomId!==room.id||pending.version!==getVersion())return;
   const message=$('#play-command-status');if(!message)return;
@@ -25,12 +28,13 @@ export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,to
   clearTimeout(expiryTimer);expiryTimer=setTimeout(()=>{if($('#play-command-status')&&pending){$('#play-command-status').textContent='指令已过期。关闭此窗口，重新生成连接指令。';$('#play-copy-command').disabled=true;}},Math.max(0,result.expiresAt-Date.now()));
  }
  async function handle(action,target,room){
+  if(!desktop()){download();return;}
   if(action==='play-copy-command'){
    if(pending&&pending.version===getVersion()&&pending.expiresAt>Date.now())try{await navigator.clipboard.writeText(pending.command);toast('指令已复制');}catch{toast('请选中指令手动复制');}return;
   }
   if(!room||room.closed)return;
   if(action==='play-start'){
-   smallDialog('开始 Java 版联机',`<ol class="bridge-steps"><li><strong>打开你的 MC 世界</strong><p>按 Esc → 对局域网开放 → 创建一个局域网世界。</p></li><li><strong>填写游戏聊天栏显示的端口</strong><p>世界关闭后，下次开放的端口可能不同。</p></li></ol><form id="play-start-form"><div class="field"><label for="play-port">MC 局域网端口</label><input id="play-port" name="port" type="number" min="1024" max="65535" required placeholder="例如 51234" value="${room.connection?.port||room.port||''}"></div><p id="play-start-error" class="form-error" role="alert" hidden></p><button class="button primary full" type="submit">下一步：启动连接程序</button></form>`);
+   smallDialog('开始联机',`<ol class="bridge-steps"><li><strong>打开你的 MC 世界</strong><p>按 Esc → 对局域网开放 → 创建一个局域网世界。</p></li><li><strong>填写游戏聊天栏显示的端口</strong><p>每次开放局域网的端口可能不同。</p></li></ol><form id="play-start-form"><div class="field"><label for="play-port">MC 局域网端口</label><input id="play-port" name="port" type="number" min="1024" max="65535" required placeholder="例如 51234" value="${room.connection?.port||room.port||''}"></div><p id="play-start-error" class="form-error" role="alert" hidden></p><button class="button primary full" type="submit">下一步：启动连接程序</button></form>`);
    formHandler($('#play-start-form'),'#play-start-error',async body=>{const version=getVersion(),result=await api(`/api/rooms/${room.id}/play/start`,body);if(version!==getVersion())return;showCommand(result,room);await refresh();});$('#play-port').focus();return;
   }
   if(action==='play-copy-address'){
@@ -43,5 +47,5 @@ export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,to
    await refresh();
   }catch(error){toast(error.message);}finally{target.disabled=false;}
  }
- return {panel,sync,handle};
+ return {panel,sync,handle,requiredPanel};
 }

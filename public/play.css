@@ -16,3 +16,30 @@
 .bridge-command { width: 100%; min-height: 84px; padding: 12px; border: 1px solid var(--strong-border); border-radius: 6px; background: var(--input); font: 11px/1.6 ui-monospace,monospace; color: var(--secondary); resize: vertical; margin-bottom: 12px; word-break: break-all; }
 .play-command-status { margin-top: 16px; font-size: 12px; color: var(--secondary); overflow-wrap: anywhere; }.play-command-status.ready { color: var(--green); }.play-command-status.error { color: var(--error); }
 @media(max-width:600px) { .play-panel { padding: 16px; }.play-heading { flex-direction: column; gap: 8px; }.play-heading p { font-size: 12px; }.play-address { gap: 8px; }.play-address small { width: 100%; }.play-address code { font-size: 18px; }.play-controls { gap: 12px; } }
+
+/* Keep setup guidance in the start dialog, not permanently on the room page. */
+.play-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 18px 20px; margin-bottom: 24px; }
+.play-heading { flex: 1; flex-direction: column; gap: 4px; min-width: 160px; }
+.play-heading h3 { font-size: 14px; font-weight: 600; }
+.play-status { padding-top: 0; font-size: 12px; }
+.play-controls { margin: 0; gap: 12px; }
+.play-error { flex-basis: 100%; order: 3; margin-top: 0; }
+.play-detail { font-size: 12px; }
+.play-controls:has(.play-address) { flex-basis: 100%; }
+@media (max-width: 600px) {
+  .play-panel { padding: 16px; gap: 14px; }
+  .play-heading { min-width: 0; }
+  .play-controls .button { padding-inline: 12px; }
+}
+
+/* Browser pages guide players to the native game tools. */
+.client-required .play-heading{flex:1 1 240px;min-width:0;}
+.client-required .play-heading p{margin-top:4px;font-size:13px;line-height:1.7;color:var(--secondary);}
+.client-required-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.client-required-actions>span{font-size:11px;color:var(--muted);white-space:nowrap;}
+.client-required-page .client-required{max-width:760px;}
+[data-client=web] .sidebar-bottom:not(.has-voice){display:none;}
+.title-tools>#web-client-download{background:transparent;border-color:var(--border);padding:7px 12px;}
+.title-tools>#web-client-download:hover{background:var(--hover);border-color:var(--strong-border);}
+.help-steps .button{margin-top:10px;}
+@media(max-width:600px){.client-required{gap:14px;}.client-required .play-heading{flex-basis:100%;}.client-required-actions{gap:10px;}.title-tools>#web-client-download{font-size:14px;padding-inline:10px;}}

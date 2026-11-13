@@ -1,0 +1,15 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {Resvg} from '@resvg/resvg-js';
+const target=new URL('../design/brand/',import.meta.url);await mkdir(target,{recursive:true});
+const strip=svg=>svg.replace(/<svg[^>]*>|<\/svg>/g,'').trim();
+const mark=strip(await readFile(new URL('../public/brand/mark.svg',import.meta.url),'utf8'));
+const word=strip(await readFile(new URL('../public/brand/wordmark-pixel-v1.svg',import.meta.url),'utf8'));
+const lockup=ink=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 52" style="color:${ink}"><g transform="scale(.8125)">${mark}</g><g transform="translate(56 6) scale(3.076923)">${word}</g></svg>`;
+const light=lockup('#263e29'),dark=lockup('#e9ece6');
+await writeFile(new URL('lockup-pixel-v1.svg',target),light+'\n');await writeFile(new URL('lockup-pixel-dark-v1.svg',target),dark+'\n');
+const embed=(svg,x,y,width,height)=>`<image x="${x}" y="${y}" width="${width}" height="${height}" href="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}"/>`;
+const label=(value,x,y,color)=>`<text x="${x}" y="${y}" font-family="Arial,sans-serif" font-size="14" fill="${color}">${value}</text>`;
+const sheet=`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540"><rect width="1200" height="270" fill="#f1f4e8"/><rect y="270" width="1200" height="270" fill="#171a18"/>${label('WEB / LOGIN',52,42,'#52634a')}${embed(light,40,80,626.4,140.4)}${embed(light,866,130,232,52)}${label('APP / COMPACT HEADER',52,312,'#a3af9c')}${embed(dark,40,350,626.4,140.4)}${embed(dark,866,400,232,52)}</svg>`;
+await writeFile(new URL('wordmark-preview.svg',target),sheet);
+await writeFile(new URL('wordmark-preview.png',target),new Resvg(sheet).render().asPng());
+console.log('Generated light/dark SVG lockups and pixel wordmark review sheet.');

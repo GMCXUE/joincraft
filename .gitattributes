@@ -1,0 +1,6 @@
+# Preserve original bytes for bundled files verified against Mojang hashes.
+launcher/log-configs/*.xml -text whitespace=cr-at-eol
+
+# Keep upstream font license text verbatim.
+**/*OFL.txt -whitespace
+**/*license.txt -whitespace

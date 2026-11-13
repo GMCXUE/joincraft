@@ -1,0 +1,21 @@
+import {spawnSync} from 'node:child_process';
+import {readFile,writeFile,stat} from 'node:fs/promises';
+import {createPrivateKey,createPublicKey,createHash,sign} from 'node:crypto';
+import path from 'node:path';
+import os from 'node:os';
+const root=path.resolve(import.meta.dirname,'..');
+const pkg=JSON.parse(await readFile(path.join(root,'package.json')));
+if(!process.env.npm_execpath)throw Error('Run through npm run dist:win');
+const run=args=>{const result=spawnSync(process.execPath,[process.env.npm_execpath,...args],{cwd:root,stdio:'inherit'});if(result.error)throw result.error;if(result.status!==0)throw Error('Windows release build failed');};
+// One application payload is used for both first installation and later in-app updates.
+run(['run','dist:bundle']);
+run(['exec','--','electron-builder','--win','nsis','--x64','--prepackaged','release/win-unpacked','--publish','never']);
+const file=`joincraft-${pkg.version}-win-x64-setup.exe`,artifact=path.join(root,'release',file);
+const data=await readFile(artifact);if(data.toString('ascii',0,2)!=='MZ'||(await stat(artifact)).size<1024*1024)throw Error('Installer output invalid');
+const manifest={schema:1,kind:'installer',version:pkg.version,platform:'win32',arch:'x64',file,size:data.length,sha512:createHash('sha512').update(data).digest('hex'),publishedAt:new Date().toISOString()};
+const config=JSON.parse(await readFile(path.join(root,'desktop/update-config.json')));
+const key=createPrivateKey(await readFile(process.env.JOINCRAFT_UPDATE_SIGNING_KEY||path.join(os.homedir(),'.config/joincraft-release/update-ed25519.pem')));
+if(createPublicKey(key).export({format:'der',type:'spki'}).toString('base64')!==createPublicKey(config.publicKey).export({format:'der',type:'spki'}).toString('base64'))throw Error('Installer signing key does not match pinned release key');
+const payload=Buffer.from(JSON.stringify(manifest));
+await writeFile(path.join(root,'release/windows-x64-setup.json'),JSON.stringify({payload:payload.toString('base64'),signature:sign(null,payload,key).toString('base64')})+'\n');
+console.log('Installer ready:',file,manifest.size,createHash('sha256').update(data).digest('hex'));

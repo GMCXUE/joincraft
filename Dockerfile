@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY frontend ./frontend
@@ -16,7 +16,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package*.json server.mjs ./
 COPY --chown=node:node public ./public
-COPY --from=build --chown=node:node /app/public/ui.js /app/public/ui.css /app/public/joincraft-bridge.cjs ./public/
+COPY --from=build --chown=node:node /app/public/voice-sdk.js /app/public/ui.js /app/public/ui.css /app/public/joincraft-bridge.cjs ./public/
 COPY --chown=node:node scripts ./scripts
 RUN mkdir -p /app/data /app/backups && chown node:node /app/data /app/backups
 USER node
