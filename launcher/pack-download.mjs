@@ -4,11 +4,12 @@ import {mkdir,open,stat,rename,rm,copyFile} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
 
-export async function hashFile(file,algorithm='sha512'){
-  const hash=createHash(algorithm);for await(const chunk of createReadStream(file))hash.update(chunk);return hash.digest('hex');
+export async function hashFile(file,algorithm='sha512',{signal}={}){
+  signal?.throwIfAborted();
+  const hash=createHash(algorithm);for await(const chunk of createReadStream(file,{signal}))hash.update(chunk);return hash.digest('hex');
 }
-export async function validDownload(file,{hash,algorithm='sha512',size}={}){
-  try{const info=await stat(file);return info.isFile()&&info.size>0&&(!size||info.size===size)&&(!hash||(await hashFile(file,algorithm))===hash);}catch{return false;}
+export async function validDownload(file,{hash,algorithm='sha512',size,signal}={}){
+  try{signal?.throwIfAborted();const info=await stat(file);signal?.throwIfAborted();return info.isFile()&&info.size>0&&(!size||info.size===size)&&(!hash||(await hashFile(file,algorithm,{signal}))===hash);}catch(error){if(signal?.aborted)throw signal.reason;return false;}
 }
 export function officialURL(value){
   const url=new URL(value);if(url.protocol==='http:')url.protocol='https:';
@@ -53,7 +54,7 @@ async function copyVerified(source,target,verify,signal){
   const temporary=target+'.'+randomUUID()+'.part';
   try{
     signal?.throwIfAborted();await copyFile(source,temporary);signal?.throwIfAborted();
-    if(!await validDownload(temporary,verify))return false;
+    if(!await validDownload(temporary,{...verify,signal}))return false;
     signal?.throwIfAborted();await rename(temporary,target);return true;
   }catch(error){if(signal?.aborted)throw signal.reason;if(['ENOENT','EACCES','EPERM','EBUSY'].includes(error.code))return false;throw error;}finally{await rm(temporary,{force:true}).catch(()=>{});}
 }
@@ -61,7 +62,7 @@ export async function downloadFile(entry,target,{cacheDir,localFiles,progress,si
   const algorithm=entry.hashes?.sha512?'sha512':'sha1',hash=entry.hashes?.[algorithm],verify={hash,algorithm,size:entry.size};
   if(hash&&!new RegExp(algorithm==='sha512'?'^[a-f0-9]{128}$':'^[a-f0-9]{40}$').test(hash))throw Error('下载文件校验信息无效');
   const report=(written,total,networkBytes=0,done=false,reused=false)=>progress?.update(entry.path,written,total,{networkBytes,done,reused});
-  if(await validDownload(target,verify)){const size=(await stat(target)).size;report(size,size,0,true,true);return;}
+  if(await validDownload(target,{...verify,signal})){const size=(await stat(target)).size;report(size,size,0,true,true);return;}
   const cached=hash&&cacheDir?path.join(cacheDir,algorithm,hash):null;
   await mkdir(path.dirname(target),{recursive:true});
   if(cached&&await copyVerified(cached,target,verify,signal)){const size=(await stat(target)).size;report(size,size,0,true,true);return;}

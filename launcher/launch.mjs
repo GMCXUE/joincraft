@@ -29,19 +29,21 @@ export async function probeJava(javaPath, {timeout=10000}={}) {
   } catch (e) { if (e.message.startsWith('无法识别')) throw e; throw new Error('Java 无法运行，请检查安装与操作系统架构'); }
 }
 
-async function checkFile(file, sha1, failures) {
+async function checkFile(file, sha1, failures, signal) {
+  signal?.throwIfAborted();
   try {
     const info = await stat(file);
     if (!info.isFile() || info.size === 0) throw new Error();
     if (sha1) {
       if (!/^[a-f0-9]{40}$/i.test(sha1)) throw new Error();
       const hash = createHash('sha1');
-      for await (const chunk of createReadStream(file)) hash.update(chunk);
+      for await (const chunk of createReadStream(file,{signal})) hash.update(chunk);
       if (hash.digest('hex').toLowerCase() !== sha1.toLowerCase()) throw new Error();
     }
-  } catch { failures.push(file); }
+  } catch(error) { if(signal?.aborted)throw signal.reason;failures.push(file); }
 }
-export async function validateFiles(root, version) {
+export async function validateFiles(root, version, {signal}={}) {
+  signal?.throwIfAborted();
   const files = [[path.join(root, 'versions', version.minecraftVersion, `${version.minecraftVersion}.jar`), version.downloads?.client?.sha1]];
   for (const lib of version.libraries) files.push([inside(path.join(root, 'libraries'), lib.download.path), lib.download.sha1]);
   const indexFile = path.join(root, 'assets', 'indexes', `${version.assets}.json`);
@@ -57,7 +59,8 @@ export async function validateFiles(root, version) {
   }
   const failures = [];
   let cursor = 0;
-  await Promise.all(Array.from({ length: 8 }, async () => { while (cursor < files.length) { const file = files[cursor++]; await checkFile(...file, failures); } }));
+  await Promise.allSettled(Array.from({ length: 8 }, async () => { while (cursor < files.length) { signal?.throwIfAborted();const file = files[cursor++]; await checkFile(...file, failures,signal); } }));
+  signal?.throwIfAborted();
   if (failures.length) throw new Error(`有 ${failures.length} 个游戏文件缺失或损坏，请先在 PCL 中补齐。首个文件：${path.relative(root, failures[0])}`);
   return files.length;
 }

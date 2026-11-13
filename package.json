@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit",
     "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env server.mjs",
-    "test": "npm run build && node --test test.mjs desktop-login.test.mjs client-platform.test.mjs realtime.test.mjs interaction.test.mjs profile.test.mjs relay.test.mjs launcher.test.mjs community.test.mjs updater.test.mjs desktop-surfaces.test.mjs bundle-updater.test.mjs packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs download-gateway.test.mjs loader-progress.test.mjs",
+    "test": "npm run build && node --test test.mjs desktop-login.test.mjs client-platform.test.mjs realtime.test.mjs interaction.test.mjs profile.test.mjs relay.test.mjs launcher.test.mjs community.test.mjs updater.test.mjs desktop-surfaces.test.mjs bundle-updater.test.mjs packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs download-gateway.test.mjs loader-progress.test.mjs pack-cancellation.test.mjs",
     "backup": "node scripts/backup.mjs",
     "build:ui": "node scripts/build-ui.mjs",
     "desktop": "electron .",
@@ -25,7 +25,7 @@
     "build:icons": "node scripts/build-icons.mjs",
     "build:home": "node scripts/build-home.mjs",
     "preview:motion": "node scripts/preview-motion.mjs",
-    "test:packs": "node --test --test-timeout=60000 packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs download-gateway.test.mjs loader-progress.test.mjs",
+    "test:packs": "node --test --test-timeout=60000 packs.test.mjs transfers.test.mjs pack-download.test.mjs http-client.test.mjs forge-installer.test.mjs download-gateway.test.mjs loader-progress.test.mjs pack-cancellation.test.mjs",
     "test:packs:large": "npm run build && node --max-old-space-size=192 scripts/test-large-pack.mjs",
     "benchmark:packs": "node scripts/benchmark-pack-download.mjs"
   },

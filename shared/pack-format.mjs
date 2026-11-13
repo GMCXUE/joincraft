@@ -4,7 +4,8 @@ import {stat,mkdir} from 'node:fs/promises';
 import {createReadStream,createWriteStream} from 'node:fs';
 import {Transform,Writable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
-import {open,walkEntriesGenerator,readEntry,openEntryReadStream} from '@xmcl/unzip';
+import {open} from '@xmcl/unzip';
+import {zipEntries,zipEntryStream,readZipEntry} from './zip-io.mjs';
 
 export const MAX_PACK_BYTES=600*1024*1024;
 export const LEGACY_PACK_BYTES=16*1024*1024;
@@ -49,15 +50,15 @@ export async function archiveSize(source){
 }
 export async function archiveHash(source,{signal,onProgress}={}){
   const total=await archiveSize(source),hash=createHash('sha512');let completed=0;
-  const stream=Buffer.isBuffer(source)?[source]:createReadStream(source,{highWaterMark:256*1024});
+  const stream=Buffer.isBuffer(source)?[source]:createReadStream(source,{highWaterMark:256*1024,signal});
   try{for await(const chunk of stream){signal?.throwIfAborted();hash.update(chunk);completed+=chunk.length;onProgress?.({file:'校验整合包文件',completed,total});}}
   finally{stream.destroy?.();}
   return hash.digest('hex');
 }
 export async function inspectMrpack(source,{overrides=false,signal,onProgress}={}){
-  const size=await archiveSize(source),zip=await open(source),seen=new Set(),entries=[];let index,total=0,count=0,buffered=0;
+  signal?.throwIfAborted();const size=await archiveSize(source),zip=await open(source),seen=new Set(),entries=[];let index,total=0,count=0,buffered=0;
   try{
-    for await(const entry of walkEntriesGenerator(zip)){
+    for await(const entry of zipEntries(zip,{signal})){
       signal?.throwIfAborted();if(++count>12000)throw Error('整合包文件数量过多');
       const name=entry.fileName;packPath(name.endsWith('/')?name.slice(0,-1):name);
       if(seen.has(name.toLowerCase()))throw Error('整合包包含重复压缩条目');seen.add(name.toLowerCase());
@@ -65,7 +66,7 @@ export async function inspectMrpack(source,{overrides=false,signal,onProgress}={
       if(!Number.isSafeInteger(entry.uncompressedSize)||entry.uncompressedSize<0)throw Error('整合包文件大小无效');
       total+=entry.uncompressedSize;if(total>4*1024**3||entry.uncompressedSize>1024**3)throw Error('整合包解压后总大小不得超过 4 GB，单个文件不得超过 1 GB');
       if(name==='modrinth.index.json'){
-        if(entry.uncompressedSize>2*1024*1024)throw Error('整合包清单过大');index=JSON.parse((await readEntry(zip,entry)).toString('utf8'));
+        if(entry.uncompressedSize>2*1024*1024)throw Error('整合包清单过大');index=JSON.parse((await readZipEntry(zip,entry,{signal})).toString('utf8'));
       }else if(!name.endsWith('/')&&/^(?:overrides|client-overrides)\//.test(name)){
         const relativeName=name.slice(name.indexOf('/')+1);
         // PCL exports may include launcher-only metadata alongside game overrides.
@@ -73,9 +74,7 @@ export async function inspectMrpack(source,{overrides=false,signal,onProgress}={
         if(/^pcl(?:\/|$)/i.test(relativeName))continue;
         const relative=packPath(relativeName),hash=createHash('sha512'),chunks=[];let completed=0;
         if(overrides&&(buffered+=entry.uncompressedSize)>LEGACY_PACK_BYTES)throw Error('大整合包需要使用文件流模式解压');
-        const stream=await openEntryReadStream(zip,entry);
-        // yauzl 2 streams override destroy() without the modern close contract.
-        // pipeline uses their end events, including tiny stored ZIP entries.
+        const stream=await zipEntryStream(zip,entry,{signal});
         try{await pipeline(stream,new Writable({write(chunk,_encoding,callback){try{signal?.throwIfAborted();hash.update(chunk);completed+=chunk.length;if(completed>entry.uncompressedSize)throw Error('整合包文件大小不一致');if(overrides)chunks.push(chunk);onProgress?.({file:relative,completed,total:entry.uncompressedSize});callback();}catch(error){callback(error);}}}),{signal});if(completed!==entry.uncompressedSize)throw Error('整合包文件大小不一致');}
         finally{stream.destroy();}
         entries.push({path:relative,entryName:name,size:entry.uncompressedSize,priority:name.startsWith('client-overrides/')?1:0,sha512:hash.digest('hex'),...(overrides?{data:Buffer.concat(chunks)}:{})});
@@ -89,12 +88,12 @@ export async function inspectMrpack(source,{overrides=false,signal,onProgress}={
 export async function extractMrpackOverrides(source,entries,root,{signal,onProgress}={}){
   const selected=new Map(entries.map(entry=>[entry.entryName,entry])),zip=await open(source);let written=0;
   try{
-    for await(const entry of walkEntriesGenerator(zip)){
+    for await(const entry of zipEntries(zip,{signal})){
       signal?.throwIfAborted();const expected=selected.get(entry.fileName);if(!expected)continue;
       const file=destination(root,expected.path);await mkdir(path.dirname(file),{recursive:true});
       const hash=createHash('sha512');let bytes=0;
       const meter=new Transform({transform(chunk,_encoding,callback){try{signal?.throwIfAborted();bytes+=chunk.length;if(bytes>expected.size)throw Error('整合包文件大小不一致');hash.update(chunk);onProgress?.({file:expected.path,completed:bytes,total:expected.size});callback(null,chunk);}catch(error){callback(error);}}});
-      await pipeline(await openEntryReadStream(zip,entry),meter,createWriteStream(file,{flags:'wx',mode:0o600}),{signal});
+      await pipeline(await zipEntryStream(zip,entry,{signal}),meter,createWriteStream(file,{flags:'wx',mode:0o600}),{signal});
       if(bytes!==expected.size||hash.digest('hex')!==expected.sha512)throw Error('解压校验失败：'+expected.path);
       onProgress?.({file:expected.path,completed:bytes,total:expected.size,done:true});written++;
     }

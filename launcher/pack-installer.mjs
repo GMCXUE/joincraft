@@ -34,17 +34,18 @@ export class ManagedPacks {
       }
     }return result.sort((a,b)=>b.createdAt-a.createdAt);
   }
-  async matching(sha512){
+  async matching(sha512,{signal}={}){
+    signal?.throwIfAborted();
     if(typeof sha512!=='string'||!/^[a-f0-9]{128}$/.test(sha512))throw Error('整合包标识无效');
     let changed;
     for(const instance of (await this.list()).filter(item=>item.pack.sha512===sha512)){
-      let valid=true;
-      for(const entry of instance.lock||[]){if(!await validDownload(destination(instance.root,entry.path),{hash:entry.sha512})){valid=false;break;}}
+      signal?.throwIfAborted();let valid=true;
+      for(const entry of instance.lock||[]){if(!await validDownload(destination(instance.root,entry.path),{hash:entry.sha512,signal})){valid=false;break;}}
       // Extra mods change the environment even if all pinned files are still present.
       const expected=new Set((instance.lock||[]).filter(e=>e.path.startsWith('mods/')).map(e=>e.path.slice(5).toLowerCase()));
       for(const name of await readdir(path.join(instance.root,'mods')).catch(()=>[]))if(name.toLowerCase().endsWith('.jar')&&!expected.has(name.toLowerCase()))valid=false;
-      if(valid)try{await validateFiles(instance.root,(await resolveInstance(instance,this.platform)).version);}catch{valid=false;}
-      if(valid)return {status:'ready',instance};changed=instance;
+      if(valid)try{await validateFiles(instance.root,(await resolveInstance(instance,this.platform)).version,{signal});}catch(error){if(signal?.aborted)throw signal.reason;valid=false;}
+      signal?.throwIfAborted();if(valid)return {status:'ready',instance};changed=instance;
     }
     return changed?{status:'changed',instance:changed}:{status:'missing'};
   }
@@ -56,7 +57,8 @@ export class ManagedPacks {
     try{
       const pack=await inspectMrpack(buffer,{signal,onProgress:state=>this.progress.update(state.file,state.completed,state.total)});this.progress.name=pack.name;this.progress.sha512=pack.sha512;
       if(expectedHash&&pack.sha512!==expectedHash)throw Error('下载的整合包与房间版本不一致，请重新获取');
-      const match=await this.matching(pack.sha512);if(match.status==='ready'){this.progress.end('done','整合包已安装');return match.instance;}
+      signal.throwIfAborted();this.progress.phase('matching','检查已安装实例',1);
+      const match=await this.matching(pack.sha512,{signal});signal.throwIfAborted();if(match.status==='ready'){this.progress.end('done','整合包已安装');return match.instance;}
       await mkdir(this.root,{recursive:true});const space=await statfs(this.root).catch(()=>null);
       if(space&&Number(space.bavail)*Number(space.bsize)<pack.totalBytes*2+pack.archiveSize*3+2*1024**3)throw Error('游戏目录可用空间不足，请更换安装目录');
       const uuid=randomUUID(),parent=path.join(this.root,'instances');await mkdir(parent,{recursive:true});
@@ -127,6 +129,7 @@ export class ManagedPacks {
     await downloadMany(unique,game,context);return version;
   }
   async runTask(task,context){
+    context.signal.throwIfAborted();
     const cancel=()=>{void task.cancel(15000).catch(()=>{});};context.signal.addEventListener('abort',cancel,{once:true});
     try{return await task.startAndWait(loaderProgress(this.progress));}
     catch(error){if(context.signal.aborted)throw context.signal.reason;const file=loaderErrorFile(error);if(file)this.progress.detail(file);throw Error(loaderErrorMessage(error),{cause:error});}
@@ -149,6 +152,6 @@ export class ManagedPacks {
     if(['forge','neoforge'].includes(pack.loaderKey))id=await this.runTask(loaderInstallTask(pack,game,{java:java.path,gatewayOrigin:this.gatewayOrigin,onFile:file=>this.progress.detail(file),spawn:(file,args)=>spawn(file,args,{shell:false,windowsHide:true})}),context);
     context.signal.throwIfAborted();safePart(id);
     const version=id===pack.minecraft?await Version.parse(game,id,this.platform):await this.dependencies(game,id,context,4);
-    this.progress.detail('校验 Minecraft 文件');await validateFiles(game,version);return {version:id,java};
+    this.progress.detail('校验 Minecraft 文件');await validateFiles(game,version,{signal:context.signal});return {version:id,java};
   }
 }
