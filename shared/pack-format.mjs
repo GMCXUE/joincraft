@@ -9,7 +9,7 @@ import {open,walkEntriesGenerator,readEntry,openEntryReadStream} from '@xmcl/unz
 export const MAX_PACK_BYTES=600*1024*1024;
 export const LEGACY_PACK_BYTES=16*1024*1024;
 export const UPLOAD_CHUNK_BYTES=4*1024*1024;
-const allowedHosts=new Set(['cdn.modrinth.com','github.com','raw.githubusercontent.com','objects.githubusercontent.com','release-assets.githubusercontent.com','gitlab.com']);
+const allowedHosts=new Set(['cdn.modrinth.com','mediafilez.forgecdn.net','mediafiles.forgecdn.net','edge.forgecdn.net','github.com','raw.githubusercontent.com','objects.githubusercontent.com','release-assets.githubusercontent.com','gitlab.com']);
 export function packURL(value){
   let url;try{url=new URL(value);}catch{throw Error('整合包包含无效下载地址');}
   if(url.protocol!=='https:'||url.username||url.password||(url.port&&url.port!=='443')||!allowedHosts.has(url.hostname))throw Error('整合包下载来源暂不支持：'+url.hostname);
@@ -23,7 +23,7 @@ export function packPath(value){
 const label=(value,max)=>{if(typeof value!=='string'||!value.trim()||value.length>max||/[\x00-\x1f]/.test(value))throw Error('整合包名称或版本无效');return value.trim();};
 const version=value=>{if(typeof value!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9._+\-]{0,79}$/.test(value))throw Error('整合包依赖版本无效');return value;};
 export function inspectIndex(index){
-  if(index?.formatVersion!==1||index.game!=='minecraft'||!Array.isArray(index.files)||index.files.length>5000)throw Error('请选择标准 Modrinth .mrpack 整合包');
+  if(index?.formatVersion!==1||index.game!=='minecraft'||!Array.isArray(index.files)||index.files.length>5000)throw Error('无法识别整合包，请选择 .mrpack 或含 modrinth.index.json 的 ZIP 整合包');
   const name=label(index.name,120),versionId=label(index.versionId,100),deps=index.dependencies;
   if(!deps||typeof deps!=='object'||Array.isArray(deps))throw Error('整合包缺少游戏版本');
   const minecraft=version(deps.minecraft),loaders=Object.keys(deps).filter(key=>key!=='minecraft');
@@ -67,7 +67,11 @@ export async function inspectMrpack(source,{overrides=false,signal,onProgress}={
       if(name==='modrinth.index.json'){
         if(entry.uncompressedSize>2*1024*1024)throw Error('整合包清单过大');index=JSON.parse((await readEntry(zip,entry)).toString('utf8'));
       }else if(!name.endsWith('/')&&/^(?:overrides|client-overrides)\//.test(name)){
-        const relative=packPath(name.slice(name.indexOf('/')+1)),hash=createHash('sha512'),chunks=[];let completed=0;
+        const relativeName=name.slice(name.indexOf('/')+1);
+        // PCL exports may include launcher-only metadata alongside game overrides.
+        // Ignore it after validating the archive path; keep runtime overrides blocked.
+        if(/^pcl(?:\/|$)/i.test(relativeName))continue;
+        const relative=packPath(relativeName),hash=createHash('sha512'),chunks=[];let completed=0;
         if(overrides&&(buffered+=entry.uncompressedSize)>LEGACY_PACK_BYTES)throw Error('大整合包需要使用文件流模式解压');
         const stream=await openEntryReadStream(zip,entry);
         // yauzl 2 streams override destroy() without the modern close contract.

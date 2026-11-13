@@ -39,7 +39,7 @@ test('mrpack parsing pins exact versions, filters server files and resolves clie
   const f=await sample(),pack=await inspectMrpack(f.archive,{overrides:true});assert.equal(pack.name,'周末生存');assert.equal(pack.loader,'Fabric');assert.equal(pack.loaderVersion,'0.16.14');assert.equal(pack.sha512,f.sha512);assert.equal(pack.files.length,1);assert.equal(pack.totalBytes,f.mod.length+pack.overrides.reduce((sum,file)=>sum+file.size,0));assert.equal(pack.overrides.find(e=>e.path==='config/client.cfg').data.toString(),'client preferred');
 });
 test('pack archives reject missing manifest, hashes, unsupported loaders and protected paths',async t=>{
-  await assert.rejects(inspectMrpack(await zip([['manifest.json','{}']])),/标准 Modrinth/);
+  await assert.rejects(inspectMrpack(await zip([['manifest.json','{}']])),/无法识别整合包/);
   for(const value of ['../outside','mods/../outside','C:/outside','mods/a:stream','/absolute','mods/CON.jar','mods/name.','versions/attack.json','.joincraft/instance.json'])assert.throws(()=>packPath(value),/路径|运行环境/);
   for(const patch of [{dependencies:{minecraft:'1.20.1',unknown:'1'}},{formatVersion:2},{files:[{path:'mods/a.jar',hashes:{},fileSize:1,downloads:['https://cdn.modrinth.com/a']}]}])await assert.rejects(inspectMrpack((await sample({indexPatch:patch})).archive));
   const file=path.join(await temporary(t),'oversize.mrpack');await writeFile(file,Buffer.alloc(0));const {truncate}=await import('node:fs/promises');await truncate(file,MAX_PACK_BYTES+1);await assert.rejects(inspectMrpack(file),/600 MB/);
@@ -152,4 +152,26 @@ test('pack upload accepts manifests above the normal JSON body limit',async t=>{
  const {call,host,room}=await serverFixture(t),f=await sample({files:false,overrides:false});const {randomBytes}=await import('node:crypto');
  const archive=await zip([['modrinth.index.json',JSON.stringify(f.index)],['overrides/config/large.bin',randomBytes(512*1024)]]);assert.ok(archive.length>400000);
  const response=await call('/api/rooms/'+room.id+'/pack',{archive:archive.toString('base64')},host);assert.equal(response.status,200);assert.equal(response.data.pack.sha512,hash(archive));
+});
+
+test('Modrinth ZIP imports download pinned mods, preserve game overrides and ignore PCL launcher settings',async t=>{
+ const temp=await temporary(t),f=await sample({overrides:false}),data=Buffer.from('synthetic ZIP mod, never executed');
+ f.index.dependencies={minecraft:'1.20.1',forge:'47.3.33'};
+ f.index.files=[{path:'mods/zip-test.jar',fileSize:data.length,hashes:{sha512:hash(data),sha1:hash(data,'sha1')},downloads:['https://edge.forgecdn.net/files/1/2/test.jar','https://mediafilez.forgecdn.net/files/1/2/test.jar']}];
+ const archive=await zip([['modrinth.index.json',JSON.stringify(f.index)],['overrides/config/zip.cfg','keep=true'],['overrides/PCL/Setup.ini','launcher-only'],['client-overrides/pcl/config.json','{}'],['overrides/mods/mcef-libraries/windows_amd64/jcef_helper.exe','fixture, never executed']]),file=path.join(temp,'PCL 导出的整合包.zip');await writeFile(file,archive);
+ const parsed=await inspectMrpack(file);assert.equal(parsed.loader,'Forge');assert.equal(parsed.loaderVersion,'47.3.33');assert.equal(parsed.files.length,1);assert.equal(parsed.overrides.length,2);assert.equal(parsed.overrides.some(x=>x.path.toLowerCase().startsWith('pcl/')),false);
+ const urls=[],events=[],m=new ManagedPacks({root:temp+'/Joincraft',platform,engine:fakeEnvironment,notify:event=>events.push(event),fetchImpl:async url=>{urls.push(url);return new Response(url.includes('edge.forgecdn.net')?'corrupt':data);}}),instance=await m.install(file);
+ assert.ok(urls.some(u=>u.includes('mediafilez.forgecdn.net')));assert.equal((await readFile(instance.root+'/mods/zip-test.jar')).toString(),data.toString());assert.equal(await readFile(instance.root+'/config/zip.cfg','utf8'),'keep=true');assert.equal(await stat(instance.root+'/PCL').then(()=>true,()=>false),false);assert.equal((await m.matching(parsed.sha512)).status,'ready');assert.equal(hash(await readFile(path.join(instance.root,'..','pack.mrpack'))),parsed.sha512);assert.ok(events.some(e=>e.phase==='mods'&&e.totalBytes===data.length));
+});
+test('ZIP content validation still rejects ordinary archives and protected runtime overrides',async()=>{
+ await assert.rejects(inspectMrpack(await zip([['mods/alone.jar','not an import manifest']])),/无法识别整合包/);
+ const f=await sample({files:false,overrides:false});
+ for(const entry of ['overrides/versions/replace.json','overrides/libraries/replace.jar','client-overrides/.joincraft/instance.json'])await assert.rejects(inspectMrpack(await zip([['modrinth.index.json',JSON.stringify(f.index)],[entry,'{}']])),/不能覆盖启动器/);
+ assert.throws(()=>packPath('PCL/Setup.ini'),/不能覆盖启动器/,'metadata skipping must not allow manifest downloads into launcher directories');
+});
+test('CurseForge mirror redirects stay on the explicit CDN allowlist',async()=>{
+ for(const host of ['edge.forgecdn.net','mediafilez.forgecdn.net','mediafiles.forgecdn.net'])assert.equal(new URL(packURL('https://'+host+'/files/1/2/mod.jar')).hostname,host);
+ for(const url of ['https://edge.forgecdn.net.evil.example/mod.jar','https://evil.forgecdn.net/mod.jar','http://edge.forgecdn.net/mod.jar','https://user:pass@edge.forgecdn.net/mod.jar'])assert.throws(()=>packURL(url));
+ const calls=[];const response=await fetchChecked('https://edge.forgecdn.net/a.jar',{checkURL:packURL,fetchImpl:async url=>{calls.push(url);return calls.length===1?new Response(null,{status:302,headers:{location:'https://mediafilez.forgecdn.net/a.jar'}}):new Response('verified later');}});assert.equal(await response.text(),'verified later');assert.equal(calls.length,2);
+ await assert.rejects(fetchChecked('https://edge.forgecdn.net/a.jar',{checkURL:packURL,fetchImpl:async()=>new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}})}),/来源暂不支持/);
 });
