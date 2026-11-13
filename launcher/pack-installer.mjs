@@ -1,3 +1,4 @@
+import {clientFetch} from './http.mjs';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,readdir,rm,rename,stat,chmod,symlink,statfs,copyFile} from 'node:fs/promises';
@@ -12,7 +13,7 @@ import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} fr
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
 export class ManagedPacks {
-  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],resourceRoots=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=fetch,engine}={}){
+  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],resourceRoots=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=clientFetch,engine}={}){
     Object.assign(this,{root:path.resolve(root),roots:[...new Set([path.resolve(root),...roots.map(p=>path.resolve(p))])],notify,javaCandidates,resourceRoots,probe,platform,fetchImpl,engine});this.progress=new InstallProgress(notify);this.busy=false;
   }
   state(){return {...this.progress.state(),root:this.root};}

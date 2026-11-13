@@ -1,3 +1,4 @@
+import {clientFetch} from './http.mjs';
 import path from 'node:path';
 import {mkdir,open,stat,rename,rm,copyFile} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
@@ -15,7 +16,7 @@ export function officialURL(value){
   if(url.protocol!=='https:'||url.username||url.password||(url.port&&url.port!=='443')||!hosts.includes(url.hostname))throw Error('游戏依赖下载来源暂不支持：'+url.hostname);
   return url.href;
 }
-export async function fetchChecked(url,{fetchImpl=fetch,signal,checkURL=officialURL}={}){
+export async function fetchChecked(url,{fetchImpl=clientFetch,signal,checkURL=officialURL}={}){
   for(let redirects=0;redirects<6;redirects++){
     const safe=checkURL(url),response=await fetchImpl(safe,{redirect:'manual',signal});
     if([301,302,303,307,308].includes(response.status)){
@@ -56,7 +57,7 @@ async function copyVerified(source,target,verify,signal){
     signal?.throwIfAborted();await rename(temporary,target);return true;
   }catch(error){if(signal?.aborted)throw signal.reason;if(['ENOENT','EACCES','EPERM','EBUSY'].includes(error.code))return false;throw error;}finally{await rm(temporary,{force:true}).catch(()=>{});}
 }
-export async function downloadFile(entry,target,{cacheDir,localFiles,progress,signal,fetchImpl=fetch,checkURL=officialURL,stallTimeoutMs=15000}={}){
+export async function downloadFile(entry,target,{cacheDir,localFiles,progress,signal,fetchImpl=clientFetch,checkURL=officialURL,stallTimeoutMs=15000}={}){
   const algorithm=entry.hashes?.sha512?'sha512':'sha1',hash=entry.hashes?.[algorithm],verify={hash,algorithm,size:entry.size};
   if(hash&&!new RegExp(algorithm==='sha512'?'^[a-f0-9]{128}$':'^[a-f0-9]{40}$').test(hash))throw Error('下载文件校验信息无效');
   const report=(written,total,networkBytes=0,done=false,reused=false)=>progress?.update(entry.path,written,total,{networkBytes,done,reused});

@@ -1,3 +1,4 @@
+import {clientFetch} from './http.mjs';
 import { createHash } from 'node:crypto';
 
 export function offlineIdentity(name) {
@@ -9,7 +10,7 @@ export function offlineIdentity(name) {
 }
 
 export class MicrosoftAccount {
-  constructor({ clientId, client, fetchImpl = fetch, notify = () => {}, now = Date.now }) {
+  constructor({ clientId, client, fetchImpl = clientFetch, notify = () => {}, now = Date.now }) {
     this.clientId = clientId;
     this.client = client;
     this.fetch = fetchImpl;

@@ -1,3 +1,4 @@
+import {clientFetch} from '../launcher/http.mjs';
 import {EventEmitter} from 'node:events';
 import {createHash,verify,randomUUID} from 'node:crypto';
 import {readFile,writeFile,mkdir,rename,rm,copyFile} from 'node:fs/promises';
@@ -22,7 +23,7 @@ export function verifyManifest(envelope,{publicKey=config.publicKey,currentVersi
 async function jsonFile(file,value){const temp=file+'.tmp';await writeFile(temp,JSON.stringify(value),{mode:0o600});await rename(temp,file);}
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class BundleUpdater extends EventEmitter{
- constructor({app,currentVersion,arch=process.arch,fetcher=fetch,publicKey=config.publicKey,base=feed,spawnHelper=spawn,resourcesPath=process.resourcesPath,prepareTimeout=90000}){
+ constructor({app,currentVersion,arch=process.arch,fetcher=clientFetch,publicKey=config.publicKey,base=feed,spawnHelper=spawn,resourcesPath=process.resourcesPath,prepareTimeout=90000}){
   super();Object.assign(this,{app,currentVersion,arch,fetcher,publicKey,base,spawnHelper,resourcesPath,prepareTimeout});
   this.cache=path.join(app.getPath('userData'),'bundle-updates');
  }

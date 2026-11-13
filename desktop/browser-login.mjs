@@ -1,3 +1,4 @@
+import {clientFetch} from '../launcher/http.mjs';
 import {EventEmitter} from 'node:events';
 import {createHash,randomBytes} from 'node:crypto';
 
@@ -28,7 +29,7 @@ export function sessionAcceptor(cookies,serverURL,verify=async()=>{}){
 
 export class BrowserLogin extends EventEmitter {
  #attempt=null;#opening=null;#state={phase:'idle'};
- constructor({serverURL,openBrowser,acceptSession,fetcher=fetch,now=Date.now,intervalMs=2000}){
+ constructor({serverURL,openBrowser,acceptSession,fetcher=clientFetch,now=Date.now,intervalMs=2000}){
   super();this.origin=trustedOrigin(serverURL);this.openBrowser=openBrowser;this.acceptSession=acceptSession;this.fetcher=fetcher;this.now=now;this.intervalMs=intervalMs;
  }
  state(){return {...this.#state};}

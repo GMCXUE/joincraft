@@ -1,3 +1,4 @@
+import {clientFetch} from '../launcher/http.mjs';
 import path from 'node:path';
 import {stat,mkdir,open,rename,rm,copyFile} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
@@ -7,7 +8,7 @@ import {InstallProgress} from '../launcher/install-progress.mjs';
 const MB=1024*1024;
 const delay=(ms,signal)=>new Promise((resolve,reject)=>{const timer=setTimeout(done,ms);function done(){signal?.removeEventListener('abort',abort);resolve();}function abort(){clearTimeout(timer);reject(signal.reason);}signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();});
 export class PackTransfer {
-  constructor({serverURL,getHeaders=async()=>({}),getDirectory,notify=()=>{},fetchImpl=fetch}){
+  constructor({serverURL,getHeaders=async()=>({}),getDirectory,notify=()=>{},fetchImpl=clientFetch}){
     this.origin=new URL(serverURL).origin;if(!this.origin.startsWith('https:')&&!/^http:\/\/(?:localhost|127\.0\.0\.1)(?::|$)/.test(this.origin))throw Error('整合包服务地址无效');
     Object.assign(this,{getHeaders,getDirectory,notify,fetchImpl});this.progress=new InstallProgress(notify);this.drafts=new Map();this.busy=false;
   }
