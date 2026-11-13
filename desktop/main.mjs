@@ -16,6 +16,7 @@ import {readPclProfile} from '../launcher/pcl-profile.mjs';
 import {discoverJava} from '../launcher/java-discovery.mjs';
 import { MicrosoftAccount } from '../launcher/auth.mjs';
 import { GameLauncher, probeJava } from '../launcher/launch.mjs';
+import {windowChromeOptions,TITLEBAR_COLOR} from './window-chrome.mjs';
 import {PackTransfer} from './pack-transfer.mjs';
 import {ManagedPacks} from '../launcher/pack-installer.mjs';
 import {inspectMrpack,packSummary,MAX_PACK_BYTES,LEGACY_PACK_BYTES} from '../shared/pack-format.mjs';
@@ -115,11 +116,11 @@ function openRooms() {
   const target=new URL(serverURL());
   if(target.protocol!=='https:'&&!(target.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(target.hostname)))throw new Error('房间服务地址须使用 HTTPS，或本机 HTTP');
   if(alive(roomWindow)){surfaces.showRooms();return;}
-  roomWindow=new BrowserWindow({title:'joincraft',icon:path.join(here,'../public/brand/app-512.png'),width:1180,height:800,minWidth:850,minHeight:600,backgroundColor:'#17181a',webPreferences:{preload:path.join(here,'rooms-preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
+  roomWindow=new BrowserWindow({...windowChromeOptions(),title:'joincraft',icon:path.join(here,'../public/brand/app-512.png'),width:1180,height:800,minWidth:850,minHeight:600,backgroundColor:TITLEBAR_COLOR,webPreferences:{preload:path.join(here,'rooms-preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
   roomWindow.setMenuBarVisibility(false);protect(roomWindow,target.href);
   surfaces=new DesktopSurfaces({main:roomWindow,urls:{library:libraryURL,notifications:notificationsURL},prepare:protect,onModalClosed:cancelInstallation,createView:name=>{
     const view=new WebContentsView({webPreferences:{preload:path.join(here,name==='library'?'preload.cjs':'notifications-preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
-    view.setBackgroundColor(name==='notifications'?'#00000000':'#17181a');return view;
+    view.setBackgroundColor(name==='notifications'?'#00000000':TITLEBAR_COLOR);return view;
   }});
   roomWindow.on('close',event=>{
     if(anyGameBusy()||anyPackBusy()){

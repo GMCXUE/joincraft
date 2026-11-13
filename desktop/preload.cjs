@@ -20,3 +20,6 @@ let surfaceCovered=false;
 function syncSurfaceCoverage(){if(document.body){document.body.inert=surfaceCovered;document.body.setAttribute('aria-hidden',String(surfaceCovered));}}
 ipcRenderer.on('shell:covered',(_event,covered)=>{surfaceCovered=covered===true;syncSurfaceCoverage();});
 window.addEventListener('DOMContentLoaded',syncSurfaceCoverage);
+
+// Shared DOM markers let every in-window surface reserve native window controls.
+window.addEventListener('DOMContentLoaded',()=>{document.documentElement.dataset.desktopPlatform=process.platform;});

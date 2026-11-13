@@ -12,6 +12,7 @@ files:
   - public/launcher/**/*
   - public/pack-progress.*
   - public/desktop-notifications.*
+  - public/client-theme.css
   - public/type.css
   - public/pixel-theme.css
   - public/focus.js
@@ -22,6 +23,7 @@ files:
   - public/brand/ui-pixel-v1.woff2
   - public/brand/app-512.png
   - public/brand/mark.svg
+  - public/brand/mark-diamond.svg
   - public/brand/wordmark-*
   - public/brand/favicon.svg
   - package.json

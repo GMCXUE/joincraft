@@ -1,0 +1,194 @@
+/* Obsidian surfaces, iron text and a small diamond accent. Shared by web and native views. */
+:root.pixel-theme.client-theme {
+  color-scheme: dark;
+  --stone-night: #191b20;
+  --stone-wall: #24272d;
+  --stone-raised: #2d3139;
+  --diamond-core: #58c7cf;
+  --diamond-hover: #73d6dc;
+  --iron-ink: #e9edf3;
+  --outer: var(--stone-night);
+  --room: var(--stone-wall);
+  --surface: var(--stone-wall);
+  --panel: var(--stone-wall);
+  --bg: var(--stone-night);
+  --hover: #2b2f36;
+  --selected: #343943;
+  --input: #1d2026;
+  --text: var(--iron-ink);
+  --secondary: #bbc2cd;
+  --muted: #989fac;
+  --green: var(--diamond-core);
+  --green-dark: #102a2e;
+  --line: #ffffff0c;
+  --border: #ffffff0b;
+  --strong-border: #ffffff19;
+  --status-online: #82bc83;
+  --pixel-face: #343943;
+  --pixel-hover: #404651;
+  --pixel-edge: #4b525e;
+  --pixel-ink: var(--iron-ink);
+  --pixel-primary: var(--diamond-core);
+  --pixel-primary-hover: var(--diamond-hover);
+  --pixel-primary-edge: #58c7cf;
+  --pixel-primary-ink: #102a2e;
+  --pixel-focus: #8ddde2;
+  --pixel-field: var(--input);
+  --pixel-panel: #292d35;
+  --pixel-panel-edge: #454d5a;
+  --pixel-error: #ef9da4;
+  --pixel-error-bg: #3a282e;
+  --pixel-error-edge: #85515d;
+  --memory-used-fill: #667387;
+  --memory-game-fill: var(--diamond-core);
+  --memory-remaining-fill: #353c47;
+  --wa-color-text-normal: var(--text);
+  --wa-color-text-quiet: var(--secondary);
+  --wa-color-surface-default: var(--room);
+  --wa-color-surface-raised: var(--selected);
+  --wa-color-surface-lowered: var(--input);
+  --wa-color-surface-border: var(--strong-border);
+  --wa-color-brand-fill-loud: var(--diamond-core);
+  --wa-color-brand-on-loud: var(--green-dark);
+  --wa-color-focus: var(--pixel-focus);
+  scrollbar-color: #535b69 transparent;
+}
+.client-theme ::selection { background: #58c7cf45; color: var(--text); }
+.client-theme { font-family: var(--ui-font); }
+.client-theme .titlebar {
+  height: 40px; min-height: 40px; padding: 0 16px;
+  background: var(--stone-night); gap: 16px; user-select: none;
+}
+.client-theme .titlebar .brand-symbol { width: 24px; height: 24px; }
+.client-theme .titlebar .brand-wordmark { width: 96px; height: 22px; }
+.client-theme .titlebar :is(.brand,.wordmark) { gap: 5px; color: var(--text); }
+.client-theme .titlebar :is(.title-tools,#surface-label) { font-size: 12px; }
+.client-theme .titlebar .title-tools { gap: 6px; }
+:root.pixel-theme.client-theme .titlebar :is(.button,button) {
+  min-height: 28px; height: 28px; font-size: 12px; border-radius: 5px;
+  border-color: transparent; background: transparent; color: var(--secondary); padding: 4px 10px;
+}
+:root.pixel-theme.client-theme .titlebar :is(.button,button):hover { color: var(--text); background: var(--hover); }
+.client-theme .titlebar .icon-button { width: 28px; padding: 0; }
+.client-theme .titlebar .preview-label { display: none; }
+.client-theme[data-desktop-platform] .titlebar { -webkit-app-region: drag; app-region: drag; }
+.client-theme[data-desktop-platform] .titlebar :is(a,button,input,select,[role=button]) { -webkit-app-region: no-drag; app-region: no-drag; }
+.client-theme[data-desktop-platform=darwin] .titlebar { padding-left: 94px; }
+.client-theme[data-desktop-platform=win32] .titlebar,
+.client-theme[data-desktop-platform=linux] .titlebar {
+  padding-left: max(16px,env(titlebar-area-x,0px));
+  padding-right: max(148px,calc(100vw - env(titlebar-area-x,0px) - env(titlebar-area-width,100vw) + 12px));
+}
+.client-theme .app { height: calc(100dvh - 40px); padding: 0 8px 8px 0; grid-template-columns: 68px minmax(0,1fr); }
+:root.pixel-theme.client-theme .workspace { background: var(--room); border: 0; border-radius: 12px; }
+.client-theme .app > .workspace { grid-template-columns: 228px minmax(0,1fr); }
+.client-theme .room-sidebar { padding-inline: 12px; background: var(--room); }
+.client-theme .room-rail { padding: 12px 8px 8px; gap: 10px; }
+.client-theme .room-rail nav { gap: 10px; }
+.client-theme .rail-rule { margin-block: 2px; background: var(--border); }
+:root.pixel-theme.client-theme :is(.rail-home,.room-icon,.add-room) { width: 44px; height: 44px; min-height: 44px; border-radius: 12px; background: #292d34; color: var(--secondary); }
+:root.pixel-theme.client-theme :is(.rail-home,.room-icon):is(.active,.selected) { background: #2d3d43; border-color: var(--diamond-core); box-shadow: none; color: var(--text); }
+:root.pixel-theme.client-theme .add-room { border: 0; box-shadow: none; color: var(--secondary); }
+:root.pixel-theme.client-theme .user-avatar { border-color: #535c6b; background: #343e49; color: var(--text); }
+.client-theme .content-header { height: 60px; min-height: 60px; padding-inline: 24px; }
+.client-theme #room-heading { min-height: 84px; padding-top: 20px; }
+:root.pixel-theme.client-theme :is(h1,h2,h3,.field>label,.field-label,.setting label,.java-heading label,.account-panel>label,.memory-mode-row label,.memory-custom-row label,.voice-group-heading,.sidebar-section-title) { font-family: var(--ui-font); font-weight: 600; line-height: 1.5; }
+:root.pixel-theme.client-theme .content-header h1 { font-size: 16px; }
+:root.pixel-theme.client-theme .room-heading-line h2,
+:root.pixel-theme.client-theme .sidebar-title h1 { font-family: var(--pixel-font); font-size: 18px; font-weight: 400; }
+:root.pixel-theme.client-theme :is(button,.button,.text-button,.text-link,.channel,.voice-channel,.voice-group-heading>.voice-channel) { font-family: var(--ui-font); font-size: 14px; font-weight: 500; line-height: 1.45; }
+:root.pixel-theme.client-theme :is(button,.button) { border-width: 1px; border-radius: 6px; box-shadow: none; min-height: 36px; padding: 7px 12px; }
+:root.pixel-theme.client-theme :is(button,.button):active { box-shadow: none; transform: translateY(1px); }
+:root.pixel-theme.client-theme .channel { padding: 9px 10px; min-height: 38px; border-color: transparent; border-radius: 5px; }
+:root.pixel-theme.client-theme .channel.active { border-color: transparent; background: var(--selected); }
+:root.pixel-theme.client-theme .channel-count { color: var(--secondary); }
+:root.pixel-theme.client-theme .icon-button { padding: 0; border: 0; box-shadow: none; background: transparent; color: var(--muted); }
+:root.pixel-theme.client-theme .icon-button:hover { background: var(--hover); color: var(--text); }
+:root.pixel-theme.client-theme .button.primary { font-weight: 600; }
+:root.pixel-theme.client-theme .text-button { background: transparent; border-color: transparent; }
+:root.pixel-theme.client-theme .text-button.danger-text { color: var(--pixel-error); }
+:root.pixel-theme.client-theme .button.danger { background: #653b46; border-color: #85515d; color: #ffe1e5; }
+:root.pixel-theme.client-theme :is(input:not([type=radio]):not([type=checkbox]):not([type=range]),select,textarea):not(.chat-composer textarea,.room-chat-composer textarea) { border-color: var(--strong-border); border-radius: 5px; background: var(--input); color: var(--text); box-shadow: none; }
+:root.pixel-theme.client-theme :is(input,textarea)::placeholder { color: var(--muted); }
+:root.pixel-theme.client-theme :is(.chat-composer,.room-chat-composer) { background: #30353f; border: 1px solid transparent; border-radius: 8px; box-shadow: none; }
+:root.pixel-theme.client-theme :is(.chat-composer,.room-chat-composer):focus-within { border-color: #657487; box-shadow: none; }
+:root.pixel-theme.client-theme :is(.chat-composer,.room-chat-composer) textarea { background: transparent; border: 0; border-radius: 0; }
+:root.pixel-theme.client-theme .room-chat-composer { margin: 12px 24px 20px; padding: 10px 12px 10px 16px; }
+:root.pixel-theme.client-theme .room-chat-empty > span { background: #343b47; color: var(--secondary); }
+:root.pixel-theme.client-theme .room-chat-empty h2 { font-size: 20px; }
+:root.pixel-theme.client-theme :is(.room-message,.chat-message,.message,.form-error,.toast,.play-error,.voice-error) { font-family: var(--ui-font); font-size: 14px; line-height: 1.65; }
+:root.pixel-theme.client-theme :is(dialog,#install-confirm,#client-updates,.desktop-update-notice) { border: 1px solid var(--pixel-panel-edge); border-radius: 10px; background: var(--pixel-panel); }
+:root.pixel-theme.client-theme .dialog-close { width: 32px; height: 32px; padding: 0; }
+:root.pixel-theme.client-theme dialog h2 { font-size: 21px; }
+:root.pixel-theme.client-theme .toast { border-radius: 6px; }
+:root.pixel-theme.client-theme wa-button.ui-action::part(button) { font-family: var(--ui-font); font-size: 14px; font-weight: 500; min-height: 36px; padding: 6px 12px; border-width: 1px; border-radius: 6px; box-shadow: none; }
+:root.pixel-theme.client-theme wa-tooltip::part(body) { font-family: var(--ui-font); font-size: 13px; border-radius: 5px; }
+:root.pixel-theme.client-theme :is(.online-dot,.status-dot.online) { background: var(--status-online); }
+:root.pixel-theme.client-theme .connection-state strong { color: var(--secondary); font-family: var(--ui-font); font-size: 12px; font-weight: 500; }
+:root.pixel-theme.client-theme :is(.connection-state,.voice-status) { border-color: var(--border); }
+:root.pixel-theme.client-theme .voice-controls > .icon-button { border-radius: 5px; border-width: 1px; box-shadow: none; }
+:root.pixel-theme.client-theme .voice-controls > [data-state=on] { --voice-control-bg: #294332; --voice-control-hover: #35533e; --voice-control-edge: #43634b; --voice-control-ink: #b1e1bb; }
+:root.pixel-theme.client-theme .voice-controls > [data-state=off] { --voice-control-bg: #4c3038; --voice-control-hover: #613c46; --voice-control-edge: #85515d; --voice-control-ink: #f2b9c2; }
+:root.pixel-theme.client-theme .voice-controls > [data-action=community-leave] { --voice-control-bg: #833e4a; --voice-control-hover: #9c4a59; --voice-control-edge: #b76070; --voice-control-ink: #fff0f3; }
+:root.pixel-theme.client-theme .nav-motion-rail { outline: none; border: 1px solid var(--diamond-core); border-radius: 12px; box-shadow: none; }
+:root.pixel-theme.client-theme .nav-motion-sidebar { border-color: transparent; border-radius: 5px; box-shadow: none; background: transparent; }
+:root.pixel-theme.client-theme .room-pack-mark { background: #2c4248; color: var(--diamond-core); }
+:root.pixel-theme.client-theme .memory-bar { background: var(--memory-remaining-fill); }
+:root.pixel-theme.client-theme .instance-avatar,:root.pixel-theme.client-theme .pack-icon { background: #35424d; color: #c7dfe3; }
+:root.pixel-theme.client-theme .instance[aria-current=true] { border-color: transparent; }
+:root.pixel-theme.client-theme .desktop-notification-bell { padding: 0; min-width: 28px; width: 28px; }
+:root.pixel-theme.client-theme .desktop-update-notice { top: 48px; }
+:root.pixel-theme.client-theme .titlebar .desktop-notification-bell { min-height: 28px; height: 28px; }
+:root.pixel-theme.client-theme body > .workspace { height: calc(100dvh - 48px); margin: 0 8px 8px; }
+:root.pixel-theme.client-theme .library-sidebar { background: var(--room); }
+:root.pixel-theme.client-theme .settings-section h3 { font-size: 13px; color: var(--secondary); }
+:root.pixel-theme.client-theme .instance-heading h2 { font-size: 24px; }
+:root.pixel-theme.client-theme .memory-mode-row label,:root.pixel-theme.client-theme .memory-custom-row label { font-size: 14px; }
+:root.pixel-theme.client-theme .notifications-page { background: transparent; }
+:root.pixel-theme.client-theme .notifications-page:before { content: ''; position: fixed; inset: 0 0 auto; height: 40px; -webkit-app-region: drag; app-region: drag; }
+@media (max-width: 760px) {
+  .client-theme .app { grid-template-columns: 56px minmax(0,1fr); padding-right: 6px; }
+  .client-theme .room-rail { padding-inline: 6px; }
+  .client-theme .app > .workspace { grid-template-columns: 184px minmax(0,1fr); }
+  .client-theme .content-header { padding-inline: 16px; }
+  .client-theme .titlebar { padding-inline: 12px; }
+  .client-theme .room-chat-composer { margin: 10px 14px 14px; }
+}
+@media (max-width: 600px) {
+  .client-theme .app > .workspace { display: flex; }
+  .client-theme .room-sidebar { padding-inline: 12px; }
+  .client-theme #room-heading { min-height: 58px; padding-top: 12px; }
+  .client-theme .content-header { min-height: 52px; height: 52px; }
+  :root.pixel-theme.client-theme :is(.rail-home,.room-icon,.add-room) { width: 40px; height: 40px; min-height: 40px; border-radius: 10px; }
+  :root.pixel-theme.client-theme body > .workspace { height: auto; min-height: calc(100dvh - 48px); }
+  :root.pixel-theme.client-theme .field > label { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root.pixel-theme.client-theme :is(button,.button) { transition: none; transform: none; }
+}
+
+.client-theme .motion-ready #room-nav .channel.active { background: var(--selected); }
+:root.pixel-theme.client-theme .room-rail :is(.rail-home,.room-icon,.add-room) { border-radius: 12px; padding: 0; line-height: 1; }
+:root.pixel-theme.client-theme .presence-avatar.online:after { background: var(--status-online); border-color: var(--room); }
+:root.pixel-theme.client-theme .send-room-message:not(:disabled) { background: #58c7cf16; color: var(--diamond-core); }
+
+/* The moving outline owns selection; the anchor must not draw a second ring. */
+:root.pixel-theme.client-theme .motion-ready .room-rail :is(.room-icon,.rail-home):is(.selected,.active) { border-color: transparent; outline: none; box-shadow: none; }
+:root.pixel-theme.client-theme .room-rail :is(.room-icon,.rail-home).selected:before { content: none; }
+:root.pixel-theme.client-theme .room-rail .room-picture { min-width: 0; width: 100%; height: 100%; white-space: nowrap; font: 650 16px/1 var(--ui-font); letter-spacing: 0; }
+:root.pixel-theme.client-theme .voice-controls > .icon-button { padding: 0; }
+
+/* Profile is a rail icon, not a padded form action. */
+:root.pixel-theme.client-theme .room-rail .user-avatar {
+  display: grid; place-items: center; flex: none; width: 44px; height: 44px; min-height: 44px;
+  padding: 0; border: 1px solid transparent; border-radius: 12px; overflow: hidden;
+  outline: none; box-shadow: none; background: #343e49;
+}
+:root.pixel-theme.client-theme .room-rail .user-avatar > .mob-avatar {
+  display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; image-rendering: pixelated;
+}
+:root.pixel-theme.client-theme .room-rail .user-avatar[aria-current=page] { border-color: transparent; outline: none; box-shadow: none; }
+:root.pixel-theme.client-theme[data-focus-mode=keyboard] .room-rail .user-avatar:focus-visible { outline: 2px solid var(--pixel-focus); outline-offset: 3px; }
+@media(max-width:600px) { :root.pixel-theme.client-theme .room-rail .user-avatar { width: 40px; height: 40px; min-height: 40px; border-radius: 10px; } }
+
+:root.pixel-theme.client-theme .profile-avatar-option > input:checked + span { background: #58c7cf14; border-color: var(--diamond-core); }
