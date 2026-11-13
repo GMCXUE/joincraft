@@ -178,3 +178,16 @@ The web app replaces the game-library toolbar button with the official client do
 Validation: 124 full tests passed, including capability detection, web command blocking, native controls/local address preservation and legacy URL routing. Browser 1280px and 390px checks verified download guidance, no horizontal overflow, absent game settings/port controls, deep links, web help and homepage redirects. The isolated Mac Electron client created a local test room, retained game-environment navigation and an enabled start button, and opened the functional local library in the same window. No game or microphone was started; screenshots use disposable local fixtures. Temporary preview processes were stopped.
 
 Public HTTPS checks passed for the four changed frontend assets, all three legacy library redirects, official installer download status/size and service health. The client loads this change after reopening; web pages need a refresh. Screenshots: client-platform-web.jpg, client-platform-mobile.jpg and client-platform-native.jpg. Embedded bridge management and Windows real-game validation remain subsequent work.
+
+
+## 2026-11-14 · 0.9.22 界面与整合包下载修复
+
+网站和后端发布目录 `/opt/joincraft/releases/0.9.22-20261114-client-fixes`，源码检查点 `a15b35f`；回滚目录 `/opt/joincraft/releases/0.9.21-20261113-zip-import`。服务使用按锁文件全新安装的生产依赖。SQLite schema 7 不变；一致性数据库及当前整合包备份位于 `/opt/joincraft/backups/before-0922.sqlite` 与 `.packs`，备份数据库权限 0600。代理、端口、中继及语音配置未变。
+
+应用采用炭灰/钻石青、一体化原生标题栏，修复房间简称、重复描边和头像尺寸。客户端默认 16 并发下载，按摘要复用已添加 PCL / 其他 Joincraft 实例中的文件；房主新上传的压缩包保存在本地供安装复用。修复主进程 HTTP parser 断流断言与 Forge/NeoForge 错误类型兼容问题，失败返回可重试提示。
+
+已发布安装程序 `joincraft-0.9.22-win-x64-setup.exe`，130400089 bytes，SHA-256 `0aa6896f5d1cf09a4955fb167795e28a28cd4b2672bd76651f803f663dc5ae9c`；应用内更新 `joincraft-0.9.22-win-x64.zip`，167062750 bytes，SHA-256 `43280b925cbb469231d80104dfe98825963f9ed7e250c5b04d90f9743f596c4a`。稳定 EXE/ZIP 别名及两份签名清单均指向 0.9.22；旧 NSIS latest.yml 仍为 0.9.3，签名公钥和应用内更新机制未变。
+
+发布验证：190 项完整回归通过，Go 更新助手测试通过；从最终 Windows EXE/ZIP 检查 Ed25519 签名、大小/SHA-512、相同核心载荷、源码/样式及固定依赖版本，并由 Go 助手校验和提取真实更新归档。提取后的实际应用代码在 Electron Node CLI 中通过 9 项 HTTP/Forge/NeoForge 专项测试。公网页面资源匹配本地字节，0.9.21 客户端检查可发现 0.9.22，ZIP Range 正确，完整公网 EXE 与 ZIP 下载的 SHA-512 匹配清单。当前服务健康。
+
+Windows 真实安装、更新重启、原生窗口控件、完整 Forge 处理器和真实 MC 启动由用户后续实测；本次未执行 Windows 程序或游戏。
