@@ -191,3 +191,16 @@ Public HTTPS checks passed for the four changed frontend assets, all three legac
 发布验证：190 项完整回归通过，Go 更新助手测试通过；从最终 Windows EXE/ZIP 检查 Ed25519 签名、大小/SHA-512、相同核心载荷、源码/样式及固定依赖版本，并由 Go 助手校验和提取真实更新归档。提取后的实际应用代码在 Electron Node CLI 中通过 9 项 HTTP/Forge/NeoForge 专项测试。公网页面资源匹配本地字节，0.9.21 客户端检查可发现 0.9.22，ZIP Range 正确，完整公网 EXE 与 ZIP 下载的 SHA-512 匹配清单。当前服务健康。
 
 Windows 真实安装、更新重启、原生窗口控件、完整 Forge 处理器和真实 MC 启动由用户后续实测；本次未执行 Windows 程序或游戏。
+
+
+## 2026-11-14 · 0.9.23 Forge 下载重试热修复
+
+仅发布 Windows 客户端；网站和后端继续使用 `/opt/joincraft/releases/0.9.22-20261114-client-fixes`，没有重启服务或修改数据库、代理及端口。客户端源码检查点 `126420c`，修复提交 `42ff468`。
+
+真实官方源验证复现 ForgeAutoRenamingTool 连接中断后立即回退 Maven Central 404、错误仍显示 installer.jar 的问题。现为主源 GET/HEAD 增加最多 3 次退避重试，保留真正来源失败，并同步实际依赖文件名。
+
+安装程序 `joincraft-0.9.23-win-x64-setup.exe`，130401085 bytes，SHA-256 `f2fb83269474deea437d1061bb0a2546f61f15679221cb816448fa0fa9bfe74d`；应用内更新 `joincraft-0.9.23-win-x64.zip`，167063337 bytes，SHA-256 `33d8446754a264f9f38ec39ee63e4170734b963930944e289f739fa4c715ea22`。稳定 EXE/ZIP 别名和两份签名清单指向 0.9.23；签名公钥及应用内更新流程沿用原配置，旧 NSIS latest.yml 保持 0.9.3。旧清单备份为 `/opt/joincraft/backups/windows-x64-before-0.9.23.json`。
+
+验证：TypeScript/UI 构建与 193 项完整回归通过；最终 EXE/ZIP 的 Ed25519 签名、大小/SHA-512、核心载荷一致性、打包源码和依赖版本通过；Go 更新助手完成真实更新包校验与解包。提取后的客户端代码与依赖在 Electron Node CLI 通过 12 项 HTTP/Forge 专项测试。公网完整 EXE/ZIP 下载摘要匹配签名清单，0.9.22 客户端能发现 0.9.23，Range、官网安装程序入口、网页资源和服务健康检查均通过。
+
+真实 Forge 1.20.1 / 47.3.33 安装程序与 36 个带摘要依赖校验通过，任务到达 Java 处理器边界并在执行 Java 前主动停止。Windows 实际安装、更新重启、完整 Java 处理器及游戏启动仍待用户实测。
