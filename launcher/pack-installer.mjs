@@ -11,6 +11,7 @@ import {safePart,inside,resolveInstance} from './library.mjs';
 import {probeJava,validateFiles} from './launch.mjs';
 import {InstallProgress} from './install-progress.mjs';
 import {registerInstance} from './instance-registration.mjs';
+import {loaderProgress} from './loader-progress.mjs';
 import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} from './pack-download.mjs';
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
@@ -127,7 +128,7 @@ export class ManagedPacks {
   }
   async runTask(task,context){
     const cancel=()=>{void task.cancel(15000).catch(()=>{});};context.signal.addEventListener('abort',cancel,{once:true});
-    try{return await task.startAndWait({onStart:t=>{if(t.to)this.progress.detail(path.basename(t.to));},onUpdate:t=>{const name=t.to?path.basename(t.to):t.from?new URL(t.from).pathname.split('/').at(-1):'处理加载器组件';if(t.total>0)this.progress.update(name,Math.max(0,t.progress),t.total);else this.progress.detail(name);}});}
+    try{return await task.startAndWait(loaderProgress(this.progress));}
     catch(error){if(context.signal.aborted)throw context.signal.reason;const file=loaderErrorFile(error);if(file)this.progress.detail(file);throw Error(loaderErrorMessage(error),{cause:error});}
     finally{context.signal.removeEventListener('abort',cancel);}
   }

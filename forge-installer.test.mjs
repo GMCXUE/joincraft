@@ -61,3 +61,12 @@ test('Forge installer and pinned tool dependencies use the configured VPS gatewa
   assert.ok(f.requests.some(r=>r.path==='/game-downloads/forge'+f.libraryPath));
   assert.deepEqual(f.blocked,[],'a working cache never contacts an external origin');
 });
+
+
+test('real Forge dependency progress marks completed files and does not count parent byte events twice',async t=>{
+  const f=await forgeFixture({library:true});t.after(f.close);const {manager,context,events}=runner(f);
+  assert.equal(await manager.runTask(task(f,manager),context),f.id);
+  const finished=events.findLast(event=>event.phase==='loader-download'&&event.completedFiles===1&&event.file.includes('ForgeAutoRenamingTool'));
+  assert.ok(finished);assert.equal(finished.totalFiles,1);assert.equal(finished.completedBytes,finished.totalBytes);assert.equal(finished.percent,100);
+  assert.ok(events.filter(event=>event.phase==='loader-download'&&event.totalFiles===1).every(event=>event.completedBytes<=event.totalBytes||event.totalBytes===null));
+});
