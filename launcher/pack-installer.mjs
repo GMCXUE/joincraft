@@ -1,7 +1,7 @@
 import {clientFetch} from './http.mjs';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {mkdir,readFile,writeFile,readdir,rm,rename,stat,chmod,symlink,statfs,copyFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,readdir,rm,stat,chmod,symlink,statfs,copyFile} from 'node:fs/promises';
 import {randomUUID,createHash} from 'node:crypto';
 import {Version,getPlatform} from '@xmcl/core';
 import {installFabric,installQuiltVersion} from '@xmcl/installer';
@@ -10,6 +10,7 @@ import {inspectMrpack,extractMrpackOverrides,archiveHash,packSummary,packURL,des
 import {safePart,inside,resolveInstance} from './library.mjs';
 import {probeJava,validateFiles} from './launch.mjs';
 import {InstallProgress} from './install-progress.mjs';
+import {registerInstance} from './instance-registration.mjs';
 import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} from './pack-download.mjs';
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
@@ -58,7 +59,7 @@ export class ManagedPacks {
       await mkdir(this.root,{recursive:true});const space=await statfs(this.root).catch(()=>null);
       if(space&&Number(space.bavail)*Number(space.bsize)<pack.totalBytes*2+pack.archiveSize*3+2*1024**3)throw Error('游戏目录可用空间不足，请更换安装目录');
       const uuid=randomUUID(),parent=path.join(this.root,'instances');await mkdir(parent,{recursive:true});
-      stage=path.join(parent,'.staging-'+uuid);const game=path.join(stage,'.minecraft');await mkdir(game,{recursive:true});
+      stage=path.join(parent,uuid);const game=path.join(stage,'.minecraft');await mkdir(game,{recursive:true});
       const localRoots=[...await this.resourceRoots(),...(await this.list()).map(instance=>instance.root)];
       const context={signal,progress:this.progress,fetchImpl:this.fetchImpl,cacheDir:path.join(this.root,'cache'),localFiles:localResourceFiles(localRoots)};
       const installed=await (this.engine||this.installEnvironment.bind(this))(pack,game,context);
@@ -72,8 +73,8 @@ export class ManagedPacks {
       await mkdir(path.join(game,'.joincraft'));await writeFile(path.join(game,'.joincraft','instance.json'),JSON.stringify({schema:1,version:record.version}));
       if(typeof buffer==='string')await copyFile(buffer,path.join(stage,'pack.mrpack'));else await writeFile(path.join(stage,'pack.mrpack'),buffer);
       if(await archiveHash(path.join(stage,'pack.mrpack'),{signal})!==pack.sha512)throw Error('整合包原文件已变化，请重新选择');
-      await writeFile(path.join(stage,'instance.json'),JSON.stringify(record));
-      signal.throwIfAborted();const final=path.join(parent,uuid);await rename(stage,final);stage=null;
+      this.progress.detail('登记游戏实例');
+      await registerInstance(stage,record,{signal});stage=null;
       this.progress.end('done','安装完成，已加入游戏库');return (await this.list()).find(item=>item.id===record.id);
     }catch(error){const cancelled=signal.aborted;this.progress.end(cancelled?'cancelled':'failed',cancelled?'安装已取消':error.message||'安装失败，请重试');throw cancelled?Error('安装已取消'):error;}
     finally{if(stage)await rm(stage,{recursive:true,force:true}).catch(()=>{});this.busy=false;}

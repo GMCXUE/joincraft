@@ -9,6 +9,7 @@ import yazl from 'yazl';
 import {WebSocket} from 'ws';
 import {inspectMrpack,inspectIndex,packPath,packURL,MAX_PACK_BYTES} from './shared/pack-format.mjs';
 import {ManagedPacks} from './launcher/pack-installer.mjs';
+import {registerInstance} from './launcher/instance-registration.mjs';
 import {GameLauncher} from './launcher/launch.mjs';
 import {InstallProgress} from './launcher/install-progress.mjs';
 import {downloadFile,fetchChecked} from './launcher/pack-download.mjs';
@@ -180,4 +181,33 @@ test('managed installation reuses hashed mods from an added PCL version without 
   const root=await temporary(t),f=await sample(),pcl=root+'/PCL/.minecraft/versions/pack';await put(pcl+'/mods/test.jar',f.mod);await put(pcl+'/saves/world/level.dat','keep original world');
   const events=[],{manager:m,calls}=manager(root+'/Joincraft',{resourceRoots:async()=>[pcl],notify:e=>events.push(e)});
   const installed=await m.install(f.archive);assert.equal(calls(),0);assert.deepEqual(await readFile(installed.root+'/mods/test.jar'),f.mod);assert.equal(await readFile(pcl+'/saves/world/level.dat','utf8'),'keep original world');assert.ok(events.some(e=>e.phase==='mods'&&e.reusedFiles===1));
+});
+
+
+test('installation keeps its game directory stable and publishes only a finished instance',async t=>{
+  const root=await temporary(t),f=await sample();let installedAt,release,entered;
+  const started=new Promise(r=>entered=r),wait=new Promise(r=>release=r);
+  const {manager:m}=manager(root,{engine:async(pack,game,context)=>{installedAt=game;entered();await wait;return fakeEnvironment(pack,game,context);}});
+  const pending=m.install(f.archive);await started;
+  assert.equal((await m.list()).length,0,'an unfinished final directory is never launchable');
+  assert.match(path.basename(path.dirname(installedAt)),/^[a-f0-9-]{36}$/);
+  assert(!installedAt.includes('.staging-'));release();
+  const result=await pending;assert.equal(result.root,installedAt,'Java and all generated files keep their original directory');
+  assert.equal((await m.list()).length,1);
+});
+
+test('instance registration tolerates temporary Windows sharing violations without moving the game folder',async t=>{
+  const root=await temporary(t),record={schema:1,id:'synthetic'},fs=await import('node:fs/promises');let attempts=0;
+  await registerInstance(root,record,{wait:async()=>{},renameImpl:async(from,to)=>{assert.equal(path.dirname(from),root);assert.equal(to,path.join(root,'instance.json'));if(++attempts<3)throw Object.assign(Error('temporarily locked'),{code:'EPERM'});await fs.rename(from,to);}});
+  assert.equal(attempts,3);assert.deepEqual(JSON.parse(await readFile(path.join(root,'instance.json'),'utf8')),record);
+  assert.deepEqual(await readdir(root),['instance.json']);
+});
+
+test('cancelled or persistently blocked registration leaves no partial instance record',async t=>{
+  const root=await temporary(t);let attempts=0;
+  await assert.rejects(registerInstance(root,{schema:1},{wait:async()=>{},renameImpl:async()=>{attempts++;throw Object.assign(Error('locked'),{code:'EPERM'});}}),/locked/);
+  assert.equal(attempts,7);assert.deepEqual(await readdir(root),[]);
+  const controller=new AbortController();
+  await assert.rejects(registerInstance(root,{schema:1},{signal:controller.signal,wait:async()=>{controller.abort(Error('cancelled registration'));},renameImpl:async()=>{throw Object.assign(Error('locked'),{code:'EBUSY'});}}),/cancelled registration/);
+  assert.deepEqual(await readdir(root),[]);
 });
