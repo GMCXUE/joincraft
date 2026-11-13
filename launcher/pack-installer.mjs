@@ -12,6 +12,7 @@ import {probeJava,validateFiles} from './launch.mjs';
 import {InstallProgress} from './install-progress.mjs';
 import {registerInstance} from './instance-registration.mjs';
 import {loaderProgress} from './loader-progress.mjs';
+import {fixedPackFile} from './pack-integrity.mjs';
 import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} from './pack-download.mjs';
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
@@ -39,15 +40,17 @@ export class ManagedPacks {
     if(typeof sha512!=='string'||!/^[a-f0-9]{128}$/.test(sha512))throw Error('整合包标识无效');
     let changed;
     for(const instance of (await this.list()).filter(item=>item.pack.sha512===sha512)){
-      signal?.throwIfAborted();let valid=true;
-      for(const entry of instance.lock||[]){if(!await validDownload(destination(instance.root,entry.path),{hash:entry.sha512,signal})){valid=false;break;}}
-      // Extra mods change the environment even if all pinned files are still present.
-      const expected=new Set((instance.lock||[]).filter(e=>e.path.startsWith('mods/')).map(e=>e.path.slice(5).toLowerCase()));
-      for(const name of await readdir(path.join(instance.root,'mods')).catch(()=>[]))if(name.toLowerCase().endsWith('.jar')&&!expected.has(name.toLowerCase()))valid=false;
-      if(valid)try{await validateFiles(instance.root,(await resolveInstance(instance,this.platform)).version,{signal});}catch(error){if(signal?.aborted)throw signal.reason;valid=false;}
-      signal?.throwIfAborted();if(valid)return {status:'ready',instance};changed=instance;
+      signal?.throwIfAborted();let issue;
+      for(const entry of (instance.lock||[]).filter(entry=>fixedPackFile(entry.path))){
+        if(!await validDownload(destination(instance.root,entry.path),{hash:entry.sha512,size:entry.size,allowEmpty:!entry.path.toLowerCase().endsWith('.jar'),signal})){issue={reason:'pack-file',file:entry.path};break;}
+      }
+      // Extra top-level mod JARs still change the environment. Runtime caches do not.
+      const expected=new Set((instance.lock||[]).filter(e=>fixedPackFile(e.path)&&e.path.toLowerCase().startsWith('mods/')).map(e=>e.path.slice(5).toLowerCase()));
+      for(const name of await readdir(path.join(instance.root,'mods')).catch(()=>[]))if(name.toLowerCase().endsWith('.jar')&&!expected.has(name.toLowerCase()))issue={reason:'extra-mod',file:'mods/'+name};
+      if(!issue)try{await validateFiles(instance.root,(await resolveInstance(instance,this.platform)).version,{signal});}catch(error){if(signal?.aborted)throw signal.reason;issue={reason:'runtime'};}
+      signal?.throwIfAborted();if(!issue)return {status:'ready',instance};changed={status:'changed',instance,...issue};
     }
-    return changed?{status:'changed',instance:changed}:{status:'missing'};
+    return changed||{status:'missing'};
   }
   cancel(){if(this.busy){this.progress.end('cancelling','正在取消安装');this.controller.abort(Error('安装已取消'));}}
   async install(buffer,expectedHash){
@@ -71,7 +74,7 @@ export class ManagedPacks {
       await downloadMany(pack.files,game,{...context,checkURL:packURL});
       this.progress.phase('verify','解压配置与校验',6,pack.overrides.map(entry=>({path:entry.path,size:entry.size})));
       await extractMrpackOverrides(buffer,pack.overrides,game,{signal,onProgress:state=>this.progress.update(state.file,state.completed,state.total,{done:state.done})});
-      const lock=[...pack.files.map(f=>({path:f.path,sha512:f.hashes.sha512})),...pack.overrides.filter(e=>/^(mods|config|defaultconfigs|scripts|kubejs)\//.test(e.path)).map(e=>({path:e.path,sha512:e.sha512}))];
+      const lock=[...pack.files.map(f=>({path:f.path,sha512:f.hashes.sha512,size:f.size})),...pack.overrides.filter(e=>/^(mods|config|defaultconfigs|scripts|kubejs)\//.test(e.path)).map(e=>({path:e.path,sha512:e.sha512,size:e.size}))];
       const packInfo=packSummary(pack),record={schema:1,id:'managed-'+uuid,pack:packInfo,version:installed.version,javaPath:installed.java.path,javaMajor:installed.java.major,lock,createdAt:Date.now()};
       await mkdir(path.join(game,'.joincraft'));await writeFile(path.join(game,'.joincraft','instance.json'),JSON.stringify({schema:1,version:record.version}));
       if(typeof buffer==='string')await copyFile(buffer,path.join(stage,'pack.mrpack'));else await writeFile(path.join(stage,'pack.mrpack'),buffer);

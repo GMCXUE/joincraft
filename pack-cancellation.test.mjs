@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {mkdtemp,writeFile,truncate,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,truncate,rm,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
 import yazl from 'yazl';
@@ -45,6 +45,6 @@ test('cancelling an install during ZIP inspection releases the task and allows a
  assert.ok((await manager.install(data)).id);assert.equal(calls,1);assert.equal(manager.busy,false);
 });
 test('installed file matching propagates cancellation instead of reporting changed',{timeout:3000},async t=>{
- const dir=await temporary(t),file=path.join(dir,'mod.jar');await writeFile(file,'');await truncate(file,32*1024*1024);const controller=new AbortController(),manager=new ManagedPacks({root:dir}),sha='a'.repeat(128);
- manager.list=async()=>[{root:dir,pack:{sha512:sha},lock:[{path:'mod.jar',sha512:sha}]}];const waiting=manager.matching(sha,{signal:controller.signal});setImmediate(()=>controller.abort(Error('cancel matching')));await assert.rejects(waiting,/cancel matching|aborted/);
+ const dir=await temporary(t),file=path.join(dir,'mods/mod.jar');await mkdir(path.dirname(file));await writeFile(file,'');await truncate(file,32*1024*1024);const controller=new AbortController(),manager=new ManagedPacks({root:dir}),sha='a'.repeat(128);
+ manager.list=async()=>[{root:dir,pack:{sha512:sha},lock:[{path:'mods/mod.jar',sha512:sha}]}];const waiting=manager.matching(sha,{signal:controller.signal});setImmediate(()=>controller.abort(Error('cancel matching')));await assert.rejects(waiting,/cancel matching|aborted/);
 });

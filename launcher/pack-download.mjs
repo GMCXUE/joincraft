@@ -8,8 +8,8 @@ export async function hashFile(file,algorithm='sha512',{signal}={}){
   signal?.throwIfAborted();
   const hash=createHash(algorithm);for await(const chunk of createReadStream(file,{signal}))hash.update(chunk);return hash.digest('hex');
 }
-export async function validDownload(file,{hash,algorithm='sha512',size,signal}={}){
-  try{signal?.throwIfAborted();const info=await stat(file);signal?.throwIfAborted();return info.isFile()&&info.size>0&&(!size||info.size===size)&&(!hash||(await hashFile(file,algorithm,{signal}))===hash);}catch(error){if(signal?.aborted)throw signal.reason;return false;}
+export async function validDownload(file,{hash,algorithm='sha512',size,signal,allowEmpty=false}={}){
+  try{signal?.throwIfAborted();const info=await stat(file);signal?.throwIfAborted();return info.isFile()&&(info.size>0||allowEmpty)&&(size===undefined||info.size===size)&&(!hash||(await hashFile(file,algorithm,{signal}))===hash);}catch(error){if(signal?.aborted)throw signal.reason;return false;}
 }
 export function officialURL(value){
   const url=new URL(value);if(url.protocol==='http:')url.protocol='https:';

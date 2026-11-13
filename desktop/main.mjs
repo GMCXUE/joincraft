@@ -218,7 +218,7 @@ else {
       if(action==='install-from-room'){if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或当前整合包任务');clientUpdater.assertCanLaunch();const result=await packTransfer.download(input||{});const instance=await installPack(result.file,result.pack.sha512);return {ok:true,value:{id:instance.id,pack:instance.pack}};}
       if(action==='list')return {ok:true,value:(await managedPacks.list()).map(i=>({id:i.id,name:i.name,pack:i.pack}))};
       if(action==='choose')return {ok:true,value:await choosePack(input)};
-      if(action==='status'){const match=await managedPacks.matching(input?.sha512);return {ok:true,value:{status:match.status,id:match.instance?.id}};}
+      if(action==='status'){const match=await managedPacks.matching(input?.sha512);return {ok:true,value:{status:match.status,id:match.instance?.id,reason:match.reason,file:match.file}};}
       if(action==='retry'){if(!lastPackInput||input?.sha512!==lastPackInput.sha512)throw Error('请重新获取房间整合包');const result=await installPack(lastPackInput.buffer,lastPackInput.sha512);return {ok:true,value:{id:result.id}};}
       if(action==='progress')return {ok:true,value:packState()};
       if(action==='cancel'){if(packTransfer.busy)await packTransfer.cancel();else managedPacks.cancel();return {ok:true,value:null};}
@@ -227,7 +227,7 @@ else {
         const instance=await installPack(Buffer.from(input.archive,'base64'),input.sha512);return {ok:true,value:{id:instance.id,pack:instance.pack}};
       }
       if(action==='open'){
-        const match=await managedPacks.matching(input?.sha512);if(match.status!=='ready')throw Error(match.status==='changed'?'本地模组或配置已变化，请安装房间版本后启动':'请先安装房间整合包');
+        const match=await managedPacks.matching(input?.sha512);if(match.status!=='ready')throw Error(match.status==='changed'?'本地模组、脚本或游戏文件不匹配，请安装房间版本后启动':'请先安装房间整合包');
         managedSelection=match.instance.id;if(match.instance.javaPath){launcher.javaPath=match.instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
         const configured=prefs.managedLaunchInputs?.[managedSelection];
         if(launcher.states().some(run=>run.id===managedSelection&&run.state==='running'))return {ok:true,value:{id:managedSelection,started:true}};

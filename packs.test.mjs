@@ -12,7 +12,7 @@ import {ManagedPacks} from './launcher/pack-installer.mjs';
 import {registerInstance} from './launcher/instance-registration.mjs';
 import {GameLauncher} from './launcher/launch.mjs';
 import {InstallProgress} from './launcher/install-progress.mjs';
-import {downloadFile,fetchChecked} from './launcher/pack-download.mjs';
+import {downloadFile,fetchChecked,validDownload} from './launcher/pack-download.mjs';
 import {Store} from './dist/database.js';
 import {createApp} from './server.mjs';
 const hash=(value,algorithm='sha512')=>createHash(algorithm).update(value).digest('hex');
@@ -210,4 +210,28 @@ test('cancelled or persistently blocked registration leaves no partial instance 
   const controller=new AbortController();
   await assert.rejects(registerInstance(root,{schema:1},{signal:controller.signal,wait:async()=>{controller.abort(Error('cancelled registration'));},renameImpl:async()=>{throw Object.assign(Error('locked'),{code:'EBUSY'});}}),/cancelled registration/);
   assert.deepEqual(await readdir(root),[]);
+});
+
+
+test('legitimate empty pack files stay ready, including records written before sizes were recorded',async t=>{
+  const temp=await temporary(t),f=await sample({files:false,overrides:false}),archive=await zip([['modrinth.index.json',JSON.stringify(f.index)],['overrides/defaultconfigs/empty.toml',''],['overrides/kubejs/startup_scripts/noop.js','']]);
+  const {manager:m}=manager(temp),installed=await m.install(archive);assert.equal((await m.matching(installed.pack.sha512)).status,'ready');
+  const recordPath=path.join(path.dirname(installed.root),'instance.json'),record=JSON.parse(await readFile(recordPath));for(const entry of record.lock)delete entry.size;await writeFile(recordPath,JSON.stringify(record));
+  assert.equal((await m.matching(installed.pack.sha512)).status,'ready','old instances need no reinstall');
+  await rm(path.join(installed.root,'defaultconfigs/empty.toml'));const missing=await m.matching(installed.pack.sha512);assert.equal(missing.status,'changed');assert.equal(missing.file,'defaultconfigs/empty.toml');
+});
+
+test('personal configuration, saves and MCEF runtime cache changes do not force a new room copy',async t=>{
+  const temp=await temporary(t),f=await sample(),archive=await zip([['modrinth.index.json',JSON.stringify(f.index)],['overrides/config/fancymenu/audio_element_controller_metas.json',''],['overrides/mods/mcef-cache/Local Storage/leveldb/LOCK',''],['overrides/mods/mcef-cache/Network/NetworkDataMigrated',''],['overrides/kubejs/config/client.properties','setting=true'],['overrides/kubejs/server_scripts/recipes.js','// pinned recipes']]);
+  const {manager:m}=manager(temp),installed=await m.install(archive);assert.equal((await m.matching(installed.pack.sha512)).status,'ready');
+  await put(path.join(installed.root,'config/fancymenu/audio_element_controller_metas.json'),'{}');await put(path.join(installed.root,'mods/mcef-cache/Local Storage/leveldb/LOCK'),'locked by browser');await rm(path.join(installed.root,'mods/mcef-cache/Network/NetworkDataMigrated'));await put(path.join(installed.root,'kubejs/config/client.properties'),'setting=false');await put(path.join(installed.root,'saves/world/level.dat'),'personal save');
+  assert.equal((await m.matching(installed.pack.sha512)).status,'ready');assert.equal((await m.install(archive)).id,installed.id);
+  await put(path.join(installed.root,'kubejs/server_scripts/recipes.js'),'// changed recipes');const changed=await m.matching(installed.pack.sha512);assert.equal(changed.status,'changed');assert.equal(changed.reason,'pack-file');assert.equal(changed.file,'kubejs/server_scripts/recipes.js');
+  assert.equal(await readFile(path.join(installed.root,'saves/world/level.dat'),'utf8'),'personal save');
+});
+
+test('empty-file support never accepts a missing file or an empty downloaded JAR',async t=>{
+  const temp=await temporary(t),file=path.join(temp,'empty.jar'),emptyHash=hash(Buffer.alloc(0));await writeFile(file,'');
+  assert.equal(await validDownload(file,{hash:emptyHash}),false);assert.equal(await validDownload(file,{hash:emptyHash,size:0,allowEmpty:true}),true);
+  assert.equal(await validDownload(file,{hash:emptyHash,size:1,allowEmpty:true}),false);assert.equal(await validDownload(path.join(temp,'missing'),{hash:emptyHash,allowEmpty:true}),false);
 });
