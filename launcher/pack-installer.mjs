@@ -8,12 +8,12 @@ import {inspectMrpack,extractMrpackOverrides,archiveHash,packSummary,packURL,des
 import {safePart,inside,resolveInstance} from './library.mjs';
 import {probeJava,validateFiles} from './launch.mjs';
 import {InstallProgress} from './install-progress.mjs';
-import {downloadFile,downloadMany,fetchJSON,validDownload} from './pack-download.mjs';
+import {downloadFile,downloadMany,fetchJSON,validDownload,localResourceFiles} from './pack-download.mjs';
 
 const RUNTIME_INDEX='https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json';
 export class ManagedPacks {
-  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=fetch,engine}={}){
-    Object.assign(this,{root:path.resolve(root),roots:[...new Set([path.resolve(root),...roots.map(p=>path.resolve(p))])],notify,javaCandidates,probe,platform,fetchImpl,engine});this.progress=new InstallProgress(notify);this.busy=false;
+  constructor({root,roots=[],notify=()=>{},javaCandidates=async()=>[],resourceRoots=async()=>[],probe=probeJava,platform=getPlatform(),fetchImpl=fetch,engine}={}){
+    Object.assign(this,{root:path.resolve(root),roots:[...new Set([path.resolve(root),...roots.map(p=>path.resolve(p))])],notify,javaCandidates,resourceRoots,probe,platform,fetchImpl,engine});this.progress=new InstallProgress(notify);this.busy=false;
   }
   state(){return {...this.progress.state(),root:this.root};}
   async list(){
@@ -57,7 +57,8 @@ export class ManagedPacks {
       if(space&&Number(space.bavail)*Number(space.bsize)<pack.totalBytes*2+pack.archiveSize*3+2*1024**3)throw Error('游戏目录可用空间不足，请更换安装目录');
       const uuid=randomUUID(),parent=path.join(this.root,'instances');await mkdir(parent,{recursive:true});
       stage=path.join(parent,'.staging-'+uuid);const game=path.join(stage,'.minecraft');await mkdir(game,{recursive:true});
-      const context={signal,progress:this.progress,fetchImpl:this.fetchImpl,cacheDir:path.join(this.root,'cache')};
+      const localRoots=[...await this.resourceRoots(),...(await this.list()).map(instance=>instance.root)];
+      const context={signal,progress:this.progress,fetchImpl:this.fetchImpl,cacheDir:path.join(this.root,'cache'),localFiles:localResourceFiles(localRoots)};
       const installed=await (this.engine||this.installEnvironment.bind(this))(pack,game,context);
       signal.throwIfAborted();
       this.progress.phase('mods','下载模组',5,pack.files);

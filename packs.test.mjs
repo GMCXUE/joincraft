@@ -175,3 +175,9 @@ test('CurseForge mirror redirects stay on the explicit CDN allowlist',async()=>{
  const calls=[];const response=await fetchChecked('https://edge.forgecdn.net/a.jar',{checkURL:packURL,fetchImpl:async url=>{calls.push(url);return calls.length===1?new Response(null,{status:302,headers:{location:'https://mediafilez.forgecdn.net/a.jar'}}):new Response('verified later');}});assert.equal(await response.text(),'verified later');assert.equal(calls.length,2);
  await assert.rejects(fetchChecked('https://edge.forgecdn.net/a.jar',{checkURL:packURL,fetchImpl:async()=>new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}})}),/来源暂不支持/);
 });
+
+test('managed installation reuses hashed mods from an added PCL version without modifying it',async t=>{
+  const root=await temporary(t),f=await sample(),pcl=root+'/PCL/.minecraft/versions/pack';await put(pcl+'/mods/test.jar',f.mod);await put(pcl+'/saves/world/level.dat','keep original world');
+  const events=[],{manager:m,calls}=manager(root+'/Joincraft',{resourceRoots:async()=>[pcl],notify:e=>events.push(e)});
+  const installed=await m.install(f.archive);assert.equal(calls(),0);assert.deepEqual(await readFile(installed.root+'/mods/test.jar'),f.mod);assert.equal(await readFile(pcl+'/saves/world/level.dat','utf8'),'keep original world');assert.ok(events.some(e=>e.phase==='mods'&&e.reusedFiles===1));
+});

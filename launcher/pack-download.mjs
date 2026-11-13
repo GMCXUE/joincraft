@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {mkdir,open,readFile,stat,rename,rm,copyFile} from 'node:fs/promises';
+import {mkdir,open,stat,rename,rm,copyFile} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
 
@@ -28,19 +28,53 @@ export async function fetchJSON(url,{maxBytes=4*1024*1024,...options}={}){
   const response=await fetchChecked(url,{...options,signal:AbortSignal.any([...(options.signal?[options.signal]:[]),AbortSignal.timeout(30000)])});
   const chunks=[];let bytes=0;for await(const chunk of response.body){bytes+=chunk.length;if(bytes>maxBytes)throw Error('下载清单过大');chunks.push(chunk);}return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
-export async function downloadFile(entry,target,{cacheDir,progress,signal,fetchImpl=fetch,checkURL=officialURL}={}){
+// Only caller-approved game directories are searched. Group roots once so thousands of
+// asset lookups do not repeatedly inspect unrelated PCL version/mod directories.
+export function localResourceFiles(roots=[]){
+  const known=[...new Set(roots.filter(root=>typeof root==='string'&&path.isAbsolute(root)).map(root=>path.resolve(root)))],groups=new Map();
+  return async relative=>{
+    const prefix=relative.split('/')[0];
+    if(!/^(assets|libraries|versions|mods)$/.test(prefix))return [];
+    if(!groups.has(prefix))groups.set(prefix,Promise.all(known.map(async root=>await stat(path.join(root,prefix)).then(info=>info.isDirectory(),()=>false)?root:null)).then(roots=>roots.filter(Boolean)));
+    const files=(await groups.get(prefix)).map(root=>resourcePath(root,relative));
+    // PCL may keep the vanilla client JAR under a merged instance's own name.
+    // Its pinned digest must still match before any bytes are reused.
+    if(/^versions\/[^/]+\/[^/]+\.jar$/.test(relative))for(const root of known)files.push(path.join(root,path.basename(root)+'.jar'));
+    return [...new Set(files)];
+  };
+}
+function resourcePath(root,relative){
+  if(typeof relative!=='string'||!relative||relative.includes('\\')||relative.includes('\0')||relative.split('/').some(part=>!part||part==='.'||part==='..'||part.includes(':')))throw Error('游戏文件路径不合法');
+  const target=path.resolve(root,relative);if(!target.startsWith(path.resolve(root)+path.sep))throw Error('游戏文件路径超出安装目录');return target;
+}
+async function copyVerified(source,target,verify,signal){
+  if(!await stat(source).then(info=>info.isFile()&&(!verify.size||info.size===verify.size),()=>false))return false;
+  const temporary=target+'.'+randomUUID()+'.part';
+  try{
+    signal?.throwIfAborted();await copyFile(source,temporary);signal?.throwIfAborted();
+    if(!await validDownload(temporary,verify))return false;
+    signal?.throwIfAborted();await rename(temporary,target);return true;
+  }catch(error){if(signal?.aborted)throw signal.reason;if(['ENOENT','EACCES','EPERM','EBUSY'].includes(error.code))return false;throw error;}finally{await rm(temporary,{force:true}).catch(()=>{});}
+}
+export async function downloadFile(entry,target,{cacheDir,localFiles,progress,signal,fetchImpl=fetch,checkURL=officialURL,stallTimeoutMs=15000}={}){
   const algorithm=entry.hashes?.sha512?'sha512':'sha1',hash=entry.hashes?.[algorithm],verify={hash,algorithm,size:entry.size};
   if(hash&&!new RegExp(algorithm==='sha512'?'^[a-f0-9]{128}$':'^[a-f0-9]{40}$').test(hash))throw Error('下载文件校验信息无效');
-  const report=(written,total,networkBytes=0,done=false)=>progress?.update(entry.path,written,total,{networkBytes,done});
-  if(await validDownload(target,verify)){const size=(await stat(target)).size;report(size,size,0,true);return;}
+  const report=(written,total,networkBytes=0,done=false,reused=false)=>progress?.update(entry.path,written,total,{networkBytes,done,reused});
+  if(await validDownload(target,verify)){const size=(await stat(target)).size;report(size,size,0,true,true);return;}
   const cached=hash&&cacheDir?path.join(cacheDir,algorithm,hash):null;
   await mkdir(path.dirname(target),{recursive:true});
-  if(cached&&await validDownload(cached,verify)){await copyFile(cached,target);const size=(await stat(target)).size;report(size,size,0,true);return;}
+  if(cached&&await copyVerified(cached,target,verify,signal)){const size=(await stat(target)).size;report(size,size,0,true,true);return;}
+  if(hash&&localFiles)for(const source of await localFiles(entry.path)){
+    if(await copyVerified(source,target,verify,signal)){
+      if(cached){await mkdir(path.dirname(cached),{recursive:true});await copyVerified(target,cached,verify,signal);}
+      const size=(await stat(target)).size;report(size,size,0,true,true);return;
+    }
+  }
   let lastError;
-  for(const url of entry.downloads)for(let attempt=0;attempt<2;attempt++){
+  for(let attempt=0;attempt<2;attempt++)for(const url of entry.downloads){
     signal?.throwIfAborted();const temp=target+'.'+randomUUID()+'.part';let handle,timer;
     const stall=new AbortController(),combined=AbortSignal.any([stall.signal,...(signal?[signal]:[])]);
-    const touch=()=>{clearTimeout(timer);timer=setTimeout(()=>stall.abort(Error('下载长时间无响应')),60000);timer.unref?.();};
+    const touch=()=>{clearTimeout(timer);timer=setTimeout(()=>stall.abort(Error('下载长时间无响应')),stallTimeoutMs);timer.unref?.();};
     try{
       touch();const response=await fetchChecked(url,{fetchImpl,signal:combined,checkURL});
       const contentSize=Number(response.headers.get('content-length'))||undefined;
@@ -49,7 +83,7 @@ export async function downloadFile(entry,target,{cacheDir,progress,signal,fetchI
       for await(const chunk of response.body){combined.throwIfAborted();touch();written+=chunk.length;if(written>(entry.size||2*1024**3))throw Error('下载文件超过预期大小');hasher.update(chunk);await handle.writeFile(chunk);report(written,total,chunk.length);}
       if(entry.size&&written!==entry.size)throw Error('文件下载不完整');if(hash&&hasher.digest('hex')!==hash)throw Error('文件校验失败');if(!written)throw Error('下载文件为空');
       await handle.close();handle=null;await rename(temp,target);
-      if(cached){await mkdir(path.dirname(cached),{recursive:true});await copyFile(target,cached);}
+      if(cached){await mkdir(path.dirname(cached),{recursive:true});await copyVerified(target,cached,verify,signal);}
       report(written,written,0,true);return;
     }catch(error){if(signal?.aborted)throw signal.reason;lastError=error;report(0,entry.size);}
     finally{clearTimeout(timer);await handle?.close().catch(()=>{});await rm(temp,{force:true}).catch(()=>{});}
@@ -57,7 +91,9 @@ export async function downloadFile(entry,target,{cacheDir,progress,signal,fetchI
   throw Error('下载失败：'+entry.path+'。'+(lastError?.message||'请检查网络后重试'));
 }
 export async function downloadMany(entries,root,options={}){
+  const concurrency=options.concurrency??16;if(!Number.isInteger(concurrency)||concurrency<1||concurrency>32)throw Error('下载并发数须为 1–32');
+  const queue=[...entries].sort((a,b)=>(b.size||0)-(a.size||0));
   let cursor=0;const abort=new AbortController(),signal=AbortSignal.any([abort.signal,...(options.signal?[options.signal]:[])]);
-  const results=await Promise.allSettled(Array.from({length:4},async()=>{while(cursor<entries.length){signal.throwIfAborted();const item=entries[cursor++];try{await downloadFile(item,path.join(root,...item.path.split('/')),{...options,signal});}catch(error){abort.abort(error);throw error;}}}));
+  const results=await Promise.allSettled(Array.from({length:Math.min(concurrency,queue.length)},async()=>{while(cursor<queue.length){signal.throwIfAborted();const item=queue[cursor++];try{await downloadFile(item,resourcePath(root,item.path),{...options,signal});}catch(error){abort.abort(error);throw error;}}}));
   const failure=results.find(r=>r.status==='rejected');if(failure)throw failure.reason;
 }

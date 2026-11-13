@@ -12,7 +12,7 @@ export function renderInstallProgress(container,state,{cancel,retry}={}){
   const progress=$('progress');if(percent!==null)progress.value=percent;else progress.removeAttribute('value');
   $('.pack-progress-current code').textContent=state.file||'正在准备文件清单';$('.pack-progress-current code').title=state.file||'';
   $('.pack-progress-file-size').textContent=state.fileTotal?formatBytes(state.fileCompleted||0)+' / '+formatBytes(state.fileTotal):'';
-  $('.pack-progress-count').textContent=state.totalFiles?(state.completedFiles||0)+' / '+state.totalFiles+' 个文件'+(state.totalBytes?' · '+formatBytes(state.completedBytes||0)+' / '+formatBytes(state.totalBytes):''):'';
+  $('.pack-progress-count').textContent=state.totalFiles?(state.completedFiles||0)+' / '+state.totalFiles+' 个文件'+(state.totalBytes?' · '+formatBytes(state.completedBytes||0)+' / '+formatBytes(state.totalBytes):'')+(state.reusedFiles?' · 已复用 '+state.reusedFiles+' 个':''):'';
   $('.pack-progress-speed').textContent=active&&state.speedBps?formatBytes(state.speedBps)+'/s':'';
   $('.pack-progress-eta').textContent=!active?'':state.phase==='loader'||state.phase==='verify'||state.phase==='inspect'?'处理中':state.etaSeconds!==null&&state.etaSeconds!==undefined?'本阶段剩余 '+formatETA(state.etaSeconds):'预计时间：正在估算';
   $('.pack-progress-end p').textContent=state.message||'';
