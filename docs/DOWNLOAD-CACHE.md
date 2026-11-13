@@ -13,3 +13,6 @@ nginx 使用固定来源映射，仅接受 GET/HEAD；不接收任意 URL，不�
 验收包括：真实 HTTP 的 Range、凭证隔离、取消、回源、坏摘要拒绝，真实 Forge 任务经本机缓存端点下载；上线后检查冷下载、再次 HIT、实际官方摘要、Range、非法来源/方法/查询拒绝与服务健康。
 
 参考：[nginx proxy_cache 官方文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)。
+
+
+0.9.24 上线验收：公网冷请求 3318 ms、热命中 127 ms（当前 Mac 到 VPS 的单文件测量）；64 个官方文件、21,907,097 bytes 已预热且摘要通过。真实 Forge 任务全部 38 个请求经过网关，36/36 依赖的完成数和字节准确；在 Java 前停止。nginx 上线初始内存约 6.82 MiB / 128 MiB，应用服务保持健康。
