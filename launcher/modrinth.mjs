@@ -2,6 +2,10 @@ import {clientFetch} from './http.mjs';
 const ORIGIN='https://api.modrinth.com/v2';
 const identity=v=>{if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(v))throw Error('Modrinth 标识无效');return v;};
 const label=(v,max=400)=>typeof v==='string'?v.slice(0,max):'';
+const count=v=>Number.isFinite(v)&&v>=0?Math.floor(v):0;
+const labels=v=>Array.isArray(v)?v.slice(0,100).filter(x=>typeof x==='string').map(x=>label(x,100)):[];
+export function modrinthImage(value){try{const u=new URL(value);return u.protocol==='https:'&&u.hostname==='cdn.modrinth.com'&&!u.username&&!u.password&&!u.port?u.href:'';}catch{return '';}}
+const presentation=p=>({iconUrl:modrinthImage(p.icon_url),downloads:count(p.downloads),followers:count(p.followers??p.follows),categories:labels(p.display_categories?.length?p.display_categories:p.categories),environment:labels(p.environment),clientSide:label(p.client_side,40),serverSide:label(p.server_side,40),updated:label(p.updated||p.date_modified,60)});
 export function compatibleVersion(v,instance){return Array.isArray(v.game_versions)&&v.game_versions.includes(instance.minecraft)&&Array.isArray(v.loaders)&&v.loaders.includes(instance.loader.toLowerCase());}
 export class Modrinth {
  constructor({fetchImpl=clientFetch,now=Date.now}={}){Object.assign(this,{fetchImpl,now});this.cache=new Map();this.blockedUntil=0;}
@@ -15,9 +19,14 @@ export class Modrinth {
  }
  async search({query='',category='',offset=0},instance,options={}){
   if(typeof query!=='string'||query.length>120||!Number.isInteger(offset)||offset<0||offset>10000)throw Error('搜索条件无效');const loader=instance.loader.toLowerCase();if(!['forge','fabric','neoforge','quilt'].includes(loader))return {hits:[],total:0};
-  const facets=[['project_type:mod'],['versions:'+instance.minecraft],['categories:'+loader]];if(category){identity(category);facets.push(['categories:'+category]);}const params=new URLSearchParams({query,facets:JSON.stringify(facets),offset:String(offset),limit:'20',index:'relevance'});const data=await this.request('/search?'+params,options);return {hits:(data.hits||[]).map(p=>({id:identity(p.project_id),title:label(p.title),description:label(p.description,2000),author:label(p.author),downloads:p.downloads||0,categories:p.categories||[]})),total:data.total_hits||0};
+  const facets=[['project_type:mod'],['versions:'+instance.minecraft],['categories:'+loader]];if(category){identity(category);facets.push(['categories:'+category]);}const params=new URLSearchParams({query,facets:JSON.stringify(facets),offset:String(offset),limit:'20',index:'relevance'});const data=await this.request('/search?'+params,options);return {hits:(data.hits||[]).map(p=>({id:identity(p.project_id),title:label(p.title),description:label(p.description,2000),author:label(p.author),...presentation(p),gameVersions:labels(p.versions)})),total:data.total_hits||0};
  }
- async project(id,options){const p=await this.request('/project/'+identity(id),options);return {id:identity(p.id),title:label(p.title),description:label(p.description,2000),body:label(p.body,16000),license:label(p.license?.name),slug:label(p.slug)};}
+ async project(id,options){
+  const p=await this.request('/project/'+identity(id),options);
+  let authors=[];
+  if(typeof p.team==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(p.team))try{const members=await this.request('/team/'+p.team+'/members',options);authors=Array.isArray(members)?members.slice(0,24).map(m=>({name:label(m.user?.name||m.user?.username,100),username:label(m.user?.username,100),role:label(m.role,100)})).filter(m=>m.name):[];}catch{/* A team request must not hide project details. */}
+  return {id:identity(p.id),title:label(p.title),description:label(p.description,2000),body:label(p.body,64000),license:label(p.license?.name||p.license?.id),slug:label(p.slug),...presentation(p),authors,loaders:labels(p.loaders),gameVersions:labels(p.game_versions),published:label(p.published,60),gallery:(Array.isArray(p.gallery)?p.gallery:[]).slice(0,12).map(g=>({url:modrinthImage(g.url),title:label(g.title,200),description:label(g.description,1000)})).filter(g=>g.url)};
+ }
  async versions(id,instance,options){const params=new URLSearchParams({game_versions:JSON.stringify([instance.minecraft]),loaders:JSON.stringify([instance.loader.toLowerCase()])});return (await this.request('/project/'+identity(id)+'/version?'+params,options)).filter(v=>compatibleVersion(v,instance)).sort((a,b)=>Date.parse(b.date_published)-Date.parse(a.date_published));}
  async version(id,options){return this.request('/version/'+identity(id),options);}
  async hashes(hashes,options){const result={};for(let i=0;i<hashes.length;i+=100){const batch=hashes.slice(i,i+100);if(batch.some(h=>!/^[a-f0-9]{128}$/.test(h)))throw Error('模组哈希无效');Object.assign(result,await this.request('/version_files',{...options,body:{hashes:batch,algorithm:'sha512'}}));}return result;}
