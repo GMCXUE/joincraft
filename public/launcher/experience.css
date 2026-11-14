@@ -59,3 +59,23 @@ html:has(.library-page){height:100%;overflow:hidden}
 
 .library-page .instance-avatar{position:relative}
 .library-page .instance[data-run-state=running] .instance-avatar:after{content:'';position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border:2px solid var(--stone-night);border-radius:50%;background:var(--status-online)}
+
+/* Save tiles keep a real world thumbnail, readable metadata, and an explicit choice. */
+.library-page .world-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+:root.pixel-theme.client-theme .library-page .world-row{display:grid;grid-template-columns:56px minmax(0,1fr) 20px;grid-template-rows:auto auto;gap:6px 14px;min-height:112px;padding:16px;text-align:left;background:var(--input);border:1px solid var(--border);border-radius:8px;transition:background-color 160ms,border-color 160ms}
+:root.pixel-theme.client-theme .library-page .world-row:hover:not(:disabled){background:var(--hover);border-color:var(--strong-border)}
+:root.pixel-theme.client-theme .library-page .world-row[aria-pressed=true]{background:#28383f;border-color:#58c7cf80}
+.library-page .world-icon{grid-column:1;grid-row:1/3;width:56px;height:56px;border-radius:5px;align-self:center;color:var(--muted);background:var(--selected);transition:transform 180ms cubic-bezier(.16,1,.3,1)}
+.library-page .world-icon svg{width:28px;height:28px}
+.library-page .world-copy{grid-column:2;grid-row:1;align-self:end;gap:4px}.library-page .world-copy strong{font-size:14px}
+.library-page .world-last-played{display:block;grid-column:2;grid-row:2;align-self:start;font-size:11px;white-space:normal;color:var(--muted)}
+.library-page .world-selected{display:grid;place-items:center;grid-column:3;grid-row:1/3;width:20px;height:20px;align-self:center;border:1px solid var(--strong-border);border-radius:5px;color:var(--green-dark);background:transparent;transition:background-color 160ms,border-color 160ms}
+.library-page .world-selected svg{width:15px;height:15px;opacity:0;transform:scale(.8);transition:opacity 120ms,transform 180ms cubic-bezier(.16,1,.3,1)}
+.library-page .world-row[aria-pressed=true] .world-selected{background:var(--diamond-core);border-color:var(--diamond-core)}.library-page .world-row[aria-pressed=true] .world-selected svg{opacity:1;transform:none}
+.library-page .world-row:disabled{opacity:.55;cursor:not-allowed}.library-page .world-row[aria-pressed=true]:disabled{opacity:.8}
+.library-page .worlds-state{padding:28px 0;font-size:13px}
+:root.pixel-theme.client-theme .library-page #refresh-worlds[aria-busy=true]{padding-inline:12px;opacity:.8}.library-page #refresh-worlds[aria-busy=true] .client-icon{visibility:hidden}
+:root.pixel-theme.client-theme .library-page #refresh-worlds[aria-busy=true]::after{left:12px;right:auto}
+@media(max-width:1120px){.library-page .world-list{grid-template-columns:1fr}.library-page .world-row{min-height:100px}}
+@media(hover:hover){.library-page .world-row:hover:not(:disabled) .world-icon{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.library-page .world-row,.library-page .world-icon,.library-page .world-selected,.library-page .world-selected svg{transition:none!important;transform:none!important}}
