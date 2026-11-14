@@ -5,3 +5,8 @@
 .mod-switch{display:flex;gap:8px;margin-bottom:20px}.mod-switch button[aria-pressed=true]{background:#343943;color:#58c7cf}#catalog-state{margin-left:auto}#catalog-results .mod-copy small{max-width:75ch}#mods-catalog{min-height:260px}
 
 #mods-download-progress{margin-bottom:20px}#mods-download-progress .pack-progress-stages{display:none}.mod-optional{display:flex;align-items:center;gap:8px;margin:12px 0}.mod-optional input{accent-color:#58c7cf}
+/* instance-content already owns the page gutter. */
+.library-page .mods-panel{padding:0}
+.library-page #details:has(#mods-tab[aria-pressed=true]) :is(.launch-footer,.connection-mode-field,.host-port-field){display:none}
+.mod-subtoolbar{padding-block:8px;min-height:44px}
+.mods-panel input[type=checkbox],.mod-dialog input[type=checkbox]{width:18px;height:18px;min-height:18px;margin:0;flex:none}

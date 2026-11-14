@@ -23,7 +23,7 @@ npm start
 
 房间与成员保存在 `data/blockroom.sqlite`，服务重启不会清空。点击最左侧底部头像可以注册、登录和退出。账号支持跨浏览器登录；访客可注册并保留原房间。WebSocket 直接推送消息、成员及设置变更，支持发送确认、重连补拉和去重；旧 SSE 入口保留兼容。
 
-账号登录使用用户名和密码，网页版以 HttpOnly Cookie 保持登录。未注册访客仍依赖原设备会话，建议注册保留房间。暂未提供密码找回，也不等同于微软 / MC 账号认证。游戏版本和端口可保存，Java 联机中继与本地连接脚本已实现；已加入 Electron 本机游戏库、PCL 已安装实例直启与 Java 检测（模拟测试阶段）；Windows exe / macOS dmg + zip 构建配置及客户端更新已接入；正式签名发布与跨版本实机升级待验收。真实游戏、Windows 和异地网络测试尚未执行。
+账号登录使用用户名和密码，网页版以 HttpOnly Cookie 保持登录。未注册访客仍依赖原设备会话，建议注册保留房间。暂未提供密码找回，也不等同于微软 / MC 账号认证。游戏版本和端口可保存，Java 联机中继与本地连接脚本已实现；已加入 Electron 本机游戏库、Joincraft 自有实例、整合包安装和 Java 检测；Windows exe / macOS dmg + zip 构建配置及客户端更新已接入；正式签名发布与跨版本实机升级待验收。真实游戏、Windows 和异地网络测试尚未执行。
 
 ## 房间语音
 
@@ -45,7 +45,7 @@ npm run typecheck
 npm run backup
 ```
 
-58 项自动化测试（另有真实 SFU 音频集成测试）覆盖房间、账号、聊天、持久化、联机中继及启动器模拟流程。测试不接触本地真实数据。线上服务已部署至 https://www.joincraft.top/，使用独立 Nginx 反代，部署说明见 [生产部署](docs/DEPLOYMENT.md)。
+347 项自动化测试（另有真实 SFU 音频集成测试）覆盖房间、账号、聊天、持久化、联机中继及启动器模拟流程。测试不接触本地真实数据。线上服务已部署至 https://www.joincraft.top/，使用独立 Nginx 反代，部署说明见 [生产部署](docs/DEPLOYMENT.md)。
 
 [后端技术方案与 API](docs/BACKEND.md) · [功能清单](docs/FEATURES.md) · [设计约束](DESIGN.md)
 
@@ -63,11 +63,11 @@ VPS HTTPS / WSS 中继已部署，公网 Java 状态查询和 64 KiB 双向数�
 
 `npm test` 包括原有业务测试和 `relay.test.mjs` 的实际 loopback TCP / WebSocket 转发检查。
 
-## PCL 整合包直启（v0.9）
+## 客户端游戏库（v0.9.31）
 
-本机游戏库支持选择已安装 PCL 目录、版本隔离、Java 与资源校验、离线玩家和微软正版账号接入。`npm run desktop` 打开桌面开发版，`npm run preview:launcher` 打开明确标记的模拟页面（4188）。正式微软登录需要自己的应用 Client ID，当前未配置或进行真实登录。
+本机游戏库仅管理 Joincraft 自有实例，支持含 Modrinth 清单的 ZIP / mrpack 安装、模组管理、Java 与资源校验、离线玩家和微软账号流程。PCL 外部目录已退出当前管理范围。`npm run desktop` 打开桌面开发版，`npm run preview:launcher` 打开明确标记的模拟页面（4188）。正式微软登录需要自己的应用 Client ID，当前未配置或进行真实登录。
 
-完整说明、Windows 操作和验证边界见 [PCL 直启说明](docs/PCL-LAUNCHER.md)。本轮共 38 项自动化测试通过，其中 15 项为新增启动器模拟；不代表 Windows 或真实 MC 已测试。
+当前使用方式见 [模组管理](docs/MOD-MANAGEMENT.md)；[PCL 直启说明](docs/PCL-LAUNCHER.md) 为历史方案。源码回归 347 项与实际包内 126 项客户端测试通过，真实 MC 与 Windows 操作仍需实测。
 
 系统名称统一为 `joincraft`。为兼容已有数据，数据库文件名、Cookie、本地存储键、桌面配置目录与 `BLOCKROOM_*` 环境变量保持原值；连接程序改为 `joincraft-bridge.cjs`，旧下载地址继续可用。
 
@@ -75,3 +75,5 @@ VPS HTTPS / WSS 中继已部署，公网 Java 状态查询和 64 KiB 双向数�
 Windows 官网提供 EXE 安装程序，自动创建快捷方式；后续通过客户端铃铛下载并重启更新，用户无需解压 ZIP 或重新运行安装向导。已有 0.9.4+ 客户端可直接应用内更新，详见 [客户端更新](docs/CLIENT-UPDATES.md)。开发机使用 Node.js 24 和 Go 1.25+，`npm run dist:win` 构建首次安装程序与应用内更新包。
 
 官网入口为 `/`，Web 联机界面入口为 `/app/`。本地运行后可打开 `http://127.0.0.1:4180/` 查看官网，进入 Web 版后使用已有登录、好友与房间功能。首页背景已本地压缩并自托管，标题字体保留 OFL 许可；`npm run build:home` 可从设计源图重新生成 WebP。
+
+客户端模组管理：参阅 [使用与数据说明](docs/MOD-MANAGEMENT.md)、[0.9.31 验收记录](docs/releases/2026-11-14-mod-management.md) 和 [Windows 实测清单](docs/WINDOWS-TEST.md)。网页不管理本机文件，CurseForge 接入暂缓。

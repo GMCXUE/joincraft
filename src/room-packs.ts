@@ -74,7 +74,7 @@ export class RoomPacks {
   descriptor(actor:Principal,id:string,sha512?:string){this.service.accessible(id,actor);const pack=this.summary(id);if(!pack)fail('房间尚未设置整合包',404);if(sha512&&sha512!==pack.sha512)fail('房间整合包已变化，请刷新后重试',409);return {pack,transferVersion:2,maxArchiveSize:MAX_PACK_BYTES};}
   async manifest(actor:Principal,id:string,sha512?:string){
     const {pack}=this.descriptor(actor,id,sha512);let files=this.manifests.get(pack.sha512);
-    if(!files){let job=this.manifestJobs.get(pack.sha512);if(!job){job=this.verifyQueue.catch(()=>{}).then(async()=>packManifest(await inspectMrpack(this.storedFile(pack.sha512))));this.verifyQueue=job.then(()=>{});this.manifestJobs.set(pack.sha512,job);}try{files=await job;if(this.manifests.size>=16)this.manifests.delete(this.manifests.keys().next().value!);this.manifests.set(pack.sha512,files);}finally{this.manifestJobs.delete(pack.sha512);}}
+    if(!files){let job=this.manifestJobs.get(pack.sha512);if(!job){job=this.verifyQueue.catch(()=>{}).then(async()=>packManifest(await inspectMrpack(this.storedFile(pack.sha512))));this.verifyQueue=job.then(()=>{},()=>{});this.manifestJobs.set(pack.sha512,job);}try{files=await job;if(this.manifests.size>=16)this.manifests.delete(this.manifests.keys().next().value!);this.manifests.set(pack.sha512,files);}finally{this.manifestJobs.delete(pack.sha512);}}
     this.descriptor(actor,id,pack.sha512);return {pack,files};
   }
   async download(actor:Principal,id:string,sha512?:string){const {pack}=this.descriptor(actor,id,sha512);if(pack.archiveSize>LEGACY_PACK_BYTES)fail('此整合包需要新版客户端，请更新后下载',426);return {pack,archive:(await readFile(this.storedFile(pack.sha512))).toString('base64')};}

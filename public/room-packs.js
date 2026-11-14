@@ -37,7 +37,7 @@ export function createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,get
         if(!pendingInstall||pendingInstall.roomId!==room.id||pendingInstall.sha512!==room.pack?.sha512)throw Error('房间版本已变化，请重新查看差异');document.querySelector('#small-dialog')?.close();await native.installFromRoom({...pendingInstall,token:getSession()});statuses.delete(key(room));pendingInstall=null;await refresh(true);toast('整合包已同步，旧实例及存档保留');return;
       }
       if(action==='pack-publish'){
-        const chosen=await native.choose(target?.dataset.packId?{id:target.dataset.packId}:{});if(!chosen)return;
+        const chosen=await native.choose(target?.dataset.packId?{id:target.dataset.packId,revisionPreview:native.revisionVersion===1}:{});if(!chosen)return;
         if(chosen.revision&&native.revisionVersion===1){
           const revision=chosen.revision;pendingExport={roomId:room.id,snapshotId:revision.snapshotId,expected:room.pack?.sha512??null};
           const changes=Object.entries(revision.diff).flatMap(([kind,files])=>files.map(f=>'<li>'+({added:'新增',removed:'移除',changed:'更新'})[kind]+' · '+escape(f.path)+'</li>')).join('');

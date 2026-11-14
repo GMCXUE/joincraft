@@ -42,7 +42,7 @@ export async function inspectMod(file,{signal,hash=true}={}){
  }}finally{zip.close();}
  const result=decode(entries);let icon=null;
  const iconPath=result.icons.find(p=>safeEntry(p)&&/\.png$/i.test(p));
- if(iconPath){const images=await open(file);try{for await(const entry of zipEntries(images,{signal})){if(entry.fileName!==iconPath)continue;try{const data=await bounded(images,entry,signal,512*1024);if(data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))icon='data:image/png;base64,'+data.toString('base64');}catch(e){if(signal?.aborted)throw e;}break;}}finally{images.close();}}
+ if(iconPath){const images=await open(file);try{for await(const entry of zipEntries(images,{signal})){if(entry.fileName!==iconPath)continue;try{const data=await bounded(images,entry,signal,512*1024);if(data.length>=24&&data.readUInt32BE(16)<=1024&&data.readUInt32BE(20)<=1024&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))icon='data:image/png;base64,'+data.toString('base64');}catch(e){if(signal?.aborted)throw e;}break;}}finally{images.close();}}
  const sha512=hash?await fileHash(file,{signal}):null,after=await lstat(file);if(before.size!==after.size||before.mtimeMs!==after.mtimeMs)throw Error('扫描期间模组文件发生变化，请刷新');
  return {mods:result.mods,loaders:result.loaders,icon,sha512,size:after.size,name:result.mods[0]?.name||path.basename(file).replace(/\.jar(?:\.disabled)?$/i,''),version:result.mods[0]?.version||'未知版本',status:result.mods.length?'ready':'unknown',warnings:result.mods.length?[]:['未找到可识别的模组信息']};
 }

@@ -91,13 +91,13 @@ export async function buildPlan({ instance, java, memoryMB, mode, identity, cach
 }
 
 export class GameLauncher {
-  constructor({ library, account, cacheDir, notify = () => {}, spawnImpl = spawn, probe = probeJava, platform = getPlatform(), memoryProvider = readSystemMemory, prepare = async plan => {
+  constructor({ library, account, cacheDir, notify = () => {}, spawnImpl = spawn, probe = probeJava, platform = getPlatform(), memoryProvider = readSystemMemory, beforePlan=async()=>{}, prepare = async plan => {
     await mkdir(plan.nativeRoot, { recursive: true });
     const resource = MinecraftFolder.from(plan.options.resourcePath);
     await LaunchPrecheck.checkNatives(resource, plan.options.version, plan.options);
     await LaunchPrecheck.linkAssets(resource, plan.options.version, plan.options);
   } }) {
-    Object.assign(this, { library, account, cacheDir, notify, spawnImpl, probe, platform, prepare, memoryProvider });
+    Object.assign(this, { library, account, cacheDir, notify, spawnImpl, probe, platform, prepare, memoryProvider,beforePlan });
     this.runs = new Map();
     this.javaPath = null;
   }
@@ -106,6 +106,7 @@ export class GameLauncher {
   async plan(input, realLaunch = false) {
     const instance = this.library.get(input.id);
     if (!instance || instance.error) throw new Error(instance?.error || '请重新选择整合包目录');
+    await this.beforePlan(input,instance);
     if (!this.javaPath) throw new Error('请先选择 Java');
     if (!['offline', 'microsoft'].includes(input.accountMode)) throw new Error('请选择启动账号');
     // Checking files never opens Microsoft sign-in or creates a game process.
