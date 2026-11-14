@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import releaseConfig from './config.json' with {type:'json'};
 import {roomPageURL} from './room-url.mjs';
+import {repositoryLinkHandler} from './external-links.mjs';
 import {BrowserLogin,sessionAcceptor,verifyDesktopSession} from './browser-login.mjs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import {managedPreferences} from '../launcher/managed-preferences.mjs';
@@ -85,7 +86,7 @@ function handle(name, fn) {
   });
 }
 function protect(win, allowedURL) {
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.setWindowOpenHandler(repositoryLinkHandler({webContents:win.webContents,pageURL:allowedURL,openExternal:url=>shell.openExternal(url),onError:error=>console.warn('Unable to open GitHub repository:',error.message)}));
   win.webContents.on('will-navigate', (event, url) => { if (url.split('#')[0] !== allowedURL.split('#')[0]) event.preventDefault(); });
   // The launcher and room window share a session. Only the trusted room page may capture audio.
   const roomOrigin = () => new URL(serverURL()).origin;

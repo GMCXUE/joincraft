@@ -16,7 +16,7 @@ a { color: inherit; text-decoration: none; }
 }
 .scene-panel { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
 .world { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; pointer-events: none; user-select: none; }
-.site-header { position: absolute; inset: 32px auto auto 40px; z-index: 1; }
+.site-header { position: absolute; inset: 32px 40px auto; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .site-brand { display: flex; align-items: center; gap: 6px; width: fit-content; color: var(--text); }
 .site-brand > img { width: 36px; height: 36px; }
 .brand-wordmark { width: 140px; height: 32px; }
@@ -93,11 +93,11 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 @media (max-width: 1100px) and (min-width: 761px) {
   .login-page { grid-template-columns: 52% 48%; }
   .account { padding-inline: 32px 16px; }
-  .site-header { left: 28px; }
+  .site-header { left: 28px; right: 28px; }
 }
 @media (max-width: 760px) {
   .login-page { display: block; min-height: 100svh; padding: 76px 24px 32px; }
-  .site-header { inset: 24px auto auto 24px; }
+  .site-header { inset: 24px 24px auto; }
   .site-brand > img { width: 30px; height: 30px; }
   .brand-wordmark { width: 114px; height: 26px; }
   .scene-panel { position: relative; inset: auto; z-index: auto; height: 156px; margin-bottom: 32px; border-radius: 12px; }
@@ -110,7 +110,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .account-switch { margin-top: 20px; }
   .script-note { position: relative; inset: auto; }
 }
-@media (max-width: 380px) { .login-page { padding-inline: 20px; } .site-header { left: 20px; } .scene-panel { height: 132px; margin-bottom: 28px; } }
+@media (max-width: 380px) { .login-page { padding-inline: 20px; } .site-header { left: 20px; right: 20px; } .scene-panel { height: 132px; margin-bottom: 28px; } }
 @media (prefers-reduced-motion: reduce) {
   .account-content { animation: none; }
   :root.pixel-theme.client-theme :is(button, input) { transition: none; transform: none; }

@@ -2,6 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {DesktopSurfaces,trustedFrame} from './desktop/surfaces.mjs';
+import {repositoryLinkHandler,REPOSITORY_URL} from './desktop/external-links.mjs';
+
+test('repository links open in the system browser from trusted rooms and local library only',async()=>{
+ for(const pageURL of ['https://www.joincraft.top/app/','file:///joincraft/public/launcher/index.html']){
+  const opened=[],webContents={getURL:()=>pageURL+'#friends'};
+  const handler=repositoryLinkHandler({webContents,pageURL,openExternal:url=>opened.push(url)});
+  assert.deepEqual(handler({url:REPOSITORY_URL}),{action:'deny'});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(opened,[REPOSITORY_URL]);
+ }
+});
+test('repository handler rejects spoofed destinations and pages without opening a native window',async()=>{
+ const opened=[],pageURL='https://www.joincraft.top/app/';let current=pageURL;
+ const handler=repositoryLinkHandler({webContents:{getURL:()=>current},pageURL,openExternal:url=>opened.push(url)});
+ for(const url of ['https://github.com.evil.invalid/GMCXUE/joincraft','https://github.com@evil.invalid/GMCXUE/joincraft','https://github.com/other/repo',REPOSITORY_URL+'?redirect=1','http://github.com/GMCXUE/joincraft','file:///tmp/file','javascript:alert(1)'])assert.deepEqual(handler({url}),{action:'deny'});
+ for(current of ['https://evil.invalid/app/','https://www.joincraft.top/login',pageURL+'?other=1'])assert.deepEqual(handler({url:REPOSITORY_URL}),{action:'deny'});
+ await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(opened,[]);
+});
+test('system browser failures are handled without an unhandled main-process rejection',async()=>{
+ const error=Error('Browser unavailable'),errors=[],pageURL='file:///launcher/index.html';
+ const handler=repositoryLinkHandler({webContents:{getURL:()=>pageURL},pageURL,openExternal:()=>{throw error;},onError:value=>errors.push(value)});
+ assert.deepEqual(handler({url:REPOSITORY_URL}),{action:'deny'});
+ await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(errors,[error]);
+});
 function fixture(load=async()=>{}){
   const children=[];const create=()=>{let dead=false;const messages=[];return {messages,mainFrame:{url:''},isDestroyed:()=>dead,close:()=>{dead=true;},focus(){},send(...args){messages.push(args);},loadURL:load};};
   const main=Object.assign(new EventEmitter(),{webContents:create(),isDestroyed:()=>false,isFocused:()=>true,isVisible:()=>true,isMinimized:()=>false,show(){},focus(){},getContentSize:()=>[1180,800],contentView:{addChildView(view){const index=children.indexOf(view);if(index>=0)children.splice(index,1);children.push(view);},removeChildView(view){const index=children.indexOf(view);if(index>=0)children.splice(index,1);}}});

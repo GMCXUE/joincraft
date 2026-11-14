@@ -71,6 +71,18 @@
 :root.pixel-theme.client-theme .titlebar :is(.button,button):hover { color: var(--text); background: var(--hover); }
 .client-theme .titlebar .icon-button { width: 28px; padding: 0; }
 .client-theme .titlebar .preview-label { display: none; }
+.client-theme .repository-link {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 36px; height: 36px; border-radius: 6px; color: var(--secondary);
+  text-decoration: none; -webkit-app-region: no-drag; app-region: no-drag;
+  transition: color 140ms ease-out, background-color 140ms ease-out;
+}
+.client-theme .repository-link > svg { display: block; width: 19px; height: 19px; fill: currentColor; }
+.client-theme .repository-link:hover { color: var(--text); background: var(--hover); }
+.client-theme .repository-link:focus-visible { outline: 2px solid var(--diamond-core); outline-offset: 3px; }
+.client-theme .titlebar .repository-link { width: 28px; height: 28px; border-radius: 5px; }
+@media (prefers-reduced-motion: reduce) { .client-theme .repository-link { transition: none; } }
+
 .client-theme[data-desktop-platform] .titlebar { -webkit-app-region: drag; app-region: drag; }
 .client-theme[data-desktop-platform] .titlebar :is(a,button,input,select,[role=button]) { -webkit-app-region: no-drag; app-region: no-drag; }
 .client-theme[data-desktop-platform=darwin] .titlebar { padding-left: 94px; }
