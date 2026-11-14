@@ -11,6 +11,7 @@ files:
   - shared/**/*
   - bridge/client.mjs
   - bridge/minecraft.mjs
+  - bridge/peers.mjs
   - public/launcher/**/*
   - public/pack-progress.*
   - public/desktop-notifications.*
