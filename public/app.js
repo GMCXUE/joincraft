@@ -185,7 +185,7 @@ const desktopLogin=mountDesktopLogin({escape,onBusy:value=>{authBusy=value;},onS
  if(version!==authVersion)throw Object.assign(new Error('登录状态已变化，请重新登录'),{status:409});
  state=result;lastRender='';$('#offline').hidden=true;render(true);announceAuth();startRealtime();
 },onComplete:()=>{
- if(isGuest){location.assign('/app/#friends');return;}
+ if(isGuest){location.assign('/app/#home');return;}
  if(pendingAction){const action=pendingAction;pendingAction=null;openRoomDialog(action);}else location.hash='home';
  toast('登录成功');
 }});
