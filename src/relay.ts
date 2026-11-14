@@ -7,7 +7,7 @@ import { fail, gameFields } from './validation.js';
 
 type Room = { id: string; owner_id: string; closed: number; capacity: number; port: number | null };
 type Game = { id: string; roomId: string; port: number; status: 'waiting' | 'online' | 'error'; error: string; version: string; host?: Agent };
-type Agent = { key: string; actor: Principal; role: 'host' | 'guest'; game: Game; expires: number; used: boolean; ws?: WebSocket; address?: string; error?: string; alive: boolean; peerId: string; p2p: boolean; peers: Set<string>; transport: 'relay' | 'p2p'; latency: number | null };
+type Agent = { key: string; actor: Principal; role: 'host' | 'guest'; game: Game; expires: number; used: boolean; ws?: WebSocket; address?: string; error?: string; alive: boolean; peerId: string; p2p: boolean; peers: Set<string>; transport: 'relay' | 'p2p' | 'checking'; latency: number | null };
 type Pair = { id: string; agent: Agent; guest: Duplex; host?: Duplex; timer: NodeJS.Timeout };
 
 /** Authenticated, bounded TCP transport. No public Minecraft listening ports. */
@@ -157,7 +157,7 @@ export class Relay {
         if (m.type === 'p2p-signal') { this.signal(a,m); return; }
         this.service.consume(`bridge-control:${a.key}`, 120, 60000);
         if (m.type === 'p2p-enable' && m.version === 1 && !a.p2p) {
-          a.p2p = true; this.pairPeers(a); return;
+          a.p2p = true; if (a.role === 'guest') { a.transport = 'checking'; this.notify(a.game.roomId); } this.pairPeers(a); return;
         }
         if (m.type === 'p2p-route' && a.role === 'guest' && a.p2p && ['relay','p2p'].includes(m.transport)) {
           if (m.transport === 'p2p' && !a.peers.size) throw Error();

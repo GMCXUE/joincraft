@@ -35,7 +35,9 @@ test('P2P negotiation uses live agent IDs, binds host and guest, and keeps netwo
 test('old clients receive no P2P events and still have the existing relay interface',async t=>{
  const f=await fixture(t);f.member.send({type:'p2p-enable',version:1});
  await new Promise(r=>setTimeout(r,30));assert.equal(f.owner.messages.some(m=>m.type.startsWith('p2p-')),false);
- const state=await f.call('/api/state',undefined,f.guest);assert.equal(state.rooms[0].connection.local.transport,'relay');assert.equal(state.rooms[0].connection.routes.relay,1);
+ await wait(async()=>(await f.call('/api/state',undefined,f.guest)).rooms[0].connection.local.transport==='checking');
+ f.member.send({type:'p2p-route',transport:'relay',latency:null});
+ const state=await wait(async()=>{const value=await f.call('/api/state',undefined,f.guest);return value.rooms[0].connection.local.transport==='relay'&&value;});assert.equal(state.rooms[0].connection.local.transport,'relay');assert.equal(state.rooms[0].connection.routes.relay,1);
 });
 test('cross-room signalling and wrong-role offers are rejected',async t=>{
  const f=await fixture(t);f.owner.send({type:'p2p-enable',version:1});f.member.send({type:'p2p-enable',version:1});await f.owner.next('p2p-peer');

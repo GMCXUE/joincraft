@@ -27,11 +27,12 @@ function remember() {
   preferences.selected = prefKey(selected);
 
   preferences.accountMode = state.accountMode;
+  preferences.connectionMode=$('#connection-mode').value;
   preferences.instances ||= {};
   preferences.instances[prefKey(selected)] = { ...memoryUI.preferences(), mode: $('#directory-mode').value };
   try { localStorage.setItem('blockroom-launcher-preferences', JSON.stringify(preferences)); } catch {}
 }
-function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), id: state.selected, name: $('#player-name').value.trim(), accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
+function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), connectionMode:$('#connection-mode').value,id: state.selected, name: $('#player-name').value.trim(), accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
 function pathLabel() {
   const selected = item(); if (!selected) return;
   const mode = $('#directory-mode').value === 'auto' ? selected.isolation?.mode : $('#directory-mode').value;
@@ -77,8 +78,9 @@ function controls() {
   const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test($('#player-name').value.trim())?'在启动设置中填写玩家名':'';
   text('#launch-hint',blocked);
   const context=state.play?.context,phase=state.play?.progress?.phase,active=['launching','world-loading','checking','connecting','online'].includes(phase);
-  $('#play-context').hidden=!context;$('#host-port-field').hidden=context?.role!=='host';
+  $('#play-context').hidden=!context;$('#connection-mode-field').hidden=!context;$('#connection-mode').disabled=active||running||state.busy;$('#host-port-field').hidden=context?.role!=='host';
   if(context){text('#play-role',context.role==='host'?'房主':'成员');text('#play-room-name',context.roomName);text('#play-progress',state.play.progress?.message||'');}
+  const network=state.play?.network,route=$('#network-route');route.hidden=!context||!network;route.dataset.transport=network?.transport||'';route.title=network?.reason||'';text('#network-route',network?.transport==='p2p'?`P2P 直连${Number.isFinite(network.latency)?' · '+Math.round(network.latency)+' ms':''}`:network?.transport==='relay'?'服务器中继':network?'正在尝试直连…':'');
   $('#clear-play').disabled=active||state.busy;$('#stop-play').hidden=!active;$('#stop-play').disabled=state.busy;$('#host-port').disabled=active||running||state.busy;
   if(context?.instanceId&&context.instanceId!==state.selected)$('#launch').disabled=true;
   if((worldUI?.tab==='worlds'&&context?.role!=='guest'||context?.role==='host')&&(!worldUI?.selected||worldUI.loading))$('#launch').disabled=true;
@@ -137,6 +139,7 @@ async function action(fn,operation='change') { if(state.busy)return;message(null
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
+$('#connection-mode').onchange=async()=>{const previous=state.connectionMode||'auto',value=$('#connection-mode').value;$('#connection-mode').disabled=true;try{if(typeof api?.setConnectionMode!=='function')throw Error('请更新客户端后使用联机设置');await api.setConnectionMode(value);state.connectionMode=value;remember();message(null);}catch(error){$('#connection-mode').value=previous;message(error);}finally{controls();}};
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
 $('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;remember();controls();};
 $('#offline-tab').onclick = () => { state.accountMode = 'offline'; remember(); renderAccount(); };
@@ -163,7 +166,7 @@ else {
     if (event.type === 'account') { state.account = event; renderAccount(); }
     if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
   });
-  api.state().then(result => { Object.assign(state, result);if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();if(result.play)syncPlay(result.play,true);void scanJava(); }).catch(message);
+  api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();if(result.play)syncPlay(result.play,true);void scanJava(); }).catch(message);
 }
 
 if(api){

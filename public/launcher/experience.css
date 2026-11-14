@@ -95,3 +95,11 @@ html:has(.library-page){height:100%;overflow:hidden}
 
 .library-page.installing-pack #details{display:none}
 .library-page.installing-pack #pack-install-progress{width:calc(100% - 56px);max-height:calc(100% - 40px);margin:auto;flex:0 1 auto}
+.library-page .network-route{display:inline-flex;align-items:center;gap:6px;margin-top:8px;color:var(--secondary);font:500 12px/1.5 var(--ui-font);font-variant-numeric:tabular-nums}
+.library-page .network-route::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.library-page .network-route[data-transport=p2p]{color:var(--diamond-core)}
+.library-page .network-route[data-transport=checking]{color:var(--muted)}
+.library-page .connection-mode-field{display:grid;grid-template-columns:112px minmax(180px,280px);align-items:center;gap:8px 16px;padding-block:16px;border-top:1px solid var(--border)}
+.library-page .connection-mode-field>label{font-size:13px}
+.library-page .connection-mode-field>p{grid-column:2;margin:0;color:var(--muted);font-size:11px;line-height:1.7}
+.library-page .connection-mode-field>select{width:100%;min-width:0}

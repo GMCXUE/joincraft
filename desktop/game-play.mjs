@@ -2,7 +2,7 @@ import {startBridge} from '../bridge/client.mjs';
 import {status} from '../bridge/minecraft.mjs';
 import {assertHostSupport,assertWorldSupport} from '../launcher/host-helper.mjs';
 export class GamePlay {
- constructor({api,server,worlds,helper,launcher,matching,getInstance,assertCanLaunch=()=>{},notify=()=>{},bridge=startBridge,probe=status,peerFactory}){Object.assign(this,{api,server,worlds,helper,launcher,matching,getInstance,assertCanLaunch,notify,bridge,probe,peerFactory});this.network=null;this.context=null;this.active=null;this.progress={phase:'idle'};}
+ constructor({api,server,worlds,helper,launcher,matching,getInstance,assertCanLaunch=()=>{},notify=()=>{},bridge=startBridge,probe=status,peerFactory,getConnectionMode=()=>'auto'}){Object.assign(this,{api,server,worlds,helper,launcher,matching,getInstance,assertCanLaunch,notify,bridge,probe,peerFactory,getConnectionMode});this.network=null;this.context=null;this.active=null;this.progress={phase:'idle'};}
  state(){return {context:this.context,progress:this.progress,network:this.network};}
  bridgeState(operation,event){if(this.active!==operation||operation.controller.signal.aborted)return;if(event.status==='route'){this.network={transport:event.transport,latency:event.latency??null,reason:event.reason||''};this.notify({type:'game-play',...this.state()});}else if(['closed','error'].includes(event.status))void this.fail(operation,Error(event.message||'联机连接已断开'));}
  set(phase,message){this.progress={phase,message,roomId:this.context?.roomId,instanceId:this.context?.instanceId,role:this.context?.role};this.notify({type:'game-play',...this.state()});}
@@ -10,7 +10,7 @@ export class GamePlay {
  async exact(room,expectedId,signal){if(!room.pack?.sha512)throw Error('请先为房间选择整合包');const match=await this.matching(room.pack.sha512,{signal});signal?.throwIfAborted();if(match.status!=='ready'||!match.instance?.managed)throw Error('请先安装房间版本的整合包');if(expectedId&&match.instance.id!==expectedId)throw Error('房间整合包已更换，请重新选择');return match.instance;}
  async select(roomId){if(this.active)throw Error('请先停止当前联机');const room=await this.room(roomId),instance=await this.exact(room);if(room.isHost)assertHostSupport(instance);else if(instance.minecraft!=='1.20.1')throw Error('一键加入目前适配 Minecraft 1.20.1');this.network=null;this.context={roomId,roomName:room.name,instanceId:instance.id,role:room.isHost?'host':'guest',port:room.port||25565};this.set('selected',room.isHost?'选择存档后开房':'确认启动设置后加入');return this.state();}
  clear(){if(this.active)throw Error('请先停止当前联机');this.context=null;this.network=null;this.set('idle','');}
- async launch(input,{worldId,port,connectionMode=input?.connectionMode??'auto'}={}){
+ async launch(input,{worldId,port,connectionMode=input?.connectionMode??this.getConnectionMode()}={}){
   this.assertCanLaunch();if(!['auto','relay'].includes(connectionMode))throw Error('联机方式无效');if(this.active)throw Error('已有联机任务，请先停止');
   const context=this.context,controller=new AbortController(),signal=controller.signal;
   const operation={controller,context,id:input.id,helper:null,bridge:null,issued:false,settled:null,connectionMode};this.active=operation;this.network=null;
@@ -43,6 +43,6 @@ export class GamePlay {
   signal.throwIfAborted();if(this.active!==operation)return;this.set('online','开房成功，朋友可以加入游戏');
  }
  async dispose(operation){operation.controller.abort(Error('联机已停止'));operation.bridge?.close();await operation.helper?.cleanup();if(operation.issued&&operation.context)await this.api(`/api/rooms/${operation.context.roomId}/play/${operation.context.role==='host'?'stop':'disconnect'}`,{}).catch(()=>{});}
- async fail(operation,error){if(this.active!==operation)return;this.active=null;this.set('failed',error.message||'联机失败');await this.dispose(operation).catch(()=>{});}
+ async fail(operation,error){if(this.active!==operation)return;this.active=null;this.network=null;this.set('failed',error.message||'联机失败');await this.dispose(operation).catch(()=>{});}
  async stop(){const operation=this.active;this.active=null;this.network=null;this.set('stopped','联机已停止，游戏保持运行');if(operation)await this.dispose(operation).catch(()=>{});}
 }

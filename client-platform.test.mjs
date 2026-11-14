@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPlayUI,isDesktopClient} from './public/play.js';
+import {createPlayUI,isDesktopClient,connectionLabel} from './public/play.js';
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 function ui(desktop,overrides={}){return createPlayUI({desktop:()=>desktop,escape,icon:name=>`<svg data-icon="${name}"></svg>`,api:()=>assert.fail('Unexpected game request'),smallDialog:()=>assert.fail('Unexpected native setup dialog'),formHandler:()=>{},refresh:()=>{},toast:()=>{},getVersion:()=>0,...overrides});}
 
@@ -33,4 +33,13 @@ test('new native flow selects the room without commands, dialogs or browser game
 });
 test('native stop is scoped to the selected room before revoking its server transport',async()=>{
  const calls=[];const play=ui(true,{native:{version:1,stop:async value=>calls.push(value)},api:async route=>calls.push(route)});await play.handle('play-stop',{disabled:false},{id:'room-a',isHost:true});assert.deepEqual(calls,[{roomId:'room-a'},'/api/rooms/room-a/play/stop']);
+});
+
+test('native room panels identify real direct/relay routes and omit invented latency',()=>{
+ const play=ui(true,{native:{version:1}}),direct=play.panel({isHost:false,connection:{status:'online',local:{status:'ready',transport:'p2p',latency:25}}});
+ assert.match(direct,/P2P 直连 · 25 ms/);assert.doesNotMatch(direct,/127\.0\.0\.1/);
+ assert.equal(connectionLabel({transport:'checking'}),'正在尝试直连…');
+ assert.equal(connectionLabel({transport:'relay',latency:25}),'服务器中继');assert.equal(connectionLabel({transport:'p2p',latency:null}),'P2P 直连');assert.equal(connectionLabel({transport:'p2p',latency:Infinity}),'P2P 直连');
+ assert.match(play.panel({isHost:true,connection:{status:'online',routes:{direct:2,relay:1}}}),/直连 2 · 中继 1/);
+ assert.doesNotMatch(ui(false).panel({connection:{local:{transport:'p2p',latency:25}}}),/P2P|25 ms/);
 });

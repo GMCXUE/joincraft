@@ -10,9 +10,9 @@ import {createPlayAPI} from './desktop/play-api.mjs';
 const roomId='11111111-1111-4111-8111-111111111111',hash='a'.repeat(128),world={name:'建筑 世界 & $()',metadata:{dataVersion:3465,version:'1.20.1'}};
 const instance={id:'owned',root:'/owned/.minecraft',managed:true,minecraft:'1.20.1',loader:'Forge',pack:{sha512:hash}};
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
-function fixture({guest=false,helperPrepare,probeError}={}){
+function fixture({guest=false,helperPrepare,probeError,getConnectionMode}={}){
  let ready;const wait=new Promise(resolve=>ready=resolve),calls=[],launches=[],bridgeCalls=[];let clean=0,close=0,room={id:roomId,name:'测试房间',isHost:!guest,port:25565,pack:{sha512:hash}};
- const play=new GamePlay({server:'https://www.joincraft.top',api:async(route,body)=>{calls.push({route,body});if(route==='/api/state')return {rooms:[room]};return {ticket:'t'.repeat(43)};},worlds:{resolve:async()=>world},helper:{prepare:helperPrepare||(async()=>({port:25565,jvmArgs:['-Dhelper=request'],gameArgs:['--fml.mods',HELPER_COORDINATE],wait:()=>wait,cleanup:async()=>{clean++;}}))},launcher:{start:async(input,target)=>{launches.push({input,target});return {started:true};}},matching:async()=>({status:'ready',instance}),getInstance:id=>({...instance,id}),bridge:async value=>{bridgeCalls.push(value);const {signal}=value;signal.throwIfAborted();return {address:'127.0.0.1:30001',close:()=>{close++;}};},probe:async()=>{if(probeError)throw Error(probeError);}});
+ const play=new GamePlay({server:'https://www.joincraft.top',api:async(route,body)=>{calls.push({route,body});if(route==='/api/state')return {rooms:[room]};return {ticket:'t'.repeat(43)};},worlds:{resolve:async()=>world},helper:{prepare:helperPrepare||(async()=>({port:25565,jvmArgs:['-Dhelper=request'],gameArgs:['--fml.mods',HELPER_COORDINATE],wait:()=>wait,cleanup:async()=>{clean++;}}))},launcher:{start:async(input,target)=>{launches.push({input,target});return {started:true};}},matching:async()=>({status:'ready',instance}),getInstance:id=>({...instance,id}),bridge:async value=>{bridgeCalls.push(value);const {signal}=value;signal.throwIfAborted();return {address:'127.0.0.1:30001',close:()=>{close++;}};},getConnectionMode,probe:async()=>{if(probeError)throw Error(probeError);}});
  return {play,calls,launches,bridgeCalls,ready,counts:()=>({clean,close}),setRoom:value=>{room=value;}};
 }
 test('host tickets are issued only after helper readiness, MC status and room pack revalidation',async()=>{const f=fixture();await f.play.select(roomId);await f.play.launch({id:'owned'},{worldId:'world',port:25565});assert.equal(f.play.progress.phase,'world-loading');assert.equal(f.calls.filter(c=>c.route.endsWith('/start')).length,0);assert.equal(f.launches[0].target.folder,world.name);f.ready();await f.play.active.settled;assert.equal(f.play.progress.phase,'online');assert.equal(f.calls.filter(c=>c.route==='/api/state').length,3);assert.equal(f.calls.filter(c=>c.route.endsWith('/start')).length,1);f.launches[0].target.onExit();await turn();assert.equal(f.play.active,null);assert.deepEqual(f.counts(),{clean:1,close:1});});
@@ -36,4 +36,8 @@ test('native play passes the selected transport and updates network state withou
 });
 test('unknown transport settings are rejected before issuing game credentials',async()=>{
  const f=fixture({guest:true});await f.play.select(roomId);await assert.rejects(f.play.launch({id:'owned',connectionMode:'unsafe'}),/联机方式无效/);assert.equal(f.bridgeCalls.length,0);
+});
+
+test('automatic guest launch follows the saved relay preference without reopening settings',async()=>{
+ const f=fixture({guest:true,getConnectionMode:()=>'relay'});await f.play.select(roomId);await f.play.launch({id:'owned'});assert.equal(f.bridgeCalls[0].connectionMode,'relay');await f.play.stop();
 });

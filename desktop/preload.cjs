@@ -6,7 +6,7 @@ const call = name => async input => {
 };
 contextBridge.exposeInMainWorld('blockroomLauncher', {
   importPack:call('import-pack'),retryPack:call('retry-pack'),installState:call('install-state'),cancelPack:call('cancel-pack'),pickInstallRoot:call('pick-install-root'),
-  state: call('state'), memory:call('memory'), pickJava: call('pick-java'),
+  state: call('state'),setConnectionMode:call('connection-mode'), memory:call('memory'), pickJava: call('pick-java'),
   scanJava:call('scan-java'), selectJava:call('select-java'),
   worlds:call('worlds'),stopPlay:call('play-stop'),clearPlay:call('play-clear'),
   check: call('check'), start: call('start'), login: call('login'), logout: call('logout'),

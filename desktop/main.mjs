@@ -147,7 +147,7 @@ else {
   p2pRuntime=new ElectronP2P({createView:options=>new WebContentsView(options),ipcMain});
   gamePlay=new GamePlay({server:new URL(serverURL()).origin,api:createPlayAPI({serverURL:serverURL(),getHeaders:()=>packTransfer.getHeaders(playToken)}),worlds,
     helper:new HostHelper({resources:app.isPackaged?path.join(process.resourcesPath,'host-helper'):path.join(here,'../build-resources/generated/host-helper')}),
-    launcher,peerFactory:options=>p2pRuntime.create(options),matching:(...args)=>managedPacks.matching(...args),getInstance:id=>library.get(id),notify:emit,
+    launcher,getConnectionMode:()=>prefs.connectionMode||'auto',peerFactory:options=>p2pRuntime.create(options),matching:(...args)=>managedPacks.matching(...args),getInstance:id=>library.get(id),notify:emit,
     assertCanLaunch:()=>{clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待整合包任务完成');}
   });
   app.once('before-quit',()=>{void gamePlay.stop();p2pRuntime.dispose();});
@@ -187,7 +187,8 @@ else {
   handle('worlds',input=>worlds.list(input?.id));
   handle('play-stop',()=>gamePlay.stop());
   handle('play-clear',()=>gamePlay.clear());
-  handle('state', async () => ({ memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
+  handle('connection-mode',async value=>{if(!['auto','relay'].includes(value))throw Error('联机方式无效');if(gamePlay.active)throw Error('请先停止联机再更改连接方式');const previous=prefs.connectionMode;prefs.connectionMode=value;try{await save();}catch(error){prefs.connectionMode=previous;throw error;}return value;});
+  handle('state', async () => ({ connectionMode:prefs.connectionMode||'auto',memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
   const assertIdle=()=>{if(launcher.states().some(r=>['checking','starting','running'].includes(r.state)))throw new Error('请先退出当前游戏，再切换 Java');};
   handle('scan-java',()=>{
     if(!javaScan)javaScan=discoverJava({root:managedPacks.root,savedPath:launcher.javaPath,externalRuntimes:false}).then(found=>{javaInstallations=found;return found;}).finally(()=>{javaScan=null;});
@@ -248,7 +249,7 @@ else {
       const instance=library.get(managedSelection);if(instance?.javaPath){launcher.javaPath=instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
       const configured=prefs.managedLaunchInputs?.[managedSelection];
       if(result.context.role==='guest'&&configured){
-        try{await gamePlay.launch({...configured,id:managedSelection,mode:'auto'});return {ok:true,value:{...gamePlay.state(),started:true}};}
+        try{await gamePlay.launch({...configured,id:managedSelection,mode:'auto',connectionMode:prefs.connectionMode||'auto'});return {ok:true,value:{...gamePlay.state(),started:true}};}
         catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}
       }
       await openLibrary();emit({type:'pack-selected',id:managedSelection});emit({type:'game-play',...result});return {ok:true,value:result};
