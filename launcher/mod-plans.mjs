@@ -16,8 +16,8 @@ export async function resolveModPlan({provider,instance,files,versionIds,optiona
    if(d.dependency_type==='optional'){const key=projectId||d.version_id;if(key)optional.set(key,{id:key,projectId,versionId:d.version_id,label:d.file_name||key});if(!optionalIds.includes(key))continue;}
    if(!['required','optional'].includes(d.dependency_type))continue;
    const localDep=installed.get(projectId)||[];if(localDep.some(x=>x.file.enabled&&(!d.version_id||x.version.id===d.version_id))){skipped.push(projectId);continue;}
-   let depId=d.version_id;if(!depId){if(!projectId)throw Error('前置依赖缺少项目标识：'+(d.file_name||'未知'));const candidates=await provider.versions(projectId,instance,{signal});depId=candidates.find(v=>v.version_type==='release')?.id;if(!depId)throw Error('没有兼容的正式版前置：'+projectId);}
-   await visit(depId,'必需前置');
+   let depId=d.version_id;if(!depId){if(!projectId)throw Error('前置依赖缺少项目标识：'+(d.file_name||'未知'));const candidates=await provider.versions(projectId,instance,{signal});depId=['release','beta','alpha'].map(type=>candidates.find(v=>v.version_type===type)?.id).find(Boolean);if(!depId)throw Error('没有兼容的前置版本：'+projectId);}
+   await visit(depId,d.dependency_type==='optional'?'可选前置':'必需前置');
   }
   visiting.delete(id);
  }
