@@ -105,3 +105,15 @@
  :root.pixel-theme.client-theme .app-page .field :is(input:not([type=file]):not([type=radio]):not([type=checkbox]),select,textarea){font-size:16px}
 }
 @media(pointer:coarse){:root.pixel-theme.client-theme .app-page :is(.icon-button,.text-button){min-height:44px;min-width:44px}}
+
+/* Quiet, visible keyboard help and readable chat metadata. */
+.app-page .chat-shortcut-hint{font:400 11px/1.5 var(--ui-font);color:var(--muted);margin:6px 0 0}
+.app-page .room-chat-composer{margin-bottom:0}
+.app-page #room-chat-shortcuts{margin:8px 28px 16px;text-align:right}
+.app-page .room-message-meta time,.app-page .room-members-heading small,.app-page .room-member-name small{color:var(--muted);font-size:11px}
+.app-page .room-message p{color:var(--text);line-height:1.75}
+.app-page .room-message-meta strong{color:var(--text)}
+.app-page .room-overview .summary-fields dt,.app-page .room-overview .event time{font-size:11px;color:var(--muted)}
+.app-page .room-overview .summary-fields dd{font-size:14px;color:var(--secondary)}
+.app-page .room-overview .event{font-size:12px;line-height:1.75}
+@media(max-width:600px){.app-page .chat-shortcut-hint{display:none}.app-page .room-chat-composer{margin-bottom:16px}.app-page .room-overview .overview-columns{grid-template-columns:1fr}}
