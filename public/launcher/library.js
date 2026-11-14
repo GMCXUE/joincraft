@@ -1,4 +1,6 @@
 import '../focus.js';
+import {mountLibraryExperience,launchPresentation} from './experience.js';
+const experience=mountLibraryExperience();
 import {mountWorlds} from './worlds.js';
 import {mountPackInstaller} from './packs.js';
 import {miningFeedback,animatePage} from '../motion.js';
@@ -10,8 +12,8 @@ const api = window.blockroomLauncher;
 mountDesktopNotifications();
 let preferences = {};
 try { preferences = JSON.parse(localStorage.getItem('blockroom-launcher-preferences') || '{}'); if (!preferences || typeof preferences !== 'object') preferences = {}; } catch {}
-const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, javaInstallations:[], javaScanning:false, installBusy:false,arch:'x64' };
-const text = (selector, value) => { $(selector).textContent = value; };
+const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, operation:null, javaInstallations:[], javaScanning:false, installBusy:false,arch:'x64' };
+const text = (selector, value) => { const el=$(selector),next=String(value??'');if(el.textContent!==next)el.textContent=next; };
 function message(error) { $('#message').hidden = !error; text('#message', error?.message || error || ''); }
 function item() { return state.instances.find(i => i.id === state.selected); }
 const playerRoot=()=>item()?.root||state.root;
@@ -48,7 +50,7 @@ function renderJava(){
   text('#java-path',state.javaPath||'');
   const java=entries.find(java=>java.path===state.javaPath);
   text('#java-hint',state.javaScanning?'正在检查本机运行环境':java&&selected&&!compatible(java)?`当前选择不匹配：需要 Java ${selected.javaMajor} · ${state.arch}`:selected?`需要 Java ${selected.javaMajor} · ${state.arch}`:'');
-  text('#scan-java',state.javaScanning?'扫描中…':'重新扫描');
+  text('#scan-java',state.javaScanning?'扫描中…':'重新扫描');$('#scan-java').setAttribute('aria-busy',String(state.javaScanning));
 }
 async function scanJava(){
   if(!api||state.javaScanning)return;state.javaScanning=true;renderJava();controls();
@@ -81,8 +83,13 @@ function controls() {
   if(context?.instanceId&&context.instanceId!==state.selected)$('#launch').disabled=true;
   if((worldUI?.tab==='worlds'&&context?.role!=='guest'||context?.role==='host')&&(!worldUI?.selected||worldUI.loading))$('#launch').disabled=true;
   const run = state.runs.find(r => r.id === state.selected);
-  text('#pack-status', run?.message || (selected?.error ? '需要修复' : ''));
-  text('#launch', run?.state === 'running' ? '游戏运行中' : state.busy ? '请稍候…' : state.play?.context?.role==='host'?'启动世界并开房':state.play?.context?.role==='guest'?'加入游戏':worldUI?.tab==='worlds'?'进入世界':'启动游戏');
+  const view=launchPresentation({selectedId:state.selected,run,play:state.play,operation:state.operation,error:selected?.error});
+  text('#launch-label',view.label||(worldUI?.tab==='worlds'?'进入世界':'启动游戏'));
+  text('#launch-target',worldUI?.tab==='worlds'||context?.role==='host'?worldUI?.selectedWorld?.name||'选择一个世界':selected?.minecraft?'Minecraft '+selected.minecraft:'');
+  $('#launch-configure').hidden=!blocked||worldUI?.tab!=='worlds';
+  $('#check').setAttribute('aria-busy',String(state.operation==='check'));text('#check',state.operation==='check'?'正在检查…':'检查文件');
+  experience.update(view);
+  for(const button of $('#instances').children)button.dataset.runState=state.runs.find(r=>r.id===button.dataset.instanceId)?.state||'idle';
 }
 function renderAccount() {
   const online = state.accountMode === 'microsoft';
@@ -96,12 +103,18 @@ function renderAccount() {
 function render() {
   text('#instance-count', state.instances.length);
   text('#managed-root',state.managedRoot||'');$('#managed-root').title=state.managedRoot||'';
-  $('#instances').replaceChildren(...state.instances.map(instance => {
-    const button = document.createElement('button'); button.className = 'instance'; button.setAttribute('aria-current', String(instance.id === state.selected));
-    const avatar = document.createElement('span'); avatar.className = 'instance-avatar'; avatar.textContent = instance.name.slice(0, 2).toUpperCase();
-    const copy = document.createElement('span'); copy.className = 'instance-text'; const title = document.createElement('strong'); title.textContent = instance.name; const meta = document.createElement('small'); meta.textContent = instance.error ? '配置需要修复' : `${instance.loader} · Java ${instance.javaMajor}`; copy.append(title, meta); button.append(avatar, copy);
-    button.onclick = () => { if (state.busy) return; remember(); state.selected = instance.id; message(null); render(); remember(); }; return button;
-  }));
+  const list=$('#instances'),existing=new Map([...list.children].map(button=>[button.dataset.instanceId,button])),keep=new Set();
+  state.instances.forEach((instance,index)=>{
+    let button=existing.get(instance.id);
+    if(!button){button=document.createElement('button');button.className='instance';button.dataset.instanceId=instance.id;button.innerHTML='<span class="instance-avatar"></span><span class="instance-text"><strong></strong><small></small></span>';}
+    button.setAttribute('aria-current',String(instance.id===state.selected));
+    const title=button.querySelector('strong'),meta=button.querySelector('small'),avatar=button.querySelector('.instance-avatar');
+    const titleText=instance.name,metaText=instance.error?'配置需要修复':`${instance.loader} · Java ${instance.javaMajor}`;
+    if(title.textContent!==titleText)title.textContent=titleText;if(meta.textContent!==metaText)meta.textContent=metaText;avatar.textContent=instance.name.slice(0,2).toUpperCase();
+    button.onclick=()=>{if(state.busy||state.selected===instance.id)return;const direction=index-state.instances.findIndex(i=>i.id===state.selected);remember();state.selected=instance.id;message(null);render();remember();experience.transition(Math.sign(direction));};
+    if(list.children[index]!==button)list.insertBefore(button,list.children[index]||null);keep.add(button);
+  });
+  for(const button of [...list.children])if(!keep.has(button))button.remove();
   const selected = item(); $('#empty').hidden = !!selected; $('#details').hidden = !selected;
   if (selected) {
     text('#pack-name', selected.name); text('#pack-icon', selected.name.slice(0, 2).toUpperCase());
@@ -120,7 +133,7 @@ worldUI=mountWorlds({api,onChange:controls,onError:message});
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
 function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
-async function action(fn) { message(null); state.busy = true; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false; controls(); } }
+async function action(fn,operation='change') { if(state.busy)return;message(null); state.busy = true;state.operation=operation; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false;state.operation=null; controls(); } }
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
@@ -131,8 +144,9 @@ $('#microsoft-tab').onclick = () => { state.accountMode = 'microsoft'; remember(
 $('#login').onclick = () => action(async () => { try { state.account = await api.login(); renderAccount(); } finally { $('#device-code').hidden = true; } });
 $('#logout').onclick = () => action(async () => { state.account = await api.logout(); renderAccount(); });
 $('#open-microsoft').onclick = () => api.microsoftPage().catch(message);
-$('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); });
-$('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); });
+$('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); },'check');
+$('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); },'launch');
+$('#launch-configure').onclick=()=>{worldUI.setTab('settings');const target=!state.javaPath?$('#java-select'):state.accountMode==='microsoft'?$('#microsoft-tab'):$('#player-name');target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
 $('#rooms').onclick = () => api ? api.rooms().catch(message) : location.assign('/app/#friends');
 $('.brand').onclick = event => { event.preventDefault(); $('#rooms').click(); };
 if (!api) { $('#web-note').hidden = false; text('#surface-label', '网页预览'); render(); }
@@ -143,7 +157,7 @@ else {
     if(event.type==='close-blocked'){message(event.message);document.querySelector('#message').scrollIntoView({block:'nearest'});}
     if(event.type==='library-scanning'){libraryScanMotion?.cancel();libraryScanMotion=miningFeedback.start('正在识别整合包',{success:'游戏库已更新'});}
     if(event.type==='library'){libraryScanMotion?.done();libraryScanMotion=null;const key=item()&&prefKey(item());Object.assign(state,event);state.selected=state.instances.find(i=>prefKey(i)===key)?.id||state.instances[0]?.id;render();}
-    if(event.type==='game-play'){syncPlay(event);render();}
+    if(event.type==='game-play'){const previous=state.selected;syncPlay(event);if(previous!==state.selected)render();}
     if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
     if (event.type === 'device-code') { text('#code', event.code); $('#device-code').hidden = false; }
     if (event.type === 'account') { state.account = event; renderAccount(); }

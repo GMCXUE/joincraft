@@ -1,0 +1,61 @@
+/* Local client: a fixed launch dock, authored progress, and quiet selection depth. */
+html:has(.library-page){height:100%;overflow:hidden}
+.library-page{height:100dvh;overflow:hidden}
+.library-page .workspace{height:calc(100dvh - 48px);min-height:0;margin:0 8px 8px;grid-template-columns:228px minmax(0,1fr)}
+.library-page:has(#web-note:not([hidden])) .workspace{height:calc(100dvh - 82px);min-height:0}
+.library-page .library-sidebar{min-height:0;padding:24px 12px 16px;background:var(--stone-night);border-right:1px solid var(--border)}
+.library-page #instances{min-height:0;overflow:auto;margin-top:12px;padding:2px;scrollbar-width:thin;scrollbar-color:var(--selected) transparent}
+.library-page .instance{position:relative;gap:12px;min-height:64px;margin-bottom:6px;transition:background-color 140ms,border-color 140ms}
+:root.pixel-theme.client-theme .library-page .instance[aria-current=true]{background:var(--selected);border-color:var(--strong-border)}
+.library-page .instance-avatar{transition:background-color 160ms,color 160ms}
+:root.pixel-theme.client-theme .library-page .instance[aria-current=true] .instance-avatar{background:#58c7cf1c;color:var(--diamond-core)}
+.client-icon{display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;vertical-align:middle}
+.client-icon svg{width:100%;height:100%}
+.library-page .import-button{display:flex;align-items:center;gap:8px;min-height:40px}
+.library-page .install-root{margin-block:16px 4px}
+.library-page main{min-height:0;padding:0;display:flex;flex-direction:column;overflow:clip}
+.library-page #details{width:100%;margin:0;max-width:none;min-height:0;flex:1;display:flex;flex-direction:column}
+.library-page .instance-heading{flex:none;padding:24px 28px 20px;gap:16px}
+:root.pixel-theme.client-theme .library-page .pack-icon{width:64px;height:64px;background:#58c7cf14;color:var(--diamond-core);border:1px solid #58c7cf30;border-radius:12px;font:600 20px var(--ui-font)}
+.library-page .instance-identity{flex:1;min-width:0}
+:root.pixel-theme.client-theme .library-page .instance-heading h2{font:600 23px/1.4 var(--ui-font);margin:0 0 8px;letter-spacing:-.02em}
+.instance-meta{font:12px/1.5 var(--ui-font);color:var(--muted);margin:0}
+.instance-state{display:inline-flex;align-items:center;gap:6px;flex:none;padding:6px 8px;border-radius:5px;background:var(--input);color:var(--secondary);font:12px/1.5 var(--ui-font)}
+.instance-state:before{content:'';width:6px;height:6px;background:var(--muted);border-radius:50%}
+.instance-state[data-tone=working]{color:var(--diamond-core)}.instance-state[data-tone=working]:before{background:var(--diamond-core)}
+.instance-state:is([data-tone=running],[data-tone=online]){color:var(--status-online)}.instance-state:is([data-tone=running],[data-tone=online]):before{background:var(--status-online)}
+.instance-state[data-tone=error]{color:var(--pixel-error)}.instance-state[data-tone=error]:before{background:var(--pixel-error)}
+.library-page .play-context{flex:none;margin:0 28px 16px;border:0;background:var(--input);border-radius:8px;padding:12px 16px}
+.library-page .instance-tabs{flex:none;margin:0 28px;border-color:var(--border);gap:24px}
+.library-page .instance-tabs>button{min-height:44px;padding-block:10px}
+.library-page .instance-content{flex:1;min-height:0;overflow:auto;padding:20px 28px 24px;scrollbar-width:thin;scrollbar-color:var(--selected) transparent;scroll-padding-block:20px}
+.library-page .settings-section:first-child{border-top:0;padding-top:0}.library-page .worlds-panel{min-height:0;padding-bottom:12px}
+.library-page .worlds-panel>header button{display:flex;align-items:center;gap:6px}
+.library-page .worlds-panel>header button .client-icon{width:15px;height:15px}
+.library-page .launch-footer{flex:none;position:relative;bottom:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 20px;margin:0;padding:16px 28px;background:var(--stone-night);border-top:1px solid var(--strong-border);min-height:88px}
+.launch-copy{min-width:0;align-self:center}.launch-copy>span{display:block;font:500 13px/1.5 var(--ui-font);color:var(--secondary);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.launch-copy>p:empty{display:none}.library-page .launch-footer #check-result{font-size:12px;line-height:1.6;color:var(--secondary)}
+.library-page .launch-footer #launch-hint{font-size:12px;line-height:1.6;margin:0}
+.library-page .launch-actions{align-self:center;align-items:center;margin:0;gap:8px}
+:root.pixel-theme.client-theme .library-page #launch{display:flex;align-items:center;justify-content:center;gap:10px;min-width:164px;min-height:44px;padding:10px 16px;font-weight:600}
+:root.pixel-theme.client-theme .library-page #launch[aria-busy=true]{padding-inline:16px}
+:root.pixel-theme.client-theme .library-page #launch[aria-busy=true]::after{left:16px;right:auto}
+.library-page #launch[aria-busy=true] .launch-primary-icon{visibility:hidden}
+:root.pixel-theme.client-theme .library-page #launch-configure{color:var(--diamond-core);background:transparent;padding-inline:4px}
+.launch-phases{display:flex;gap:20px;grid-column:1/-1;list-style:none;margin:0;padding:0 0 4px;font:12px/1.5 var(--ui-font)}
+.launch-phases li{display:flex;align-items:center;gap:7px;color:var(--muted);transition:color 160ms}
+.launch-step-dot{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--strong-border);background:var(--selected);transition:background-color 160ms,border-color 160ms}
+.launch-step-dot svg{width:12px;height:12px;opacity:0;transition:opacity 160ms}
+.launch-phases li[data-state=current]{color:var(--diamond-core)}.launch-phases li[data-state=current] .launch-step-dot{background:var(--diamond-core);border-color:var(--diamond-core);box-shadow:inset 0 0 0 4px var(--stone-night)}
+.launch-phases li[data-state=complete]{color:var(--secondary)}.launch-phases li[data-state=complete] .launch-step-dot{background:#58c7cf20;color:var(--diamond-core);border-color:transparent}.launch-phases li[data-state=complete] svg{opacity:1}
+.library-page #message{flex:none;margin:0;padding:12px 28px;border-radius:0;font-size:13px;background:var(--pixel-error-bg);color:var(--pixel-error)}
+.library-page #pack-install-progress{flex:none;width:calc(100% - 56px);max-height:50%;overflow:auto;margin:20px 28px 0;border-radius:8px}
+.library-page #empty{padding:28px;min-height:0;flex:1;max-width:480px;align-self:center}
+.library-page .instance-tabs>button:after{transition:opacity 160ms;}
+@media(max-width:1050px){.library-page .instance-heading{padding:20px}.library-page .play-context{margin-inline:20px}.library-page .instance-tabs{margin-inline:20px}.library-page .instance-content{padding:20px}.library-page .launch-footer{padding:16px 20px}.library-page .launch-actions{gap:6px}.launch-phases{gap:14px}}
+@media(max-width:900px){.library-page .workspace{grid-template-columns:196px minmax(0,1fr)}.library-page .launch-footer{gap:10px;grid-template-columns:1fr}.library-page .launch-actions{justify-self:end}.instance-state{padding:4px 6px}.launch-phases{gap:10px;flex-wrap:wrap}}
+@media(max-width:600px){.library-page .workspace{display:flex;flex-direction:column}.library-page .library-sidebar{padding:12px;flex:none;border-right:0;border-bottom:1px solid var(--border)}.library-page .sidebar-title,.library-page .install-root{display:none}.library-page .import-button{width:max-content;min-height:36px}.library-page #instances{display:flex;max-height:76px;padding:0;margin-top:8px}.library-page .instance{margin:0;min-height:56px}.library-page main{flex:1}.library-page .instance-heading{padding:16px;gap:12px}.library-page .instance-heading .pack-icon{width:44px;height:44px}.library-page .instance-heading h2{font-size:18px}.instance-state{display:none}.library-page .play-context{margin:0 16px 12px;padding:10px}.library-page .instance-tabs{margin-inline:16px}.library-page .instance-content{padding:16px}.library-page .launch-footer{padding:12px 16px}.library-page .launch-actions{width:100%;align-self:center;justify-content:flex-end}.library-page #launch{flex:1}.library-page .launch-actions button{font-size:12px}.library-page #pack-install-progress{width:calc(100% - 32px);margin:16px 16px 0}}
+@media(prefers-reduced-motion:reduce){.library-page :is(.instance,.instance-avatar,.launch-step-dot,.launch-step-dot svg,.launch-phases li,.instance-tabs>button:after){transition:none}}
+
+.library-page .instance-avatar{position:relative}
+.library-page .instance[data-run-state=running] .instance-avatar:after{content:'';position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border:2px solid var(--stone-night);border-radius:50%;background:var(--status-online)}

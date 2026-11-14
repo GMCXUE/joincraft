@@ -15,5 +15,5 @@ export function mountWorlds({api,onChange=()=>{},onError=()=>{}}){
  }
  async function load(instance,{force=false}={}){if(!force&&id===instance?.id)return;id=instance?.id;const request=++sequence;worlds=[];selected=null;loading=!!id;render();if(!id||!api)return;try{const result=await api.worlds({id});if(request!==sequence)return;worlds=result.worlds;selected=worlds.find(supported)?.id||null;if(result.truncated)onError('存档较多，当前显示前 128 个');}catch(error){if(request===sequence)onError(error);}finally{if(request===sequence){loading=false;render();}}}
  $('#settings-tab').onclick=()=>setTab('settings');$('#worlds-tab').onclick=()=>setTab('worlds');$('#refresh-worlds').onclick=()=>load({id},{force:true});
- return {load,setTab,setLocked:value=>{if(locked!==value){locked=value;render();}},get tab(){return tab;},get selected(){return selected;},get loading(){return loading;}};
+ return {load,setTab,setLocked:value=>{if(locked!==value){locked=value;render();}},get tab(){return tab;},get selected(){return selected;},get selectedWorld(){return worlds.find(world=>world.id===selected);},get loading(){return loading;}};
 }
