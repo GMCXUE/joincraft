@@ -26,6 +26,38 @@
   stopPlay:async()=>{generation++;set('stopped','模拟：联机已停止，游戏保持运行');},clearPlay:async()=>{play={context:null,progress:{phase:'idle'}};emit({type:'game-play',...play});},rooms:async()=>{},onEvent:fn=>{listeners.push(fn);return()=>listeners.splice(listeners.indexOf(fn),1);},
   importPack:async()=>{throw Error('界面模拟不安装文件');},pickInstallRoot:async()=>root
  };
- window.joincraftNotifications={state:async()=>({phase:'idle'}),claim:async()=>null,onEvent:()=>()=>{}};
- document.addEventListener('DOMContentLoaded',()=>{const note=document.querySelector('#web-note');note.hidden=false;note.textContent='界面模拟 · 不启动游戏、不建立线上连接';});
+ let packState={state:'idle'},packGeneration=0;
+ const packEmit=value=>{packState=value;emit({type:'pack-install',...value});};
+ async function install(){
+  const current=++packGeneration,files=['modrinth.index.json','Java 17/runtime','assets/objects/7d/7d-preview','forge-1.20.1-47.3.33.jar','mods/corpse.jar','config/client.toml'];
+  for(let stage=1;stage<=6;stage++)for(let step=0;step<=2;step++){
+   if(current!==packGeneration)return null;
+   packEmit({state:'installing',operation:'install',stage,stages:6,phase:['prepare','java','resources','loader','mods','verify'][stage-1],name:'模拟安装 · 香草纪元',label:['读取整合包','准备 Java','下载游戏资源','安装 Forge','安装模组','校验文件'][stage-1],file:files[stage-1],percent:step*50,totalFiles:100,completedFiles:Math.floor(((stage-1)*3+step)/18*100),totalBytes:100*1024*1024,completedBytes:(stage-1)*16*1024*1024,fileTotal:1024*1024,fileCompleted:step*512*1024,speedBps:4*1024*1024,etaSeconds:2,message:'界面模拟，不会下载或写入文件'});await delay(220);
+  }
+  packEmit({...packState,state:'done',percent:100,message:'模拟安装完成，未写入游戏目录'});return instance;
+ }
+ window.blockroomLauncher.importPack=install;window.blockroomLauncher.retryPack=install;window.blockroomLauncher.installState=async()=>packState;
+ window.blockroomLauncher.cancelPack=async()=>{packGeneration++;packEmit({...packState,state:'cancelling',message:'正在取消模拟安装'});await delay(250);packEmit({...packState,state:'cancelled',message:'模拟安装已取消'});};
+ let update={phase:'available',currentVersion:'0.9.27',version:'0.9.28（模拟）',canInstall:true,notes:'客户端交互预览，不下载更新、不重启应用。'},updateGeneration=0,confirmation=null,overlay=null,opener=null;
+ const updateEmit=value=>{update=value;emit({type:'update',...value});};
+ window.joincraftUpdates={
+  close:async()=>{if(parent!==window)parent.postMessage({type:'joincraft-preview-close-updates'},location.origin);},
+  confirmInstall:async accepted=>{confirmation?.(accepted);confirmation=null;},
+  onEvent:fn=>{listeners.push(fn);return()=>listeners.splice(listeners.indexOf(fn),1);},
+  updates:{state:async()=>update,check:async()=>{updateEmit({...update,phase:'checking'});await delay(650);updateEmit({...update,phase:'available'});return update;},download:async()=>{
+   const current=++updateGeneration;
+   for(let percent=0;percent<=100;percent+=10){if(current!==updateGeneration)return update;updateEmit({...update,phase:'downloading',percent,total:100*1024*1024,transferred:percent*1024*1024,bytesPerSecond:5*1024*1024});await delay(240);}
+   updateEmit({...update,phase:'downloaded'});return update;
+  },cancel:async()=>{updateGeneration++;updateEmit({...update,phase:'cancelling'});await delay(250);updateEmit({...update,phase:'available',percent:0});return update;},install:async()=>{
+   const accepted=await new Promise(resolve=>{confirmation=resolve;emit({type:'install-confirmation',version:update.version});});
+   if(accepted){updateEmit({...update,phase:'installing'});await delay(700);updateEmit({...update,phase:'downloaded',message:'模拟完成，未重启客户端'});}return update;
+  }}
+ };
+ window.joincraftNotifications={state:async()=>update,claim:async()=>null,onEvent:()=>()=>{},open:async()=>{
+  if(overlay)return;opener=document.activeElement;overlay=document.createElement('iframe');overlay.className='preview-updates';overlay.title='客户端更新 · 模拟';overlay.src='/launcher/notifications.html';
+  for(const child of document.body.children)child.inert=true;document.body.append(overlay);
+ }};
+ addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==overlay?.contentWindow||event.data?.type!=='joincraft-preview-close-updates')return;overlay.remove();overlay=null;for(const child of document.body.children)child.inert=false;opener?.focus();});
+
+ document.addEventListener('DOMContentLoaded',()=>{const note=document.querySelector('#web-note');if(!note){emit({type:'surface-shown'});return;}note.hidden=false;note.textContent='界面模拟 · 不启动游戏、不建立线上连接';});
 })();

@@ -16,6 +16,6 @@ export function renderInstallProgress(container,state,{cancel,retry}={}){
   $('.pack-progress-speed').textContent=active&&state.speedBps?formatBytes(state.speedBps)+'/s':'';
   $('.pack-progress-eta').textContent=!active?'':state.phase==='loader'||state.phase==='loader-process'||state.phase==='verify'||state.phase==='inspect'?'处理中':state.etaSeconds!==null&&state.etaSeconds!==undefined?'本阶段剩余 '+formatETA(state.etaSeconds):'预计时间：正在估算';
   $('.pack-progress-end p').textContent=state.message||'';
-  const cancelButton=$('.pack-progress-cancel'),retryButton=$('.pack-progress-retry');cancelButton.hidden=!active||!cancel;cancelButton.disabled=state.state==='cancelling';cancelButton.textContent=state.state==='cancelling'?'正在取消…':state.operation==='upload'?'取消上传':state.operation==='download'?'取消下载':'取消安装';cancelButton.onclick=()=>void cancel?.();
+  const cancelButton=$('.pack-progress-cancel'),retryButton=$('.pack-progress-retry');cancelButton.hidden=!active||!cancel;cancelButton.disabled=state.state==='cancelling';cancelButton.setAttribute('aria-busy',String(state.state==='cancelling'));cancelButton.textContent=state.state==='cancelling'?'正在取消…':state.operation==='upload'?'取消上传':state.operation==='download'?'取消下载':'取消安装';cancelButton.onclick=()=>void cancel?.();
   retryButton.hidden=!['failed','cancelled'].includes(state.state)||!retry;retryButton.onclick=()=>void retry?.();
 }

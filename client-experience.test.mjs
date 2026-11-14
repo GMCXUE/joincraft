@@ -42,3 +42,36 @@ test('failed refresh retains known worlds; removed or unsupported choices fall b
 test('each instance restores its last usable world when the player returns',async()=>{
  const model=createWorldSelection({read:async()=>({worlds:[world('a'),world('b')]})});await model.load({id:'first'});model.select('b');await model.load({id:'second'});assert.equal(model.state.selected,'a');await model.load({id:'first'});assert.equal(model.state.selected,'b');
 });
+
+import {updateErrorState,updateETA} from './public/launcher/updates.js';
+test('update failures keep downloaded context and a recoverable action instead of leaving an empty modal',()=>{
+ const downloaded={phase:'downloaded',version:'1.2.3',canInstall:true,notes:'notes'};
+ const result=updateErrorState(downloaded,'install',Error('busy'));assert.equal(result.phase,'error');assert.equal(result.errorStage,'install');assert.equal(result.canInstall,true);assert.equal(result.version,'1.2.3');assert.equal(result.notes,'notes');assert.equal(result.error,'busy');
+ assert.equal(updateErrorState({},'download',Error('network')).errorStage,'download');assert.equal(updateErrorState({},'check',Error('network')).errorStage,'check');
+});
+test('update ETA uses real remaining bytes and throughput and stays absent when unknown or cancelling',()=>{
+ assert.equal(updateETA({phase:'downloading',total:200,transferred:100,bytesPerSecond:10}),'约 10 秒');
+ for(const value of [{phase:'cancelling',total:200,transferred:100,bytesPerSecond:10},{phase:'downloading',total:200,transferred:100,bytesPerSecond:0},{phase:'downloading',total:NaN,transferred:10,bytesPerSecond:10},{phase:'downloaded',total:200,transferred:200,bytesPerSecond:10}])assert.equal(updateETA(value),'');
+});
+
+test('panel motion interrupts earlier transitions and removes spatial movement for reduced-motion users',async()=>{
+ const {revealClientPanel}=await import('./public/launcher/experience.js'),oldDocument=globalThis.document,oldMatch=globalThis.matchMedia;let quiet=true,cancelled=0,frames;
+ const element={getAnimations:()=>[{id:'client-panel',cancel(){cancelled++;}},{id:'other',cancel(){assert.fail('unrelated animation was cancelled');}}],animate(value){frames=value;return {};}};
+ try{
+  globalThis.document={documentElement:{classList:{contains:()=>false}}};globalThis.matchMedia=()=>({matches:quiet});
+  revealClientPanel(element);assert.equal(cancelled,1);assert(frames.every(frame=>!Object.hasOwn(frame,'transform')));
+  quiet=false;revealClientPanel(element,{direction:-1});assert.equal(cancelled,2);assert.equal(frames[0].transform,'translateX(-8px)');
+ }finally{globalThis.document=oldDocument;globalThis.matchMedia=oldMatch;}
+});
+
+import {mountPackInstaller} from './public/launcher/packs.js';
+function installerFixture(api){const controls=new Map(),busy=[],rendered=[];const document={querySelector(selector){if(!controls.has(selector))controls.set(selector,{});return controls.get(selector);}};mountPackInstaller({api,document,onBusy:value=>busy.push(value),onInstalled:async()=>{},onError:error=>assert.fail(error.message),renderProgress:(_target,state)=>rendered.push(state.state)});return {controls,busy,rendered};}
+test('a late initial installation snapshot cannot hide a newer progress event',async()=>{
+ let release,emit;const initial=new Promise(resolve=>release=resolve),f=installerFixture({onEvent:fn=>emit=fn,installState:()=>initial});
+ emit({type:'pack-install',state:'installing'});release({state:'idle'});await initial;await Promise.resolve();assert.equal(f.busy.at(-1),true);assert.equal(f.rendered.at(-1),'installing');
+});
+test('installation remains busy until cancellation is terminal even if the original task resolves first',async()=>{
+ let finish,emit;const task=new Promise(resolve=>finish=resolve),f=installerFixture({onEvent:fn=>emit=fn,installState:async()=>({state:'idle'}),importPack:()=>task});
+ await Promise.resolve();const pending=f.controls.get('#import-pack').onclick();emit({type:'pack-install',state:'cancelling'});finish();await pending;assert.equal(f.busy.at(-1),true);
+ emit({type:'pack-install',state:'cancelled'});assert.equal(f.busy.at(-1),false);
+});

@@ -79,3 +79,19 @@ html:has(.library-page){height:100%;overflow:hidden}
 @media(max-width:1120px){.library-page .world-list{grid-template-columns:1fr}.library-page .world-row{min-height:100px}}
 @media(hover:hover){.library-page .world-row:hover:not(:disabled) .world-icon{transform:translateY(-2px)}}
 @media(prefers-reduced-motion:reduce){.library-page .world-row,.library-page .world-icon,.library-page .world-selected,.library-page .world-selected svg{transition:none!important;transform:none!important}}
+
+.library-page .pack-progress{border-radius:8px;animation:client-task-arrive 200ms cubic-bezier(.16,1,.3,1)}
+.library-page .pack-progress-stages{gap:6px;margin-block:16px}
+.library-page .pack-progress-stages li{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:4px;transition:color 140ms,background-color 140ms}
+.library-page .pack-progress-stages li:before{content:'';display:block;width:6px;height:6px;border-radius:2px;background:var(--selected);margin:0}
+.library-page .pack-progress-stages li.complete:before{background:var(--diamond-core)}
+.library-page .pack-progress-stages li.current{background:#58c7cf16;color:var(--diamond-core)}.library-page .pack-progress-stages li.current:before{background:var(--diamond-core)}
+.library-page .pack-progress[data-state=done]{border-color:#58c7cf50}.library-page .pack-progress[data-state=failed]{border-color:var(--pixel-error-edge)}
+.library-page .pack-progress[data-state=failed] .pack-progress-title{color:var(--pixel-error)!important}
+.library-page .pack-progress-end:empty{display:none}.library-page .pack-progress progress{border-radius:4px}
+.library-page .preview-updates{position:fixed;inset:0;width:100%;height:100%;z-index:200;border:0;background:transparent}
+@keyframes client-task-arrive{from{opacity:.65;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.library-page .pack-progress{animation:none}.library-page .pack-progress-stages li{transition:none}}
+
+.library-page.installing-pack #details{display:none}
+.library-page.installing-pack #pack-install-progress{width:calc(100% - 56px);max-height:calc(100% - 40px);margin:auto;flex:0 1 auto}

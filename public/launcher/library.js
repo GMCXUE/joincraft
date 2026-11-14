@@ -167,6 +167,6 @@ else {
 }
 
 if(api){
-  mountPackInstaller({api,onBusy:value=>{state.installBusy=value;controls();},onError:message,onInstalled:async instance=>{const result=await api.state();Object.assign(state,result);state.selected=instance.id;state.javaInstallations=await api.scanJava();render();remember();},});
+  mountPackInstaller({api,onBusy:value=>{state.installBusy=value;document.body.classList.toggle('installing-pack',value);controls();},onError:message,onInstalled:async instance=>{const result=await api.state();Object.assign(state,result);state.selected=instance.id;state.javaInstallations=await api.scanJava();render();remember();},});
   $('#pick-install-root').onclick=()=>action(async()=>{const value=await api.pickInstallRoot();if(value){state.managedRoot=value;render();}});
 }
