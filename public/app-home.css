@@ -71,3 +71,11 @@
 
 .home-game-identity{min-height:0;overflow:auto;justify-content:safe center;scrollbar-width:thin;}
 .home-game-identity>img,.home-identity-form,.home-microsoft{flex-shrink:0;}
+
+/* Keep game identity and the next launch action understandable at a glance. */
+.home-identity-note{margin:0;color:var(--muted);font:400 11px/1.7 var(--ui-font);text-align:left}
+:root.pixel-theme.client-theme .home-identity-form .button{min-height:40px}
+:root.pixel-theme.client-theme .home-microsoft>.text-button{min-height:36px;padding:6px 10px;color:var(--secondary)}
+.home-mode .home-version-meta{font-size:12px;padding-top:12px}
+.app-home-welcome p{max-width:52ch;color:var(--secondary);line-height:1.8}
+@media(min-width:601px) and (max-height:700px){.home-mode .home-game-identity{padding-block:16px;gap:12px}.home-mode .home-game-identity>img{width:48px;height:48px}.client-theme .home-mode .room-sidebar{padding-top:20px}}

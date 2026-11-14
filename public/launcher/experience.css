@@ -121,3 +121,20 @@ html:has(.library-page){height:100%;overflow:hidden}
 .advanced-launch-fields p{color:var(--muted);font:12px/1.7 var(--ui-font);margin:0;}
 .advanced-launch-fields button{justify-self:start;}
 #launch-settings-result{font-size:12px;color:var(--diamond-core);}
+
+/* Settings use the same readable controls as the app, with advanced fields kept folded. */
+.library-page .settings-context{margin:0 0 24px;color:var(--muted);font:400 12px/1.75 var(--ui-font)}
+:root.pixel-theme.client-theme .library-page #launch-settings .settings-section h3{font:600 15px/1.5 var(--ui-font);color:var(--text);margin-bottom:12px}
+.library-page .settings-description{color:var(--muted);font:400 12px/1.75 var(--ui-font);margin-bottom:20px}
+:root.pixel-theme.client-theme .library-page #launch-settings :is(label,.java-heading>label){font:500 13px/1.5 var(--ui-font);color:var(--secondary)}
+:root.pixel-theme.client-theme .library-page #launch-settings select{min-height:42px;font:400 13px/1.5 var(--ui-font);padding:10px 12px}
+.library-page #launch-settings .settings-section{padding-block:24px;border-color:var(--border)}
+.library-page #launch-settings .settings-section:first-of-type{padding-top:0;border-top:0}
+.library-page .advanced-launch summary{min-height:44px;display:list-item;padding-block:12px}
+.library-page .advanced-launch-fields{gap:10px;padding:16px 0 24px}
+.library-page .advanced-launch-fields label:not(:first-child){margin-top:10px}
+.library-page .path-line{line-height:1.75}
+.library-page .empty .empty-mark{width:48px;height:48px;margin-bottom:24px;color:var(--muted)}
+:root.pixel-theme.client-theme .library-page .empty h2{font:600 22px/1.4 var(--ui-font)}
+:root.pixel-theme.client-theme .library-page .empty p{font:400 14px/1.75 var(--ui-font);color:var(--secondary)}
+@media(max-width:900px){.library-page .settings-context{margin-bottom:20px}.library-page .java-heading{align-items:flex-start;flex-wrap:wrap;gap:8px}.library-page .java-actions{margin-left:auto}.library-page .instance-heading .instance-state{max-width:110px;white-space:normal}}

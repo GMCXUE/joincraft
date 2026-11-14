@@ -258,3 +258,14 @@
 
 /* Room revision previews stay inside the shared application dialog. */
 .pack-revision-files{max-height:280px;overflow:auto;padding:12px 24px;background:#1d2026;border-radius:6px;font:12px/1.8 system-ui;overflow-wrap:anywhere}.pack-config-choice{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0;overflow-wrap:anywhere}.pack-config-choice input{flex:none}
+
+/* Task feedback stays readable without covering the user's current controls. */
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline){display:flex;align-items:center;gap:12px;width:320px;max-width:calc(100vw - 32px);padding:12px 16px;right:16px;bottom:16px;border:1px solid var(--strong-border);border-radius:8px;background:var(--pixel-panel);box-shadow:0 6px 20px #090c112e}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) canvas{width:56px;height:56px;flex:none;margin:0}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-copy{text-align:left}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) strong{font:500 14px/1.5 var(--ui-font);color:var(--text)}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-copy>span{color:var(--secondary);font:400 12px/1.65 var(--ui-font)}
+:root.pixel-theme.client-theme .mining-notice[data-phase=error]:not(.mining-inline){border-color:var(--pixel-error-edge)}
+:root.pixel-theme.client-theme .mining-notice[data-phase=error]:not(.mining-inline) strong{color:var(--pixel-error)}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-actions{justify-content:flex-start;gap:12px}
+:root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-actions button{color:var(--diamond-core)!important;font:500 12px var(--ui-font)!important;min-height:32px;margin-top:4px}
