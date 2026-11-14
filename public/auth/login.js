@@ -15,7 +15,7 @@ function setMode(register){
  document.title=(register?'创建账号':'登录')+' · joincraft';submit.textContent=submitLabel();
  $('#confirm-field').hidden=!register;$('#confirm').disabled=!register;$('#confirm').required=register;
  $('#password').autocomplete=register?'new-password':'current-password';$('#password').minLength=register?10:1;
- $('#password-hint').hidden=!register;
+ $('#password-hint').hidden=!register;$('#username-hint').hidden=!register;
  $('#switch-caption').textContent=register?'已有账号？':'还没有账号？';switchMode.textContent=register?'去登录':'创建账号';error.textContent='';
  for(const input of form.querySelectorAll('input'))input.removeAttribute('aria-invalid');$('#confirm').value='';
  const page=new URL(location.href);page.searchParams.delete('mode');if(register)page.searchParams.set('mode','register');history.replaceState(null,'',page.pathname+page.search);

@@ -115,3 +115,13 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .account-content { animation: none; }
   :root.pixel-theme.client-theme :is(button, input) { transition: none; transform: none; }
 }
+
+.site-links{display:flex;align-items:center;gap:16px}
+.back-home{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 4px;color:var(--secondary);font:500 13px/1.5 var(--ui-font);border-radius:4px}
+.back-home svg{width:18px;height:18px;flex:none}
+.back-home:hover{color:var(--text)}
+.site-links .repository-link{min-width:40px;min-height:40px}
+:root.pixel-theme.client-theme .form-error:empty{min-height:0;margin:0 0 28px}
+:root.pixel-theme.client-theme .field input{caret-color:var(--diamond-core)}
+@media(max-width:760px){.site-links{gap:8px}.back-home{font-size:12px}.account-switch button{min-height:44px}.scene-panel{margin-top:8px}}
+@media(max-width:380px){.back-home span{display:none}.site-links{gap:4px}.back-home{min-width:36px;justify-content:center}}

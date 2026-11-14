@@ -87,3 +87,14 @@ h1 span { display: block; }
   .action { transition: none; }
   .action:active { transform: none; }
 }
+
+/* Keep the two destinations equally easy to understand. */
+.hero-actions>div{display:flex;flex-direction:column;gap:10px}
+.hero-actions .download-note{margin:0;color:var(--secondary);font-size:12px;line-height:1.7}
+.hero-actions .action{width:100%}
+.site-links .repository-link{min-width:40px;min-height:40px}
+.subtitle{max-width:none;color:var(--text);text-wrap:pretty}
+@media(min-width:1001px) and (max-width:1280px){.hero-copy{width:36%;margin-left:62%;padding-top:72px;padding-right:24px}:root.pixel-theme.client-theme .hero-copy h1{font-size:48px;line-height:1.35}.hero-actions{gap:12px;margin-top:28px}.action{font-size:14px;padding-inline:18px}.subtitle{font-size:15px}}
+@media(max-width:600px){.hero-copy{padding:28px 24px 0}.hero-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hero-actions .action{padding-inline:10px;font-size:13px}.hero-actions .download-note{font-size:11px}.scene{height:300px}.subtitle{font-size:14px;max-width:none}}
+
+.hero-actions .download-note,.subtitle,.site-description{text-shadow:0 1px 3px #080f18;color:var(--text)}
