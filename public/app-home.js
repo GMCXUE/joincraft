@@ -15,11 +15,11 @@ export function homeSidebar({desktop,summary,loading,error,pending,icon}){
 }
 
 export function createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShell}){
- const bridge=globalThis.window?.joincraftHome;let summary=null,loading=desktop&&!!bridge,pending=null,error='',entered=false,refreshing=false,dirty=false;
+ const bridge=globalThis.window?.joincraftHome;let summary=null,loading=desktop&&!!bridge,pending=null,error='',loadFailed=false,entered=false,refreshing=false,dirty=false;
  const paint=()=>{if(isAppHome(location.hash))renderShell();};
  async function refresh(){
   if(!bridge)return;dirty=true;if(refreshing)return;refreshing=true;
-  try{while(dirty){dirty=false;try{summary=await bridge.state();error='';}catch(reason){error=reason.message||'无法读取游戏库';}loading=false;paint();}}
+  try{while(dirty){dirty=false;try{summary=await bridge.state();if(loadFailed){error='';loadFailed=false;}}catch(reason){error=reason.message||'无法读取游戏库';loadFailed=true;}loading=false;paint();}}
   finally{refreshing=false;}
  }
  bridge?.onEvent(()=>{if(entered)void refresh();});
@@ -29,11 +29,11 @@ export function createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShel
   leave(){entered=false;},
   async action(action,target){
    if(!action?.startsWith('home-'))return false;if(pending)return true;
-   if(action==='home-retry'){loading=true;paint();await refresh();return true;}
+   if(action==='home-retry'){error='';loading=true;paint();await refresh();return true;}
    if(action==='home-versions'&&bridge){
     smallDialog('版本选择',`<div class="home-version-list">${summary?.instances.length?summary.instances.map(item=>`<button class="home-version-choice" data-action="home-select" data-id="${escape(item.id)}" aria-pressed="${item.id===summary.selectedId}">${icon('cube')}<span><strong>${escape(item.name)}</strong><small>${escape(item.minecraft)} · ${escape(item.loader)}</small></span>${item.id===summary.selectedId?icon('check'):''}</button>`).join(''):'<p class="dialog-description">还没有已安装的整合包。</p>'}</div><button class="button home-manage-versions" data-action="home-settings">${icon('plus')}导入与管理整合包</button>`);return true;
    }
-   pending=action;error='';paint();
+   pending=action;error='';loadFailed=false;paint();
    try{
     if(!bridge){await window.blockroomDesktop?.openLibrary();return true;}
     if(action==='home-select'){summary=await bridge.select({id:target.dataset.id});document.querySelector('#small-dialog')?.close();}

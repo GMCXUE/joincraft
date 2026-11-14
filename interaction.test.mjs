@@ -171,3 +171,18 @@ test('denied clipboard presents the actual group number, while a detached page s
  assert.deepEqual(numbers,[COMMUNITY_QQ]);assert.equal(control.disabled,false);
  control.isConnected=false;await copyCommunity({control,clipboard:{writeText:async()=>{throw Error('Denied');}},feedback:()=>assert.fail('Detached confirmation'),fallback:()=>assert.fail('Stale fallback modal')});
 });
+
+
+test('home launch errors survive late native state events until another user action',async()=>{
+ const {createAppHome}=await import('./public/app-home.js');
+ const previous=Object.fromEntries(['window','location','document'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));let event,release;
+ const state={instances:[{id:'one',name:'Pack'}],selectedId:'one',account:{mode:'offline',name:'Builder'},busy:false};
+ let delayed=false;
+ try{
+  globalThis.location={hash:'#home'};globalThis.document={body:{},activeElement:null,querySelector:()=>({})};
+  globalThis.window={joincraftHome:{state:async()=>{if(delayed)await new Promise(resolve=>release=resolve);return state;},onEvent:fn=>event=fn,start:async()=>{delayed=true;event();throw Error('游戏文件缺失');}}};
+  const ui=createAppHome({desktop:true,icon:()=>'',setHTML:()=>{},smallDialog:()=>{},toast:()=>{},renderShell:()=>{}});
+  ui.show();await new Promise(resolve=>setImmediate(resolve));await ui.action('home-start',{});
+  assert.match(ui.shell().nav,/游戏文件缺失/);release();await new Promise(resolve=>setImmediate(resolve));assert.match(ui.shell().nav,/游戏文件缺失/);
+ }finally{for(const [key,value]of Object.entries(previous))if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}
+});
