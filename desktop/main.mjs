@@ -26,6 +26,7 @@ import {stat} from 'node:fs/promises';
 import {ManagedWorlds} from '../launcher/worlds.mjs';
 import {HostHelper} from '../launcher/host-helper.mjs';
 import {GamePlay} from './game-play.mjs';
+import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
@@ -42,7 +43,7 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let worlds, gamePlay, playToken=null;
+let worlds, gamePlay, p2pRuntime, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
 const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy);
@@ -143,12 +144,13 @@ else {
     return {...(allowed.length?{Cookie:allowed.map(cookie=>cookie.name+'='+cookie.value).join('; ')}:{}),...(token?{Authorization:'Bearer '+token}:{})};
   }});
   worlds=new ManagedWorlds({getInstance:id=>library.get(id)});
+  p2pRuntime=new ElectronP2P({createView:options=>new WebContentsView(options),ipcMain});
   gamePlay=new GamePlay({server:new URL(serverURL()).origin,api:createPlayAPI({serverURL:serverURL(),getHeaders:()=>packTransfer.getHeaders(playToken)}),worlds,
     helper:new HostHelper({resources:app.isPackaged?path.join(process.resourcesPath,'host-helper'):path.join(here,'../build-resources/generated/host-helper')}),
-    launcher,matching:(...args)=>managedPacks.matching(...args),getInstance:id=>library.get(id),notify:emit,
+    launcher,peerFactory:options=>p2pRuntime.create(options),matching:(...args)=>managedPacks.matching(...args),getInstance:id=>library.get(id),notify:emit,
     assertCanLaunch:()=>{clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待整合包任务完成');}
   });
-  app.once('before-quit',()=>void gamePlay.stop());
+  app.once('before-quit',()=>{void gamePlay.stop();p2pRuntime.dispose();});
   const {autoUpdater}=electronUpdater;
   // Keep signed update URLs and release contents out of renderer logs.
   autoUpdater.logger=null;
@@ -204,7 +206,7 @@ else {
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
   handle('check', input => launcher.check(input));
-  handle('start', async input => {clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto'};await save();}return result;});
+  handle('start', async input => {clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));

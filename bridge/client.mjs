@@ -1,8 +1,9 @@
 import net from 'node:net';
 import { WebSocket, createWebSocketStream } from 'ws';
 import { status } from './minecraft.mjs';
+import {PeerConnections} from './peers.mjs';
 
-export function startBridge({server,ticket,onState=()=>{},signal}) {
+export function startBridge({server,ticket,onState=()=>{},signal,peerFactory,connectionMode='auto',peerTimeout=4500}) {
   signal?.throwIfAborted();
   const url=new URL(server);
   const loopback=['127.0.0.1','localhost','[::1]'].includes(url.hostname);
@@ -12,12 +13,25 @@ export function startBridge({server,ticket,onState=()=>{},signal}) {
   const open=path=>new WebSocket(base+path,{headers,perMessageDeflate:false,maxPayload:65536,handshakeTimeout:8000,followRedirects:false});
   return new Promise((resolve,reject)=>{
     const control=open('/bridge/control'),sockets=new Set(),streams=new Set();
-    let listener,heartbeat,probe,stopped=false,settled=false,role='',gamePort=0,lastPing=Date.now(),busyProbe=false;
+    let listener,heartbeat,probe,direct,stopped=false,settled=false,role='',gamePort=0,lastPing=Date.now(),busyProbe=false;
     const send=m=>{if(control.readyState===WebSocket.OPEN)control.send(JSON.stringify(m));};
-    const close=()=>{if(stopped)return;stopped=true;signal?.removeEventListener('abort',abort);if(!settled){settled=true;reject(signal?.reason||Error('连接已取消'));}clearInterval(heartbeat);clearInterval(probe);listener?.close();for(const s of sockets)s.destroy();for(const s of streams)s.destroy();control.terminate();};
+    const close=()=>{if(stopped)return;stopped=true;signal?.removeEventListener('abort',abort);if(!settled){settled=true;reject(signal?.reason||Error('连接已取消'));}clearInterval(heartbeat);clearInterval(probe);direct?.close();listener?.close();for(const s of sockets)s.destroy();for(const s of streams)s.destroy();control.terminate();};
     const abort=()=>close();signal?.addEventListener('abort',abort,{once:true});
     const failed=message=>{if(stopped)return;send({type:'error',message});onState({status:'error',message});if(!settled){settled=true;reject(Error(message));}setTimeout(close,100).unref();};
     const ready=address=>{if(stopped)return;send({type:'ready',...(role==='host'?{version:address}:{port:Number(address.split(':').at(-1))})});onState({status:'ready',role,address:role==='guest'?address:undefined,version:role==='host'?address:undefined});if(!settled){settled=true;resolve({role,address:role==='guest'?address:undefined,close});}};
+    const attach=(socket,stream)=>{
+      sockets.add(socket);streams.add(stream);socket.setNoDelay(true);
+      const cleanup=()=>{sockets.delete(socket);streams.delete(stream);socket.destroy();stream.destroy();};
+      socket.on('error',cleanup);stream.on('error',cleanup);socket.on('close',cleanup);stream.on('close',cleanup);
+      socket.pipe(stream);stream.pipe(socket);
+    };
+    const enableDirect=version=>{
+      if(version!==1||typeof peerFactory!=='function'||connectionMode==='relay'){if(role==='guest')onState({status:'route',transport:'relay',latency:null});return;}
+      direct=new PeerConnections({role,createPeer:peerFactory,send,timeout:peerTimeout,
+        onRoute:event=>{if(stopped)return;if(event.transport!=='checking')send({type:'p2p-route',transport:event.transport,latency:event.latency});onState({status:'route',...event});},
+        onStream:stream=>{if(stopped||role!=='host'||sockets.size>=128){stream.destroy();return;}const socket=net.createConnection({host:'127.0.0.1',port:gamePort,allowHalfOpen:true});attach(socket,stream);const timer=setTimeout(()=>socket.destroy(),5000).unref();socket.once('connect',()=>clearTimeout(timer));socket.once('close',()=>clearTimeout(timer));},
+      });direct.start();
+    };
     const connect=(socket,path)=>{
       if(stopped){socket.destroy();return;}
       sockets.add(socket);socket.pause();socket.setNoDelay(true);
@@ -36,18 +50,20 @@ export function startBridge({server,ticket,onState=()=>{},signal}) {
     control.on('message',async raw=>{
       try{
         const m=JSON.parse(raw.toString());
+        if(direct?.handle(m))return;
         if(m.type==='welcome'&&!role){
           if(m.role!=='host'&&m.role!=='guest')throw Error('服务端角色无效');role=m.role;
           if(role==='host'){
             if(!Number.isInteger(m.port)||m.port<1024||m.port>65535)throw Error('游戏端口无效');gamePort=m.port;
-            const result=await status(gamePort,4000,signal);if(stopped)return;ready(result.version);
+            const result=await status(gamePort,4000,signal);if(stopped)return;ready(result.version);enableDirect(m.p2p);
             probe=setInterval(async()=>{if(busyProbe||stopped)return;busyProbe=true;try{await status(gamePort,4000,signal);}catch(e){failed(e.message);}finally{busyProbe=false;}},10000).unref();
           }else{
             listener=net.createServer({pauseOnConnect:true},socket=>{
-              if(sockets.size>=8){socket.destroy();return;}connect(socket,'/bridge/data/new');
+              if(sockets.size>=8){socket.destroy();return;}sockets.add(socket);socket.on('error',()=>{});socket.once('close',()=>sockets.delete(socket));
+              void (async()=>{const stream=await direct?.openStream();if(stopped||socket.destroyed){stream?.destroy();return;}if(stream)attach(socket,stream);else connect(socket,'/bridge/data/new');})().catch(()=>{if(!stopped&&!socket.destroyed)connect(socket,'/bridge/data/new');});
             });
             listener.on('error',()=>failed('无法创建本地游戏入口，请关闭连接程序后重试'));
-            listener.listen(0,'127.0.0.1',()=>{const address=listener.address();if(typeof address==='object'&&address)ready(`127.0.0.1:${address.port}`);});
+            listener.listen(0,'127.0.0.1',()=>{const address=listener.address();if(typeof address==='object'&&address){ready(`127.0.0.1:${address.port}`);enableDirect(m.p2p);}});
           }
         }else if(m.type==='incoming'&&role==='host'&&/^[0-9a-f-]{36}$/.test(m.id)){
           if(sockets.size>=128){send({type:'failed',id:m.id});return;}

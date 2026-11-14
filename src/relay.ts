@@ -209,7 +209,8 @@ export class Relay {
       if (!value || typeof value.candidate !== 'string' || value.candidate.length > 2048 || typeof value.sdpMid !== 'string' && value.sdpMid !== null || value.sdpMLineIndex !== null && (!Number.isInteger(value.sdpMLineIndex) || Number(value.sdpMLineIndex) < 0 || Number(value.sdpMLineIndex) > 16)) throw Error();
       if (value.sdpMid !== null && String(value.sdpMid).length > 64) throw Error();
       clean = {type:'candidate',candidate:{candidate:value.candidate,sdpMid:value.sdpMid,sdpMLineIndex:value.sdpMLineIndex}};
-    } else throw Error();
+    } else if (signal.type === 'close') clean = {type:'close'};
+    else throw Error();
     // Ephemeral, authenticated signalling only. SDP and network candidates are not persisted or published in room snapshots.
     peer.ws.send(JSON.stringify({type:'p2p-signal',peerId:a.peerId,signal:clean}));
   }
