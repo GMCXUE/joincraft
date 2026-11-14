@@ -269,3 +269,8 @@
 :root.pixel-theme.client-theme .mining-notice[data-phase=error]:not(.mining-inline) strong{color:var(--pixel-error)}
 :root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-actions{justify-content:flex-start;gap:12px}
 :root.pixel-theme.client-theme .mining-notice:not(.mining-inline) .mining-actions button{color:var(--diamond-core)!important;font:500 12px var(--ui-font)!important;min-height:32px;margin-top:4px}
+
+/* Leave the launch dock and message composer reachable while a task reports progress. */
+:root.pixel-theme.client-theme .library-page .mining-notice:not(.mining-inline){bottom:116px}
+:root.pixel-theme.client-theme .app-page .mining-notice:not(.mining-inline){bottom:100px}
+@media(max-width:900px){:root.pixel-theme.client-theme .library-page .mining-notice:not(.mining-inline){bottom:140px}}
