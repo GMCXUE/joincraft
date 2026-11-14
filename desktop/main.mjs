@@ -200,6 +200,11 @@ else {
   handle('pick-install-root',async()=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或整合包任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择 Joincraft 安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
   mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
+  handle('mods-apply',input=>mods.apply({...input,imports:[]}));
+  handle('mods-history',input=>mods.history(input));
+  handle('mods-restore',input=>mods.restore(input));
+  handle('mods-cancel',()=>mods.cancel());
+  handle('mods-import',async input=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束当前任务');const chosen=await dialog.showOpenDialog(roomWindow,{title:'导入模组',properties:['openFile','multiSelections'],filters:[{name:'Minecraft 模组',extensions:['jar']}]});return chosen.canceled?null:mods.apply({id:input?.id,action:'import',imports:chosen.filePaths});});
   handle('mods-fork',input=>mods.fork(input));
   handle('mods-list',input=>mods.list(input));
   handle('worlds',input=>worlds.list(input?.id));
@@ -224,8 +229,8 @@ else {
     const java=await selectJava(result.filePaths[0]);
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
-  handle('check', input => launcher.check(input));
-  handle('start', async input => {input={...input,...launcherHome.launchIdentity()};clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={...launchSettings(input),accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
+  handle('check', async input => {await mods.prepareLaunch(input.id);return launcher.check(input);});
+  handle('start', async input => {input={...input,...launcherHome.launchIdentity()};clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');await mods.prepareLaunch(input.id);const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={...launchSettings(input),accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
