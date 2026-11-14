@@ -10,3 +10,5 @@
 .library-page #details:has(#mods-tab[aria-pressed=true]) :is(.launch-footer,.connection-mode-field,.host-port-field){display:none}
 .mod-subtoolbar{padding-block:8px;min-height:44px}
 .mods-panel input[type=checkbox],.mod-dialog input[type=checkbox]{width:18px;height:18px;min-height:18px;margin:0;flex:none}
+
+.mod-project-intro{margin:12px 0}.mod-project-intro summary{cursor:pointer;color:#bbc2cd}.mod-project-intro .mod-description{max-height:240px;overflow:auto;padding-right:8px}

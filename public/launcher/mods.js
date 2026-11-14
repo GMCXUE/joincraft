@@ -1,6 +1,6 @@
 import {renderInstallProgress} from '../pack-progress.js';
-import {mountModCatalog} from './mod-catalog.js';
-export const versionTypeLabel=type=>({release:'正式版',beta:'测试版 Beta',alpha:'实验版 Alpha'})[type]||'版本类型未知';
+import {mountModCatalog,versionTypeLabel} from './mod-catalog.js';
+export {versionTypeLabel} from './mod-catalog.js';
 export function filterMods(files,query='',filter='all'){const q=query.trim().toLocaleLowerCase();return files.filter(m=>(filter==='all'||filter==='enabled'&&m.enabled||filter==='disabled'&&!m.enabled||filter==='warnings'&&(m.status!=='ready'||m.warnings.length))&&(!q||[m.name,m.version,m.fileName,...m.mods.flatMap(x=>[x.id,x.name,...x.authors])].join(' ').toLocaleLowerCase().includes(q)));}
 const el=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n;};
 export function mountMods({api,onError=()=>{}}){
