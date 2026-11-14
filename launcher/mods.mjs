@@ -24,5 +24,5 @@ export class ManagedMods {
   if(action==='import'){if(!imports.length||imports.length>128)throw Error('每次请选择 1 至 128 个 JAR');for(const source of imports){const info=await inspectMod(source,{signal});if(info.status!=='ready')throw Error('无法识别模组：'+path.basename(source));put.push({name:path.basename(source),source,sha512:info.sha512});}}
   await modTransaction(instance,{remove,put,expected,label:({enable:'启用模组',disable:'停用模组',remove:'移除模组',import:'导入模组'})[action]},{signal});await this.changed(instance.id);return {id:instance.id};
  });}
- async list({id}){if(this.busy)throw Error('请先结束模组任务');const instance=await this.instance(id),files=await (recoverMods(instance).then(()=>scanMods(instance.root)));this.cache.set(id,files);return {id,files,state:await readModState(instance),editable:!!instance.editable,origin:instance.origin||null};}
+ async list({id}){if(this.busy)throw Error('请先结束模组任务');const instance=await this.instance(id),files=await (recoverMods(instance).then(()=>scanMods(instance.root)));const state=await readModState(instance);for(const f of files)f.locked=state.pins.includes(f.sha512);this.cache.set(id,files);return {id,files,state,editable:!!instance.editable,origin:instance.origin||null};}
 }

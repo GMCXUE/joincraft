@@ -4,4 +4,4 @@
 
 .mod-switch{display:flex;gap:8px;margin-bottom:20px}.mod-switch button[aria-pressed=true]{background:#343943;color:#58c7cf}#catalog-state{margin-left:auto}#catalog-results .mod-copy small{max-width:75ch}#mods-catalog{min-height:260px}
 
-#mods-download-progress{margin-bottom:20px}#mods-download-progress .pack-progress-stages{display:none}.mod-optional{display:block;margin:12px 0}.mod-optional input{accent-color:#58c7cf}
+#mods-download-progress{margin-bottom:20px}#mods-download-progress .pack-progress-stages{display:none}.mod-optional{display:flex;align-items:center;gap:8px;margin:12px 0}.mod-optional input{accent-color:#58c7cf}
