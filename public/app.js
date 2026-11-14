@@ -1,6 +1,6 @@
 import './focus.js';
 import {mountNavigationMotion,miningFeedback} from './motion.js';
-import {bindForm,mountDialogs,normalizeRoomCode} from './interaction.js';
+import {bindForm,mountDialogs,normalizeRoomCode,showControlFeedback} from './interaction.js';
 mountDialogs();
 import {loginPagePath,useLoginPage} from './auth/session.js';
 import {mountDesktopLogin,loadDesktopAccount} from './desktop-login.js';
@@ -112,7 +112,7 @@ function openRoomDialog(mode='join'){if(!state.profile){pendingAction=mode;openA
  bindImage('create');$('#create-name')?.addEventListener('input',()=>updateImagePreview('create'));if(!$('#room-dialog').open)$('#room-dialog').showModal();$(join?'#join-code':'#create-name').focus();
 }
 function smallDialog(title,content){$('#small-dialog-body').innerHTML=`<h2 id="small-title">${title}</h2>${content}`;$('#small-dialog').showModal();}
-async function copyCode(room){try{await navigator.clipboard.writeText(room.code);toast('房间号已复制');}catch{toast('无法访问剪贴板，请选中房间号手动复制');}}
+async function copyCode(room,target){try{await navigator.clipboard.writeText(room.code);showControlFeedback(target,{html:icon('check'),label:'房间号已复制'});toast('房间号已复制');}catch{toast('无法访问剪贴板，请选中房间号手动复制');}}
 document.addEventListener('click',async e=>{const target=e.target.closest('[data-action]');if(!target)return;const action=target.dataset.action,room=route().room;
  if(action.startsWith('community-')){await communityUI.handle(action,target);return;}
  if(action==='game-library'){if(desktop)await window.blockroomDesktop.openLibrary();else location.assign('/downloads/client/windows');return;}
@@ -133,7 +133,7 @@ document.addEventListener('click',async e=>{const target=e.target.closest('[data
  if(action==='profile'){if(!state.profile){openAuth('login');return;}location.hash='profile/'+state.profile.id;return;}
  if(action==='help'&&!desktop){smallDialog('使用帮助',`<ol class="help-steps"><li><strong>加入房间</strong><p>点击左侧「＋」，输入房间号和密码，或创建自己的房间。</p></li><li><strong>聊天与语音</strong><p>在好友页私聊，或在房间里发送消息、加入语音分组。</p></li><li><strong>MC 联机</strong><p>游戏库与 MC 联机请使用客户端。</p><a class="button primary small" href="/downloads/client/windows">下载客户端</a></li></ol>`);return;}
  if(action==='help'){smallDialog('使用帮助',`<ol class="help-steps"><li><strong>加入房间</strong><p>点击左侧「＋」，输入房间号和密码，或创建自己的房间。</p></li><li><strong>开始联机</strong><p>房主在 MC 中「对局域网开放」，填写端口后启动连接程序。成员连接后，将本机地址填入 MC 多人游戏。</p></li><li><strong>保持游戏运行</strong><p>关闭房主世界或连接程序会断开联机。成员的游戏版本与模组需和房主一致。</p></li><li><strong>好友与账号</strong><p>注册后可添加好友、私聊并在其他设备登录。joincraft 账号与微软游戏账号独立。</p></li></ol>`);return;}
- if(!room||room.closed)return;if(action==='copy-code')return copyCode(room);
+ if(!room||room.closed)return;if(action==='copy-code')return copyCode(room,target);
  if(action==='invite'){smallDialog('邀请朋友',`<p class="dialog-description">让朋友点击左侧「＋」，输入下面的房间号。</p><div class="share-code"><span>${room.code}</span><button class="icon-button" data-action="copy-code" aria-label="复制房间号">${icon('copy')}</button></div><p class="share-security">${icon(room.hasPassword?'lock':'unlock')}${room.hasPassword?'此房间设有密码，请另行告知朋友。':'此房间无需密码，知道房间号即可加入。'}</p><a class="button full" href="/app/?guest=1&code=${room.code}" target="_blank" rel="noopener">以访客身份打开 ${icon('chevron')}</a>`);return;}
  if(action==='close-room'||action==='leave-room'){const close=action==='close-room';smallDialog(close?'关闭这个房间？':'退出这个房间？',`<p class="dialog-description">${close?'所有成员将无法继续使用这个房间，房间号立即失效。此操作不会删除游戏存档。':'房间将从左侧列表移除。之后可以使用房间号和密码重新加入。'}</p><div class="confirm-actions"><button class="button" data-action="dismiss">取消</button><button class="button ${close?'danger':'primary'}" data-action="confirm-${close?'close':'leave'}">${close?'关闭房间':'退出房间'}</button></div>`);return;}
  if(action==='confirm-close'||action==='confirm-leave'){if(busy)return;busy=true;target.disabled=true;try{await api(`/api/rooms/${room.id}/${action==='confirm-close'?'close':'leave'}`,{});$('#small-dialog').close();await refresh();location.hash='home';toast(action==='confirm-close'?'房间已关闭':'已退出房间');}catch(err){toast(err.message);}finally{busy=false;target.disabled=false;}}

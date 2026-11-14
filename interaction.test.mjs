@@ -35,9 +35,9 @@ test('a pending form submits the original values once and restores controls afte
   let release,started,calls=0,received;const held=new Promise(resolve=>{release=resolve;}),began=new Promise(resolve=>{started=resolve;});f.avatar.disabled=true;
   bindForm(f.form,f.error,async body=>{calls++;received=body;started();await held;});
   const complete=once(f.form,'form:complete');f.form.dispatchEvent(new Event('submit',{cancelable:true}));await began;
-  assert.deepEqual(received,{name:'山顶建造师'});assert.equal(f.name.disabled,true);assert.equal(f.close.disabled,true);assert.equal(f.button.textContent,'正在保存…');assert.equal(f.form.getAttribute('aria-busy'),'true');
+  assert.deepEqual(received,{name:'山顶建造师'});assert.equal(f.name.disabled,true);assert.equal(f.close.disabled,true);assert.equal(f.button.textContent,'正在保存…');assert.equal(f.form.getAttribute('aria-busy'),'true');assert.equal(f.button.getAttribute('aria-busy'),'true');
   f.form.dispatchEvent(new Event('submit',{cancelable:true}));assert.equal(calls,1);release();await complete;
-  assert.equal(f.name.disabled,false);assert.equal(f.avatar.disabled,true);assert.equal(f.close.disabled,false);assert.equal(f.button.textContent,'保存资料');assert.equal(f.form.getAttribute('aria-busy'),null);
+  assert.equal(f.name.disabled,false);assert.equal(f.avatar.disabled,true);assert.equal(f.close.disabled,false);assert.equal(f.button.textContent,'保存资料');assert.equal(f.form.getAttribute('aria-busy'),null);assert.equal(f.button.getAttribute('aria-busy'),null);
  }finally{f.restore();}
 });
 
@@ -100,4 +100,29 @@ test('failed loading stays stopped for retry; cancellation prevents late success
 test('the refined atlas loops only mining poses, ends with a collected diamond, and has a static reduced-motion state',async()=>{
  const {minerFrame}=await import('./public/mining.js');for(let t=0;t<5000;t+=31)assert(minerFrame({elapsed:t})<8);
  assert.equal(minerFrame({phase:'success',elapsed:3000}),11);assert.equal(minerFrame({phase:'error',elapsed:3000}),0);assert.equal(minerFrame({phase:'pending',elapsed:3000,reduced:true}),0);assert.equal(minerFrame({phase:'success',elapsed:0,reduced:true}),11);
+});
+
+test('copy confirmation restarts its duration and restores the original control only once',async()=>{
+ const {showControlFeedback}=await import('./public/interaction.js'),clock=motionClock(),button=new Control('copy','',{innerHTML:'copy icon'});
+ button.setAttribute('aria-label','复制房间号');
+ showControlFeedback(button,{html:'check icon',label:'已复制',...clock});clock.advance(1500);
+ showControlFeedback(button,{html:'check icon',label:'已复制',...clock});clock.advance(400);
+ assert.equal(button.innerHTML,'check icon');assert.equal(button.dataset.feedback,'success');
+ clock.advance(1400);assert.equal(button.innerHTML,'copy icon');assert.equal(button.getAttribute('aria-label'),'复制房间号');assert.equal(button.getAttribute('title'),null);assert.equal(button.dataset.feedback,undefined);
+});
+test('copy feedback never overwrites a replaced or removed control',async()=>{
+ const {showControlFeedback}=await import('./public/interaction.js'),clock=motionClock(),button=new Control('copy','',{innerHTML:'copy'});
+ showControlFeedback(button,{html:'check',label:'已复制',...clock});button.innerHTML='changed by another operation';clock.advance(2000);assert.equal(button.innerHTML,'changed by another operation');
+ showControlFeedback(button,{html:'check',label:'已复制',...clock});button.isConnected=false;clock.advance(2000);assert.equal(button.innerHTML,'check');
+});
+test('layout switching commits immediately and cancels an interrupted transition before its next destination',async()=>{
+ const {animateLayoutChange}=await import('./public/motion.js'),oldMatch=globalThis.matchMedia,oldDocument=globalThis.document;
+ let top=100,cancelled=0,animation;
+ const element={getBoundingClientRect:()=>({top,left:0}),getAnimations:()=>animation?[animation]:[],animate(frames,options){animation={frames,options,cancel(){cancelled++;}};return animation;}};
+ try{
+  globalThis.document={documentElement:{classList:{contains:()=>false}}};globalThis.matchMedia=()=>({matches:false});
+  animateLayoutChange(element,()=>top=60);assert.equal(top,60);assert.equal(animation.frames[0].transform,'translate(0px,40px)');assert.equal(animation.options.duration,220);
+  animateLayoutChange(element,()=>top=100);assert.equal(cancelled,1);assert.equal(animation.frames[0].transform,'translate(0px,-40px)');
+  globalThis.matchMedia=()=>({matches:true});animateLayoutChange(element,()=>top=50);assert.equal(top,50);assert.equal(cancelled,2);
+ }finally{globalThis.matchMedia=oldMatch;globalThis.document=oldDocument;}
 });

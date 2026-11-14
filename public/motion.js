@@ -89,3 +89,17 @@ export function mountNavigationMotion({rail,sidebar,content}={}){
  window.addEventListener('resize',sync);sync();
  return {sync,transition:()=>{sync();animatePage(content);},dispose(){cancelAnimationFrame(scheduled);resize.disconnect();window.removeEventListener('resize',sync);frames.forEach(entry=>entry.element.remove());document.body.classList.remove('motion-ready');}};
 }
+
+// Keep the current position while a form changes size; repeated switches interrupt cleanly.
+export function animateLayoutChange(element,update){
+ if(!element?.animate){update();return;}
+ const before=element.getBoundingClientRect();
+ element.getAnimations().filter(animation=>animation.id==='joincraft-layout').forEach(animation=>animation.cancel());
+ update();
+ const after=element.getBoundingClientRect();
+ if(matchMedia('(prefers-reduced-motion: reduce)').matches||document.documentElement.classList.contains('motion-reduced'))return;
+ const x=before.left-after.left,y=before.top-after.top;
+ if(Math.abs(x)+Math.abs(y)<1)return;
+ const animation=element.animate([{transform:`translate(${x}px,${y}px)`},{transform:'none'}],{duration:220,easing:'cubic-bezier(.16,1,.3,1)'});
+ animation.id='joincraft-layout';
+}

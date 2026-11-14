@@ -200,3 +200,41 @@
 :root.pixel-theme.client-theme .world-row:hover{background:#ffffff05}
 :root.pixel-theme.client-theme .world-row[aria-pressed=true]{background:#58c7cf0c;border-color:#58c7cf70}
 :root.pixel-theme.client-theme .world-row:disabled{opacity:.65}
+
+
+/* Interaction rhythm: acknowledge actions, then get out of the way. */
+:root.pixel-theme.client-theme { --motion-quick:120ms; --motion-state:180ms; --motion-arrive:220ms; --motion-ease:cubic-bezier(.16,1,.3,1); }
+:root.pixel-theme.client-theme :is(.button,.icon-button,.channel,.room-icon,.rail-home,.user-avatar) { transition:background-color var(--motion-quick) ease-out,color var(--motion-quick) ease-out,border-color var(--motion-quick) ease-out; }
+:root.pixel-theme.client-theme button[aria-busy=true] { position:relative; cursor:wait; opacity:.9; }
+:root.pixel-theme.client-theme button[aria-busy=true]:not(.icon-button) { padding-inline:32px; }
+:root.pixel-theme.client-theme button[aria-busy=true]::after { content:""; position:absolute; right:10px; top:calc(50% - 7px); width:14px; height:14px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; box-sizing:border-box; animation:control-working 750ms linear infinite; }
+:root.pixel-theme.client-theme button.icon-button[aria-busy=true]::after { right:calc(50% - 7px); }
+:root.pixel-theme.client-theme button.icon-button[aria-busy=true]>.icon { opacity:0; }
+:root.pixel-theme.client-theme [data-feedback=success] { color:var(--diamond-core); background:#58c7cf14; }
+:root.pixel-theme.client-theme [data-feedback=success] .icon { animation:control-confirm 180ms var(--motion-ease); }
+:root.pixel-theme.client-theme dialog { opacity:0; transform:translateY(6px) scale(.985); transition:opacity 120ms ease-out,transform 120ms ease-out,display 120ms allow-discrete,overlay 120ms allow-discrete; }
+:root.pixel-theme.client-theme dialog[open] { opacity:1; transform:none; transition-duration:220ms; transition-timing-function:var(--motion-ease); }
+:root.pixel-theme.client-theme dialog::backdrop { background:#080b1180; opacity:0; transition:opacity 120ms ease-out,display 120ms allow-discrete,overlay 120ms allow-discrete; }
+:root.pixel-theme.client-theme dialog[open]::backdrop { opacity:1; transition-duration:180ms; }
+@starting-style {
+ :root.pixel-theme.client-theme dialog[open] { opacity:0; transform:translateY(6px) scale(.985); }
+ :root.pixel-theme.client-theme dialog[open]::backdrop { opacity:0; }
+}
+:root.pixel-theme.client-theme .toast { background:var(--selected); color:var(--text); box-shadow:0 6px 24px #090c1140; animation:toast-arrive 180ms var(--motion-ease); }
+:root.pixel-theme.client-theme .form-error:not(:empty):not([hidden]) { animation:feedback-arrive 140ms ease-out; }
+:root.pixel-theme.client-theme .mining-notice { background:var(--room); border-color:var(--strong-border); color:var(--text); }
+:root.pixel-theme.client-theme .mining-inline:not(.mining-demo) { background:transparent; }
+:root.pixel-theme.client-theme .mining-copy>span { color:var(--secondary); }
+:root.pixel-theme.client-theme .mining-notice[data-phase=success] strong { color:var(--diamond-core); }
+:root.pixel-theme.client-theme .mining-notice[data-phase=error] strong { color:var(--pixel-error); }
+:root.pixel-theme.client-theme .mining-actions button { color:var(--diamond-core)!important; }
+@keyframes control-working { to { transform:rotate(360deg); } }
+@keyframes control-confirm { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0); } }
+@keyframes toast-arrive { from { opacity:0; translate:0 5px; } to { opacity:1; translate:0; } }
+@keyframes feedback-arrive { from { opacity:.5; } to { opacity:1; } }
+@media (prefers-reduced-motion:reduce) {
+ :root.pixel-theme.client-theme dialog,:root.pixel-theme.client-theme dialog::backdrop { transform:none; transition:none; }
+ :root.pixel-theme.client-theme :is(.toast,.form-error,[data-feedback=success] .icon,button[aria-busy=true]::after) { animation:none; }
+}
+:root.pixel-theme.client-theme.motion-reduced dialog,:root.pixel-theme.client-theme.motion-reduced dialog::backdrop { transform:none; transition:none; }
+:root.pixel-theme.client-theme.motion-reduced :is(.toast,.form-error,[data-feedback=success] .icon,button[aria-busy=true]::after) { animation:none; }

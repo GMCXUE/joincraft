@@ -1,4 +1,5 @@
 import '../focus.js';
+import {animateLayoutChange} from '../motion.js';
 import {validateForm} from '../interaction.js';
 import {appDestination} from './session.js';
 const $=selector=>document.querySelector(selector);
@@ -19,7 +20,7 @@ function setMode(register){
  for(const input of form.querySelectorAll('input'))input.removeAttribute('aria-invalid');$('#confirm').value='';
  const page=new URL(location.href);page.searchParams.delete('mode');if(register)page.searchParams.set('mode','register');history.replaceState(null,'',page.pathname+page.search);
 }
-function lock(value){busy=value;fields.disabled=value||!ready;switchMode.disabled=value||!ready;$('#desktop-confirm').disabled=value;$('#desktop-switch').disabled=value;$('#desktop-cancel').disabled=value;form.setAttribute('aria-busy',String(value));}
+function lock(value){busy=value;fields.disabled=value||!ready;switchMode.disabled=value||!ready;$('#desktop-confirm').disabled=value;$('#desktop-switch').disabled=value;$('#desktop-cancel').disabled=value;form.setAttribute('aria-busy',String(value));submit.setAttribute('aria-busy',String(value));$('#desktop-confirm').setAttribute('aria-busy',String(value));}
 function show(next){
  view=next;form.hidden=next!=='form';$('.account-switch').hidden=next!=='form';$('#desktop-account').hidden=next!=='account';$('#desktop-result').hidden=!['waiting','success','cancelled','expired','failed'].includes(next);
  $('#desktop-cancel').hidden=!desktop||['success','cancelled','expired','failed'].includes(next);$('#desktop-error').hidden=true;
@@ -63,7 +64,7 @@ async function authorize(){
 }
 setMode(params.get('mode')==='register');
 if(desktop){fields.disabled=true;switchMode.disabled=true;$('#desktop-cancel').hidden=false;}
-switchMode.addEventListener('click',()=>{if(!busy){setMode(!registering);$('#username').focus();}});
+switchMode.addEventListener('click',()=>{if(!busy){animateLayoutChange($('.account-content'),()=>setMode(!registering));$('#username').focus({preventScroll:true});}});
 form.addEventListener('click',event=>{
  const button=event.target.closest('[data-password]');if(!button)return;
  const input=document.getElementById(button.dataset.password),show=input.type==='password';input.type=show?'text':'password';button.textContent=show?'隐藏':'显示';button.setAttribute('aria-pressed',String(show));button.setAttribute('aria-label',(show?'隐藏':'显示')+(input.id==='confirm'?'确认密码':'密码'));

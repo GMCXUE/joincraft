@@ -33,12 +33,12 @@ export function bindForm(form,error,callback){
   const values=Object.fromEntries(new FormData(form)),button=form.querySelector('[type="submit"]');
   const controls=[...form.querySelectorAll('input,select,textarea,button'),...form.closest('dialog')?.querySelectorAll('.dialog-close,.dialog-tabs button')||[]];
   const disabled=new Map(controls.map(item=>[item,item.disabled])),label=button?.innerHTML;
-  pending=true;form.setAttribute('aria-busy','true');error.hidden=true;
+  pending=true;form.setAttribute('aria-busy','true');button?.setAttribute('aria-busy','true');error.hidden=true;
   controls.forEach(item=>item.disabled=true);
   if(button){const text=button.textContent;button.textContent=button.dataset.pendingLabel||(/保存/.test(text)?'正在保存…':/加入/.test(text)?'正在加入…':/创建/.test(text)?'正在创建…':/发送/.test(text)?'正在发送…':/登录/.test(text)?'正在登录…':'正在提交…');}
   try{await callback(values);}
   catch(reason){if(form.isConnected){error.textContent=reason.message||'操作失败，请重试';error.hidden=false;}}
-  finally{pending=false;form.removeAttribute('aria-busy');for(const [item,value] of disabled)if(item.isConnected)item.disabled=value;if(button?.isConnected)button.innerHTML=label;form.dispatchEvent(new Event('form:complete'));}
+  finally{pending=false;form.removeAttribute('aria-busy');button?.removeAttribute('aria-busy');for(const [item,value] of disabled)if(item.isConnected)item.disabled=value;if(button?.isConnected)button.innerHTML=label;form.dispatchEvent(new Event('form:complete'));}
  });
 }
 export function mountDialogs(root=document){
@@ -73,4 +73,23 @@ export function createScrollAnchor(list,button,onBottom){
   else list.scrollTop=older?before.top+list.scrollHeight-before.height:follow||before.bottom?list.scrollHeight:before.top;
   update();
  },update,dispose(){controller.abort();observer.disconnect();}};
+}
+
+// Repeated confirmations share the original label; an old timeout cannot reset a new one.
+const controlFeedback=new WeakMap();
+export function showControlFeedback(button,{html,label,duration=1800,setTimer=setTimeout,clearTimer=clearTimeout}={}){
+ if(!button?.isConnected)return;
+ const previous=controlFeedback.get(button);
+ if(previous)previous.clearTimer(previous.timer);
+ const original=previous?.original||{html:button.innerHTML,label:button.getAttribute('aria-label'),title:button.getAttribute('title')};
+ const state={original,clearTimer};controlFeedback.set(button,state);
+ button.innerHTML=html;state.html=button.innerHTML;button.setAttribute('aria-label',label);button.setAttribute('title',label);button.dataset.feedback='success';
+ state.timer=setTimer(()=>{
+  if(controlFeedback.get(button)!==state)return;
+  controlFeedback.delete(button);
+  if(!button.isConnected||button.innerHTML!==state.html)return;
+  button.innerHTML=original.html;
+  for(const [key,value] of [['aria-label',original.label],['title',original.title]])if(value===null)button.removeAttribute(key);else button.setAttribute(key,value);
+  delete button.dataset.feedback;
+ },duration);
 }
