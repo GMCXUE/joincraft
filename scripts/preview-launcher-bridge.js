@@ -11,7 +11,7 @@
  const memory=()=>({totalMB:16384,availableMB:8192,usedMB:8192,recommendedMB:8192,maxMB:16384,lowMemory:false,sampledAt:Date.now()});
  window.blockroomLauncher={
   setConnectionMode:async value=>value,
-  state:async()=>({root,managedRoot:root,selectedInstance:id,instances:scenario==='empty'?[]:instances,javaPath:java.path,javaInstallations:[java],arch:'x64',account:{configured:false},runs,memory:memory(),play}),
+  state:async()=>({gameIdentity:{accountMode:'offline',name:'Builder'},root,managedRoot:root,selectedInstance:id,instances:scenario==='empty'?[]:instances,javaPath:java.path,javaInstallations:[java],arch:'x64',account:{configured:false},runs,memory:memory(),play}),
   memory:async()=>memory(),scanJava:async()=>{await delay(450);return [java];},selectJava:async()=>java,pickJava:async()=>java,installState:async()=>({state:'idle'}),
   worlds:async()=>{await delay(600);return {worlds:[{id:'world-one',name:'山谷里的新家',folder:'山谷里的新家',readable:true,version:'1.20.1',dataVersion:3465,gameMode:0,lastPlayed:now-3600000,icon:'/home/camp-v2.webp'},{id:'world-two',name:'周末建筑 · 创造',folder:'Building world',readable:true,version:'1.20.1',dataVersion:3465,gameMode:1,lastPlayed:now-86400000},{id:'world-old',name:'旧世界备份',readable:false,version:'1.20.1',dataVersion:3465,gameMode:0,warning:'主信息损坏，显示备份信息',lastPlayed:now-86400000*8}],truncated:false};},
   check:async()=>{await delay(1000);return {files:2468,accountReady:true,gamePath:instance.root};},

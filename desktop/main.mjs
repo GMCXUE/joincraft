@@ -59,6 +59,7 @@ let saving = Promise.resolve();
 const prefsPath = () => path.join(app.getPath('userData'), 'launcher.json');
 const save = () => { const content = JSON.stringify(prefs); saving = saving.catch(() => {}).then(async () => {await mkdir(path.dirname(prefsPath()),{recursive:true});await writeFile(prefsPath(), content, { mode: 0o600 });}); return saving; };
 const emit = event => {
+  if(event.type==='device-code')launcherHome?.setDeviceCode(event);
   for(const view of [surfaces?.library,surfaces?.notifications])if(alive(view))view.webContents.send('launcher:event',event);
   if(event.type==='pack-install'&&alive(roomWindow))roomWindow.webContents.send('packs:event',event);
   if(event.type==='game-play'&&alive(roomWindow))roomWindow.webContents.send('play:event',event);
@@ -180,13 +181,13 @@ else {
       await openNotifications();return {ok:true,value:null};
     }catch(error){return {ok:false,error:error.message||'操作失败'};}
   });
-  launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
+  launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,identityChanged:()=>emit({type:'game-identity',identity:launcherHome.launchIdentity()}),packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
     if(!gamePlay.active&&gamePlay.context)gamePlay.clear();
     if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance)launcher.javaPath=prefs.managedJavaPaths?.[instance.id]||instance.javaPath||launcher.javaPath;}
-    await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath});
+    await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath,gameIdentity:launcherHome.launchIdentity()});
   }});
-  for(const action of ['state','select','configure','start'])ipcMain.handle('home:'+action,async(event,input)=>{
-    try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:await launcherHome[action](input)};}
+  for(const action of ['state','select','configure','start','identity','login','logout','microsoft-page'])ipcMain.handle('home:'+action,async(event,input)=>{
+    try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:action==='microsoft-page'?await shell.openExternal('https://www.microsoft.com/devicelogin'):await launcherHome[action](input)};}
     catch(error){return {ok:false,error:error.message||'启动操作失败'};}
   });
   handle('save-launch-settings',input=>launcherHome.remember(input));
@@ -200,7 +201,7 @@ else {
   handle('play-stop',()=>gamePlay.stop());
   handle('play-clear',()=>gamePlay.clear());
   handle('connection-mode',async value=>{if(!['auto','relay'].includes(value))throw Error('联机方式无效');if(gamePlay.active)throw Error('请先停止联机再更改连接方式');const previous=prefs.connectionMode;prefs.connectionMode=value;try{await save();}catch(error){prefs.connectionMode=previous;throw error;}return value;});
-  handle('state', async () => ({ connectionMode:prefs.connectionMode||'auto',memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
+  handle('state', async () => ({ gameIdentity:launcherHome.launchIdentity(),connectionMode:prefs.connectionMode||'auto',memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
   const assertIdle=()=>{if(launcher.states().some(r=>['checking','starting','running'].includes(r.state)))throw new Error('请先退出当前游戏，再切换 Java');};
   handle('scan-java',()=>{
     if(!javaScan)javaScan=discoverJava({root:managedPacks.root,savedPath:launcher.javaPath,externalRuntimes:false}).then(found=>{javaInstallations=found;return found;}).finally(()=>{javaScan=null;});
@@ -219,7 +220,7 @@ else {
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
   handle('check', input => launcher.check(input));
-  handle('start', async input => {clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
+  handle('start', async input => {input={...input,...launcherHome.launchIdentity()};clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
@@ -247,7 +248,7 @@ else {
         managedSelection=match.instance.id;if(prefs.managedJavaPaths?.[managedSelection]||match.instance.javaPath){launcher.javaPath=prefs.managedJavaPaths?.[managedSelection]||match.instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
         const configured=prefs.managedLaunchInputs?.[managedSelection];
         if(launcher.states().some(run=>run.id===managedSelection&&run.state==='running'))return {ok:true,value:{id:managedSelection,started:true}};
-        if(configured){try{clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');await launcher.start({...configured,id:managedSelection,mode:'auto'});return {ok:true,value:{id:managedSelection,started:true}};}catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}}
+        if(configured){try{clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');await launcher.start({...configured,...launcherHome.launchIdentity(),id:managedSelection,mode:'auto'});return {ok:true,value:{id:managedSelection,started:true}};}catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}}
         await openLibrary();emit({type:'pack-selected',id:managedSelection});return {ok:true,value:{id:managedSelection,needsSetup:true}};
       }
     }catch(error){return {ok:false,error:error.message||'整合包操作失败'};}
@@ -263,7 +264,7 @@ else {
       const instance=library.get(managedSelection);if(prefs.managedJavaPaths?.[managedSelection]||instance?.javaPath){launcher.javaPath=prefs.managedJavaPaths?.[managedSelection]||instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
       const configured=prefs.managedLaunchInputs?.[managedSelection];
       if(result.context.role==='guest'&&configured){
-        try{await gamePlay.launch({...configured,id:managedSelection,mode:'auto',connectionMode:prefs.connectionMode||'auto'});return {ok:true,value:{...gamePlay.state(),started:true}};}
+        try{await gamePlay.launch({...configured,...launcherHome.launchIdentity(),id:managedSelection,mode:'auto',connectionMode:prefs.connectionMode||'auto'});return {ok:true,value:{...gamePlay.state(),started:true}};}
         catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}
       }
       await openLibrary();emit({type:'pack-selected',id:managedSelection});emit({type:'game-play',...result});return {ok:true,value:result};

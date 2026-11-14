@@ -20,7 +20,7 @@ const playCall=name=>async input=>{const result=await ipcRenderer.invoke('play:'
 contextBridge.exposeInMainWorld('joincraftPlay',Object.freeze({version:1,select:playCall('select'),stop:playCall('stop'),state:playCall('state'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('play:event',listener);return()=>ipcRenderer.removeListener('play:event',listener);}}));
 
 const homeCall=name=>async input=>{const result=await ipcRenderer.invoke('home:'+name,input);if(!result.ok)throw Error(result.error);return result.value;};
-contextBridge.exposeInMainWorld('joincraftHome',Object.freeze({version:1,state:homeCall('state'),select:homeCall('select'),configure:homeCall('configure'),start:homeCall('start'),onEvent:callback=>{const listener=()=>callback();ipcRenderer.on('home:changed',listener);return()=>ipcRenderer.removeListener('home:changed',listener);}}));
+contextBridge.exposeInMainWorld('joincraftHome',Object.freeze({version:2,identity:homeCall('identity'),login:homeCall('login'),logout:homeCall('logout'),microsoftPage:homeCall('microsoft-page'),state:homeCall('state'),select:homeCall('select'),configure:homeCall('configure'),start:homeCall('start'),onEvent:callback=>{const listener=()=>callback();ipcRenderer.on('home:changed',listener);return()=>ipcRenderer.removeListener('home:changed',listener);}}));
 
 ipcRenderer.on('home:show',()=>{location.hash='home';});
 ipcRenderer.on('home:notice',(_event,message)=>window.dispatchEvent(new CustomEvent('joincraft-home-notice',{detail:message})));

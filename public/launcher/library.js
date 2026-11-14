@@ -33,14 +33,13 @@ function remember() {
   preferences.instances[prefKey(selected)] = { ...memoryUI.preferences(), mode: $('#directory-mode').value };
   try { localStorage.setItem('blockroom-launcher-preferences', JSON.stringify(preferences)); } catch {}
 }
-function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), connectionMode:$('#connection-mode').value,id: state.selected, name: $('#player-name').value.trim(), accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
+function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), connectionMode:$('#connection-mode').value,id: state.selected, name:state.gameIdentity?.name||'', accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
 function pathLabel() {
   const selected = item(); if (!selected) return;
   const mode = $('#directory-mode').value === 'auto' ? selected.isolation?.mode : $('#directory-mode').value;
   const sep = selected.root.includes('\\') ? '\\' : '/';
   text('#game-path', mode === 'isolated' ? `${selected.root}${sep}versions${sep}${selected.version}` : mode === 'shared' ? selected.root : '启动前需确认目录，避免读取错误的存档位置');
 }
-function renderPlayer(){const custom=preferences.playerNames?.[playerRoot()];$('#player-name').value=typeof custom==='string'?custom:'';}
 function renderJava(){
   const selected=item(),compatible=java=>java.major===selected?.javaMajor&&java.arch===state.arch;
   const entries=[...state.javaInstallations].sort((a,b)=>Number(compatible(b))-Number(compatible(a)));
@@ -69,14 +68,12 @@ function controls() {
   for (const id of ['#import-pack','#empty-install','#pick-install-root', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
   $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
-  $('#launch').disabled = $('#check').disabled || state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test($('#player-name').value.trim()) || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
-  for (const id of ['#directory-mode', '#player-name', '#offline-tab', '#microsoft-tab']) $(id).disabled = state.busy || running;
+  $('#launch').disabled = $('#check').disabled || state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test(state.gameIdentity?.name||'') || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
+  for (const id of ['#directory-mode']) $(id).disabled = state.busy || running;
   $('#directory-mode').disabled ||= !!selected?.managed;
-  $('#login').disabled = !api || !state.account.configured || state.account.busy || state.busy || running;
-  $('#logout').disabled = state.account.busy || state.busy || running;
   worldUI?.setLocked(running||state.busy);
   memoryUI.sync();
-  const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test($('#player-name').value.trim())?'在启动设置中填写玩家名':'';
+  const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'回首页登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test(state.gameIdentity?.name||'')?'回首页设置离线玩家名':'';
   text('#launch-hint',blocked);
   const context=state.play?.context,phase=state.play?.progress?.phase,active=['launching','world-loading','checking','connecting','online'].includes(phase);
   $('#play-context').hidden=!context;$('#connection-mode-field').hidden=!context;$('#connection-mode').disabled=active||running||state.busy;$('#host-port-field').hidden=context?.role!=='host';
@@ -94,15 +91,7 @@ function controls() {
   experience.update(view);
   for(const button of $('#instances').children)button.dataset.runState=state.runs.find(r=>r.id===button.dataset.instanceId)?.state||'idle';
 }
-function renderAccount() {
-  const online = state.accountMode === 'microsoft';
-  $('#offline-panel').hidden = online; $('#microsoft-panel').hidden = !online;
-  $('#offline-tab').setAttribute('aria-pressed', String(!online)); $('#microsoft-tab').setAttribute('aria-pressed', String(online));
-  text('#microsoft-name', state.account.profile?.name || '尚未登录');
-  text('#microsoft-hint', !state.account.configured ? '微软登录未配置' : state.account.profile ? 'Java 版已授权' : '需要拥有 Java 版');
-  $('#login').hidden = !!state.account.profile; $('#logout').hidden = !state.account.profile;
-  controls();
-}
+function renderAccount(){controls();}
 function render() {
   text('#instance-count', state.instances.length);
   text('#managed-root',state.managedRoot||'');$('#managed-root').title=state.managedRoot||'';
@@ -130,28 +119,22 @@ function render() {
     pathLabel(); text('#check-result', '');
     if (selected.error) message(selected.error);
   }
-  renderPlayer();renderJava();renderAccount();void worldUI?.load(selected);
+  renderJava();renderAccount();void worldUI?.load(selected);
 }
 worldUI=mountWorlds({api,onChange:controls,onError:message});
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
 function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
-function applyHomeOpen(event){if(event.javaPath)state.javaPath=event.javaPath;if(event.id)state.selected=event.id;if(event.accountMode)state.accountMode=event.accountMode;render();worldUI.setTab('settings');remember();const target=event.accountMode?$('#'+(event.accountMode==='offline'?'player-name':'microsoft-tab')):$('#java-select');target?.focus({preventScroll:true});if(event.accountMode)target.scrollIntoView({block:'center',behavior:'instant'});else $('#instance-content').scrollTop=0;}
+function applyHomeOpen(event){if(event.gameIdentity){state.gameIdentity=event.gameIdentity;state.accountMode=event.gameIdentity.accountMode;}if(event.javaPath)state.javaPath=event.javaPath;if(event.id)state.selected=event.id;if(event.accountMode)state.accountMode=event.accountMode;render();worldUI.setTab('settings');remember();$('#java-select').focus({preventScroll:true});$('#instance-content').scrollTop=0;}
 async function action(fn,operation='change') { if(state.busy)return;message(null); state.busy = true;state.operation=operation; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false;state.operation=null; controls(); } }
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
 $('#connection-mode').onchange=async()=>{const previous=state.connectionMode||'auto',value=$('#connection-mode').value;$('#connection-mode').disabled=true;try{if(typeof api?.setConnectionMode!=='function')throw Error('请更新客户端后使用联机设置');await api.setConnectionMode(value);state.connectionMode=value;remember();message(null);}catch(error){$('#connection-mode').value=previous;message(error);}finally{controls();}};
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
-$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;remember();controls();};
-$('#offline-tab').onclick = () => { state.accountMode = 'offline'; remember(); renderAccount(); };
-$('#microsoft-tab').onclick = () => { state.accountMode = 'microsoft'; remember(); renderAccount(); };
-$('#login').onclick = () => action(async () => { try { state.account = await api.login(); renderAccount(); } finally { $('#device-code').hidden = true; } });
-$('#logout').onclick = () => action(async () => { state.account = await api.logout(); renderAccount(); });
-$('#open-microsoft').onclick = () => api.microsoftPage().catch(message);
 $('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); },'check');
 $('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); },'launch');
-$('#launch-configure').onclick=()=>{worldUI.setTab('settings');const target=!state.javaPath?$('#java-select'):state.accountMode==='microsoft'?$('#microsoft-tab'):$('#player-name');target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
+$('#launch-configure').onclick=()=>{if(!state.gameIdentity?.name||state.accountMode==='microsoft'&&!state.account.profile){$('#rooms').click();return;}worldUI.setTab('settings');$('#java-select').focus({preventScroll:true});$('#java-select').scrollIntoView({block:'center',behavior:'smooth'});};
 $('#rooms').onclick=api?createLibraryReturn({api,remember,read:()=>item()?input():undefined,onError:message,onBusy:value=>{$('#rooms').disabled=value;}}):()=>location.assign('/app/#home');
 $('.brand').onclick = event => { event.preventDefault(); $('#rooms').click(); };
 if (!api) { $('#web-note').hidden = false; text('#surface-label', '网页预览'); render(); }
@@ -163,13 +146,13 @@ else {
     if(event.type==='library-scanning'){libraryScanMotion?.cancel();libraryScanMotion=miningFeedback.start('正在识别整合包',{success:'游戏库已更新'});}
     if(event.type==='library'){libraryScanMotion?.done();libraryScanMotion=null;const key=item()&&prefKey(item());Object.assign(state,event);state.selected=state.instances.find(i=>prefKey(i)===key)?.id||state.instances[0]?.id;render();}
     if(event.type==='game-play'){const previous=state.selected;syncPlay(event);if(previous!==state.selected)render();}
+    if(event.type==='game-identity'){state.gameIdentity=event.identity;state.accountMode=event.identity.accountMode;controls();}
     if(event.type==='home-open'){if(initialized)applyHomeOpen(event);else homeOpen=event;}
     if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
-    if (event.type === 'device-code') { text('#code', event.code); $('#device-code').hidden = false; }
     if (event.type === 'account') { state.account = event; renderAccount(); }
     if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
   });
-  api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}initialized=true;render();if(result.play)syncPlay(result.play,true);if(homeOpen){applyHomeOpen(homeOpen);homeOpen=null;}void scanJava(); }).catch(message);
+  api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode=result.gameIdentity?.accountMode||'offline';initialized=true;render();if(result.play)syncPlay(result.play,true);if(homeOpen){applyHomeOpen(homeOpen);homeOpen=null;}void scanJava(); }).catch(message);
 }
 
 if(api){

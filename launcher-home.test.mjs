@@ -21,8 +21,8 @@ test('home starts the selected installed pack at the game menu and serializes du
  // Stored inputs are normalized by remember; hosted inputs never become launch arguments.
  assert.equal(f.calls[1][1].name,'Builder');assert.equal(f.home.state().busy,false);
 });
-test('missing game identity opens existing settings without launching or creating a second window',async()=>{
- const f=fixture();delete f.prefs.managedLaunchInputs.one;assert.deepEqual(await f.home.start({id:'one'}),{needsSetup:true});assert.deepEqual(f.calls,[['settings',{id:'one',accountMode:undefined}]]);
+test('missing game identity stays on home without launching or opening settings',async()=>{
+ const f=fixture();delete f.prefs.managedLaunchInputs.one;assert.deepEqual(await f.home.start({id:'one'}),{needsIdentity:true});assert.deepEqual(f.calls,[]);
  f.setRun([{id:'one',state:'running'}]);await assert.rejects(f.home.select({id:'one'}),/任务/);await assert.rejects(f.home.start({id:'one'}),/任务/);
 });
 test('settings return saves a bounded launch input and rolls back persistence failures',async()=>{
@@ -45,4 +45,14 @@ test('return navigation shows home before saving and never traps invalid or fail
 test('home honors each instance Java selection without exposing paths to the hosted page',async()=>{
  const f=fixture();f.launcher.javaPath='CUSTOM_JAVA';await f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto'});assert.equal(f.prefs.managedJavaPaths.one,'CUSTOM_JAVA');f.launcher.javaPath='OTHER_JAVA';await f.home.start({id:'one'});assert.equal(f.launcher.javaPath,'CUSTOM_JAVA');assert(!JSON.stringify(f.home.state()).includes('CUSTOM_JAVA'));
  const previous=JSON.stringify(f.prefs);f.launcher.javaPath='CHANGED_JAVA';f.home.save=async()=>{throw Error('disk full');};await assert.rejects(f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto'}));assert.equal(JSON.stringify(f.prefs),previous);
+});
+
+
+test('home identity is shared by instances and settings cannot overwrite it with stale names',async()=>{
+ const f=fixture();await f.home.identity({mode:'offline',name:'NewBuilder'});assert.equal(f.home.state().account.name,'NewBuilder');await f.home.remember({id:'one',accountMode:'offline',name:'OldName',memoryMode:'auto'});await f.home.start({id:'one'});assert.equal(f.calls.at(-1)[1].name,'NewBuilder');await assert.rejects(f.home.identity({mode:'offline',name:'bad name'}),/玩家名/);
+ const previous=JSON.stringify(f.prefs);f.home.save=async()=>{throw Error('disk full');};await assert.rejects(f.home.identity({mode:'offline',name:'Another'}));assert.equal(JSON.stringify(f.prefs),previous);
+});
+test('home Microsoft login shows the official device code then a credential-free profile and supports logout',async()=>{
+ const f=fixture();let profile=null,busy=false,finish;f.home.account={summary:()=>({configured:true,profile,busy}),login:async()=>{busy=true;f.home.setDeviceCode({code:'ABCD-EFGH',url:'https://untrusted.invalid'});await new Promise(resolve=>finish=resolve);busy=false;profile={name:'OnlineBuilder',id:'PRIVATE',accessToken:'SECRET'};},logout:async()=>{profile=null;}};
+ const login=f.home.login();assert.equal(f.home.state().account.deviceCode,'ABCD-EFGH');assert(!/untrusted|SECRET|PRIVATE/.test(JSON.stringify(f.home.state())));finish();await login;assert.equal(f.home.state().account.name,'OnlineBuilder');assert.equal(f.home.state().account.mode,'microsoft');assert.equal(f.home.state().account.deviceCode,null);assert(!/SECRET|PRIVATE/.test(JSON.stringify(f.home.state())));await f.home.logout();assert.equal(f.home.state().account.ready,false);
 });

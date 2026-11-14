@@ -58,7 +58,7 @@ function renderShell(){navigationMotion.sync();const {room,tab}=route(),selected
  if(profileUI.active()){socialUI.leave();profileUI.shell();return;}
  if(home){
   socialUI.leave();$('.workspace').classList.remove('social-mode');$('.connection-state').hidden=true;
-  const homeShell=homeUI.shell();setHTML($('#room-heading'),homeShell.heading);setHTML($('#room-nav'),homeShell.nav);setHTML($('#sidebar-info'),homeShell.info);
+  const homeShell=homeUI.shell();homeUI.renderHeading($('#room-heading'),homeShell.heading);setHTML($('#room-nav'),homeShell.nav);setHTML($('#sidebar-info'),homeShell.info);
   $('#view-title').textContent='首页';$('#view-icon').innerHTML=icon('home');setHTML($('#view-tools'),'');return;
  }
  if(!selected){socialUI.renderShell();return;}

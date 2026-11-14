@@ -60,3 +60,11 @@
 .home-manage-versions{margin-top:20px;width:100%;}
 @media(max-width:1100px){.client-theme .app>.workspace.home-mode{grid-template-columns:240px minmax(0,1fr);}.client-theme .home-mode .room-sidebar{padding-inline:16px;}.app-home{padding:24px;gap:20px;}.app-home-community{gap:12px;}.home-community-copy p{display:none;}}
 @media(max-width:600px){.app-home{height:auto;min-height:100%;padding:24px 20px;gap:24px;}.app-home-landscape{flex:none;height:190px;min-height:0;}.app-home-welcome{gap:20px;}.app-home-welcome p{line-height:1.8;}.app-home-room-actions{width:100%;}.app-home-room-actions .button{flex:1;}.app-home-community{gap:16px;}.app-home-group{flex-wrap:wrap;gap:8px;}.app-home-group>strong{font-size:20px;}.home-community-copy p{display:block;}.home-mobile-download{display:flex;width:100%;}.room-rail>#room-icons{max-height:calc(100% - 264px);}.workspace.home-mode .room-sidebar{padding:0;border:0;}.workspace.home-mode .room-sidebar :is(#room-heading,#room-nav,#sidebar-info){display:none;}}
+.home-identity-form{width:100%;display:flex;flex-direction:column;gap:10px;}
+.home-identity-form label{text-align:left;color:var(--secondary);font:500 12px/1.5 var(--ui-font);}
+:root.pixel-theme.client-theme .home-identity-form input{width:100%;min-width:0;height:40px;padding:8px 10px;font:400 13px/1.5 var(--ui-font);}
+.home-identity-form .button{width:100%;}
+.home-microsoft{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;}
+.home-microsoft p{font:400 12px/1.7 var(--ui-font);color:var(--muted);text-align:center;}
+.home-device-code{font:600 24px/1.5 var(--ui-font);letter-spacing:.12em;color:var(--diamond-core);user-select:all;}
+.home-identity-error{font:400 12px/1.6 var(--ui-font);color:var(--error);width:100%;}
