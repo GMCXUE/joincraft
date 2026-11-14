@@ -49,11 +49,11 @@ let prefs = {};
 let mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
-const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy);
+const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy||mods?.busy);
 const packState=()=>{if(managedPacks.busy)return managedPacks.state();if((packTransfer?.progress.started||0)>(managedPacks.progress.started||0))return packTransfer.state();return managedPacks.state();};
 const anyGameBusy=()=>launcher.states().some(run=>['checking','starting','running'].includes(run.state));
 async function pickMrpack(){const result=await dialog.showOpenDialog(roomWindow,{title:'导入整合包',properties:['openFile'],filters:[{name:'整合包文件（Modrinth）',extensions:['mrpack','zip']}]});if(result.canceled)return null;const file=result.filePaths[0];if((await stat(file)).size>MAX_PACK_BYTES)throw Error('整合包文件最大支持 600 MB');return file;}
-async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');if(packTransfer?.busy)throw Error('请先完成当前传输');lastPackInput={buffer,sha512:hash||null};let instance;try{instance=await managedPacks.install(buffer,hash);lastPackInput.sha512=instance.pack.sha512;}catch(error){lastPackInput.sha512 ||= managedPacks.progress.sha512;throw error;}managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
+async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');if(packTransfer?.busy||mods?.busy)throw Error('请先完成当前传输或模组任务');lastPackInput={buffer,sha512:hash||null};let instance;try{instance=await managedPacks.install(buffer,hash);lastPackInput.sha512=instance.pack.sha512;}catch(error){lastPackInput.sha512 ||= managedPacks.progress.sha512;throw error;}managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
 async function choosePack(input){if(managedPacks.busy)throw Error('请先完成安装任务');let file;if(input?.id){const instance=(await managedPacks.list()).find(i=>i.id===input.id);if(!instance)throw Error('未找到本地整合包');file=path.join(path.dirname(instance.root),'pack.mrpack');}else file=await pickMrpack();return file?packTransfer.inspect(file):null;}
 
 let javaInstallations=[], javaScan=null;
@@ -199,7 +199,8 @@ else {
   handle('retry-pack',()=>{if(!lastPackInput)throw Error('请重新导入整合包');return installPack(lastPackInput.buffer,lastPackInput.sha512);});
   handle('pick-install-root',async()=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或整合包任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择 Joincraft 安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
-  mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit});
+  mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
+  handle('mods-fork',input=>mods.fork(input));
   handle('mods-list',input=>mods.list(input));
   handle('worlds',input=>worlds.list(input?.id));
   handle('play-stop',()=>gamePlay.stop());

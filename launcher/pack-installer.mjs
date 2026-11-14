@@ -30,7 +30,7 @@ export class ManagedPacks {
           const dir=path.join(base,'instances',folder),record=JSON.parse(await readFile(path.join(dir,'instance.json'),'utf8'));
           if(record.schema!==1||record.id!=='managed-'+folder||!record.pack?.sha512?.match(/^[a-f0-9]{128}$/))continue;
           safePart(record.version);
-          result.push({...record,root:path.join(dir,'.minecraft'),managed:true,name:record.pack.name+' · '+record.pack.versionId,minecraft:record.pack.minecraft,loader:record.pack.loader,isolation:{mode:'shared',source:'joincraft 独立实例'}});
+          result.push({...record,root:path.join(dir,'.minecraft'),managed:true,name:record.pack.name+' · '+record.pack.versionId+(record.editable?' · 编辑副本':''),minecraft:record.pack.minecraft,loader:record.pack.loader,isolation:{mode:'shared',source:'joincraft 独立实例'}});
         }catch{/* A staging or damaged registration must not become launchable. */}
       }
     }return result.sort((a,b)=>b.createdAt-a.createdAt);
@@ -39,7 +39,7 @@ export class ManagedPacks {
     signal?.throwIfAborted();
     if(typeof sha512!=='string'||!/^[a-f0-9]{128}$/.test(sha512))throw Error('整合包标识无效');
     let changed;
-    for(const instance of (await this.list()).filter(item=>item.pack.sha512===sha512)){
+    for(const instance of (await this.list()).filter(item=>!item.editable&&item.pack.sha512===sha512)){
       signal?.throwIfAborted();let issue;
       for(const entry of (instance.lock||[]).filter(entry=>fixedPackFile(entry.path))){
         if(!await validDownload(destination(instance.root,entry.path),{hash:entry.sha512,size:entry.size,allowEmpty:!entry.path.toLowerCase().endsWith('.jar'),signal})){issue={reason:'pack-file',file:entry.path};break;}
