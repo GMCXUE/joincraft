@@ -40,3 +40,9 @@ test('return navigation shows home before saving and never traps invalid or fail
  await createLibraryReturn({api:{returnHome:async input=>{assert.equal(input,undefined);returned++;}},read:()=>{throw Error('incomplete form');}})();assert.equal(returned,1);
  let release;const back=createLibraryReturn({api:{returnHome:async()=>{returned++;await new Promise(resolve=>release=resolve);}},read:()=>({})});const pending=back();await back();assert.equal(returned,2);release();await pending;
 });
+
+
+test('home honors each instance Java selection without exposing paths to the hosted page',async()=>{
+ const f=fixture();f.launcher.javaPath='CUSTOM_JAVA';await f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto'});assert.equal(f.prefs.managedJavaPaths.one,'CUSTOM_JAVA');f.launcher.javaPath='OTHER_JAVA';await f.home.start({id:'one'});assert.equal(f.launcher.javaPath,'CUSTOM_JAVA');assert(!JSON.stringify(f.home.state()).includes('CUSTOM_JAVA'));
+ const previous=JSON.stringify(f.prefs);f.launcher.javaPath='CHANGED_JAVA';f.home.save=async()=>{throw Error('disk full');};await assert.rejects(f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto'}));assert.equal(JSON.stringify(f.prefs),previous);
+});

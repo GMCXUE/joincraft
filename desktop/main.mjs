@@ -182,8 +182,8 @@ else {
   });
   launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
     if(!gamePlay.active&&gamePlay.context)gamePlay.clear();
-    if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance?.javaPath)launcher.javaPath=instance.javaPath;}
-    await openLibrary();emit({type:'home-open',...input});
+    if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance)launcher.javaPath=prefs.managedJavaPaths?.[instance.id]||instance.javaPath||launcher.javaPath;}
+    await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath});
   }});
   for(const action of ['state','select','configure','start'])ipcMain.handle('home:'+action,async(event,input)=>{
     try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:await launcherHome[action](input)};}
@@ -219,7 +219,7 @@ else {
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
   handle('check', input => launcher.check(input));
-  handle('start', async input => {clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
+  handle('start', async input => {clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
@@ -244,7 +244,7 @@ else {
       if(action==='open'){
         if(gamePlay.active)throw Error('请先停止当前联机');if(gamePlay.context)gamePlay.clear();
         const match=await managedPacks.matching(input?.sha512);if(match.status!=='ready')throw Error(match.status==='changed'?'本地模组、脚本或游戏文件不匹配，请安装房间版本后启动':'请先安装房间整合包');
-        managedSelection=match.instance.id;if(match.instance.javaPath){launcher.javaPath=match.instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
+        managedSelection=match.instance.id;if(prefs.managedJavaPaths?.[managedSelection]||match.instance.javaPath){launcher.javaPath=prefs.managedJavaPaths?.[managedSelection]||match.instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
         const configured=prefs.managedLaunchInputs?.[managedSelection];
         if(launcher.states().some(run=>run.id===managedSelection&&run.state==='running'))return {ok:true,value:{id:managedSelection,started:true}};
         if(configured){try{clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');await launcher.start({...configured,id:managedSelection,mode:'auto'});return {ok:true,value:{id:managedSelection,started:true}};}catch(error){await openLibrary();emit({type:'pack-selected',id:managedSelection});throw error;}}
@@ -260,7 +260,7 @@ else {
       if(gamePlay.active||anyGameBusy()||anyPackBusy())throw Error('请先退出当前游戏或结束当前任务');
       if(input?.token!==undefined&&input.token!==null&&(typeof input.token!=='string'||input.token.length>200))throw Error('登录会话无效');
       playToken=input?.token||null;const result=await gamePlay.select(input?.roomId);managedSelection=result.context.instanceId;
-      const instance=library.get(managedSelection);if(instance?.javaPath){launcher.javaPath=instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
+      const instance=library.get(managedSelection);if(prefs.managedJavaPaths?.[managedSelection]||instance?.javaPath){launcher.javaPath=prefs.managedJavaPaths?.[managedSelection]||instance.javaPath;prefs.javaPath=launcher.javaPath;await save();}
       const configured=prefs.managedLaunchInputs?.[managedSelection];
       if(result.context.role==='guest'&&configured){
         try{await gamePlay.launch({...configured,id:managedSelection,mode:'auto',connectionMode:prefs.connectionMode||'auto'});return {ok:true,value:{...gamePlay.state(),started:true}};}
