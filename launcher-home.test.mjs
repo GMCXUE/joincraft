@@ -31,3 +31,12 @@ test('settings return saves a bounded launch input and rolls back persistence fa
 });
 
 test('failed launches release the click lock and keep a recoverable failure',async()=>{const f=fixture();let count=0;f.launcher.start=async()=>{count++;throw Error('missing files');};await assert.rejects(f.home.start({id:'one'}),/missing files/);assert.equal(f.home.state().busy,false);await assert.rejects(f.home.start({id:'one'}),/missing files/);assert.equal(count,2);});
+
+test('return navigation shows home before saving and never traps invalid or failed settings',async()=>{
+ const {returnToHome}=await import('./desktop/home.mjs');const calls=[];let finish;
+ const returnResult=returnToHome({showHome:()=>calls.push('home'),remember:async()=>{calls.push('save');await new Promise(resolve=>finish=resolve);throw Error('invalid configuration');},onSaveError:()=>calls.push('notice')},{id:'one'});
+ assert.deepEqual(calls,['home','save']);finish();assert.deepEqual(await returnResult,{returned:true,settingsSaved:false});assert.deepEqual(calls,['home','save','notice']);
+ const {createLibraryReturn}=await import('./public/launcher/navigation.js');let returned=0;
+ await createLibraryReturn({api:{returnHome:async input=>{assert.equal(input,undefined);returned++;}},read:()=>{throw Error('incomplete form');}})();assert.equal(returned,1);
+ let release;const back=createLibraryReturn({api:{returnHome:async()=>{returned++;await new Promise(resolve=>release=resolve);}},read:()=>({})});const pending=back();await back();assert.equal(returned,2);release();await pending;
+});

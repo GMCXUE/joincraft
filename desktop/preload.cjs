@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('blockroomLauncher', {
   scanJava:call('scan-java'), selectJava:call('select-java'),
   worlds:call('worlds'),stopPlay:call('play-stop'),clearPlay:call('play-clear'),
   check: call('check'), start: call('start'), login: call('login'), logout: call('logout'),
-  microsoftPage: call('microsoft-page'), rooms: call('rooms'),
+  microsoftPage: call('microsoft-page'), rooms: call('rooms'),returnHome:call('return-home'),
   onEvent: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('launcher:event', listener); return () => ipcRenderer.removeListener('launcher:event', listener); }
 });
 

@@ -23,6 +23,7 @@ export function createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShel
   finally{refreshing=false;}
  }
  bridge?.onEvent(()=>{if(entered)void refresh();});
+ globalThis.window?.addEventListener?.('joincraft-home-notice',event=>toast(event.detail));
  return {
   shell:()=>homeSidebar({desktop,summary,loading,error,pending,icon}),
   show(){if(!document.querySelector('#main .app-home'))setHTML(document.querySelector('#main'),appHomeContent({desktop,icon}));if(!entered){entered=true;void refresh();}},

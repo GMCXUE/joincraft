@@ -28,7 +28,7 @@ import {HostHelper} from '../launcher/host-helper.mjs';
 import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
-import {LauncherHome} from './home.mjs';
+import {LauncherHome,returnToHome} from './home.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -223,7 +223,9 @@ else {
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
-  handle('rooms', openRooms);
+  const returnHome=input=>returnToHome({showHome:()=>{openRooms();roomWindow.webContents.send('home:show');},remember:value=>launcherHome.remember(value),onSaveError:()=>roomWindow.webContents.send('home:notice','已返回首页，启动设置未保存，请稍后重试。')},input);
+  handle('return-home',returnHome);
+  handle('rooms',()=>returnHome());
   for(const action of ['list','choose','status','install','open','cancel','progress','retry','publish','install-from-room'])ipcMain.handle('packs:'+action,async(event,input)=>{
     try{
       if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本地整合包');

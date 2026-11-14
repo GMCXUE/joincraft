@@ -103,3 +103,13 @@ html:has(.library-page){height:100%;overflow:hidden}
 .library-page .connection-mode-field>label{font-size:13px}
 .library-page .connection-mode-field>p{grid-column:2;margin:0;color:var(--muted);font-size:11px;line-height:1.7}
 .library-page .connection-mode-field>select{width:100%;min-width:0}
+
+/* Navigation stays outside the draggable title bar and outside the settings scroller. */
+.library-page .library-sidebar{min-height:0;}
+.library-page #instances{flex:1;min-height:0;overflow:auto;}
+.library-page .library-return{margin-top:auto;padding-top:16px;flex:none;border-top:1px solid var(--border);}
+:root.pixel-theme.client-theme .library-return #rooms{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-height:40px;padding:10px 12px;background:transparent;color:var(--secondary);border:0;font:500 13px/1.5 var(--ui-font);}
+:root.pixel-theme.client-theme .library-return #rooms:hover{background:var(--hover);color:var(--text);}
+.library-return svg{width:18px;height:18px;flex:none;}
+.library-page .titlebar .repository-link{margin-left:auto;}
+@media(max-width:600px){.library-page .library-sidebar{position:relative;padding-bottom:12px}.library-page .library-return{border:0;padding-top:8px}.library-page .library-return #rooms{width:max-content;min-height:36px}}

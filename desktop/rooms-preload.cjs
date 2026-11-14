@@ -21,3 +21,6 @@ contextBridge.exposeInMainWorld('joincraftPlay',Object.freeze({version:1,select:
 
 const homeCall=name=>async input=>{const result=await ipcRenderer.invoke('home:'+name,input);if(!result.ok)throw Error(result.error);return result.value;};
 contextBridge.exposeInMainWorld('joincraftHome',Object.freeze({version:1,state:homeCall('state'),select:homeCall('select'),configure:homeCall('configure'),start:homeCall('start'),onEvent:callback=>{const listener=()=>callback();ipcRenderer.on('home:changed',listener);return()=>ipcRenderer.removeListener('home:changed',listener);}}));
+
+ipcRenderer.on('home:show',()=>{location.hash='home';});
+ipcRenderer.on('home:notice',(_event,message)=>window.dispatchEvent(new CustomEvent('joincraft-home-notice',{detail:message})));

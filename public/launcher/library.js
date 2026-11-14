@@ -1,4 +1,5 @@
 import '../focus.js';
+import {createLibraryReturn} from './navigation.js';
 import {mountLibraryExperience,launchPresentation} from './experience.js';
 const experience=mountLibraryExperience();
 import {mountWorlds} from './worlds.js';
@@ -151,7 +152,7 @@ $('#open-microsoft').onclick = () => api.microsoftPage().catch(message);
 $('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); },'check');
 $('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); },'launch');
 $('#launch-configure').onclick=()=>{worldUI.setTab('settings');const target=!state.javaPath?$('#java-select'):state.accountMode==='microsoft'?$('#microsoft-tab'):$('#player-name');target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
-$('#rooms').onclick = () => api ? action(async()=>{if(item()&&api.saveLaunchSettings)await api.saveLaunchSettings(input());await api.rooms();}) : location.assign('/app/#home');
+$('#rooms').onclick=api?createLibraryReturn({api,remember,read:()=>item()?input():undefined,onError:message,onBusy:value=>{$('#rooms').disabled=value;}}):()=>location.assign('/app/#home');
 $('.brand').onclick = event => { event.preventDefault(); $('#rooms').click(); };
 if (!api) { $('#web-note').hidden = false; text('#surface-label', '网页预览'); render(); }
 else {

@@ -1,3 +1,10 @@
+export async function returnToHome({showHome,remember,onSaveError=()=>{}},input){
+  showHome();
+  if(!input)return {returned:true};
+  try{await remember(input);return {returned:true,settingsSaved:true};}
+  catch{onSaveError();return {returned:true,settingsSaved:false};}
+}
+
 // The hosted home receives a small, path- and credential-free launcher view.
 export class LauncherHome {
   constructor(options) { Object.assign(this, options); this.pending=false; }
