@@ -1,5 +1,6 @@
 import {avatarHTML} from './avatars.js';
-import {createScrollAnchor} from './interaction.js';
+import {createScrollAnchor,renderMessageList} from './interaction.js';
+import {animateMessageArrival} from './motion.js';
 export function createSocialUI({api,realtime,getState,getVersion,icon,escape,initials,setHTML,toast,openAuth,smallDialog,formHandler,refresh}) {
  const $=s=>document.querySelector(s),empty={friends:[],requests:[],conversations:[],unread:0};
  let mounted='',search='',currentPeer='',loadId=0,identity=-1,sending=false,reading=null;
@@ -88,18 +89,19 @@ export function createSocialUI({api,realtime,getState,getVersion,icon,escape,ini
    else{const el=$('#chat-error');if(el){el.dataset.kind='load';el.innerHTML=`${escape(error.message)} <button class="text-button" type="button" data-action="social-retry">重试</button>`;el.hidden=false;}}
   }}
  }
- function drawMessages(peerId,stick=false){
+ function drawMessages(peerId,stick=false,arrive=false){
   const peer=data().friends.find(p=>p.id===peerId),history=cache.get(peerId);if(!history||!peer)return;
   let lastDay='',previous=null;
   const today=new Date().toLocaleDateString('zh-CN');
   const messages=history.messages.map(m=>{
    const day=new Date(m.at).toLocaleDateString('zh-CN'),person=m.self?getState().profile:peer;
    const grouped=previous&&previous.self===m.self&&day===lastDay&&m.at-previous.at<300000;
-   const separator=day!==lastDay?`<div class="chat-day"><span>${day===today?'今天':day}</span></div>`:'';
+   const separator=day!==lastDay?`<div class="chat-day" data-message-day="${day}"><span>${day===today?'今天':day}</span></div>`:'';
    lastDay=day;previous=m;
    return `${separator}<article data-message-id="${m.id}" class="chat-message ${m.self?'mine':''} ${grouped?'continuation':''}">${grouped?`<time class="continuation-time" aria-label="发送时间 ${time(m.at)}">${time(m.at)}</time>`:avatar(person,true)}<div class="message-content">${grouped?'':`<div class="message-byline"><strong>${escape(person.name)}</strong><time datetime="${new Date(m.at).toISOString()}">${time(m.at)}</time></div>`}<p>${escape(m.content)}</p></div></article>`;
   }).join('');
-  setHTML($('#message-list'),`${history.hasMore?'<button class="text-button history-button" data-action="social-older">加载更早的消息</button>':''}${messages||`<div class="chat-beginning">${avatar(peer,true)}<h3>${escape(peer.name)}</h3><p>这是你们的私聊，说声你好吧。</p></div>`}`);
+  const added=renderMessageList($('#message-list'),`${history.hasMore?'<button class="text-button history-button" data-action="social-older">加载更早的消息</button>':''}${messages||`<div class="chat-beginning">${avatar(peer,true)}<h3>${escape(peer.name)}</h3><p>这是你们的私聊，说声你好吧。</p></div>`}`);
+  if(arrive)animateMessageArrival(added);
   if(stick)$('#message-list').scrollTop=$('#message-list').scrollHeight;reading?.update();
  }
  async function markRead(peerId){
@@ -130,7 +132,7 @@ export function createSocialUI({api,realtime,getState,getVersion,icon,escape,ini
   const position=currentPeer===peerId&&reading?reading.capture():null;
   const messages=new Map((history?.messages||[]).map(item=>[item.id,item]));messages.set(message.id,message);
   cache.set(peerId,{...history,messages:[...messages.values()].sort((a,b)=>a.id-b.id),loaded:history?.loaded||false,hasMore:history?.hasMore??true});
-  if(position){drawMessages(peerId);reading.restore(position);if(position.bottom)void markRead(peerId);}
+  if(position){drawMessages(peerId,false,position.bottom);reading.restore(position,{newMessages:message.self?0:1});if(position.bottom)void markRead(peerId);}
  }
  async function resync(){
   const peerId=currentPeer,history=cache.get(peerId);if(!peerId)return;
@@ -139,9 +141,9 @@ export function createSocialUI({api,realtime,getState,getVersion,icon,escape,ini
   try{for(;;){
    const result=await api(`/api/chats/${peerId}/messages?after=${cursor}`);
    if(version!==getVersion()||request!==loadId||currentPeer!==peerId)return;
-   const position=reading.capture(),latest=cache.get(peerId),messages=new Map(latest.messages.map(message=>[message.id,message]));
+   const position=reading.capture(),latest=cache.get(peerId),messages=new Map(latest.messages.map(message=>[message.id,message])),newMessages=result.messages.filter(message=>!message.self&&!messages.has(message.id)).length;
    for(const message of result.messages)messages.set(message.id,message);
-   cache.set(peerId,{...latest,messages:[...messages.values()].sort((a,b)=>a.id-b.id)});drawMessages(peerId);reading.restore(position);
+   cache.set(peerId,{...latest,messages:[...messages.values()].sort((a,b)=>a.id-b.id)});drawMessages(peerId);reading.restore(position,{newMessages});
    if(!result.hasMore||!result.messages.length)break;cursor=result.messages.at(-1).id;
   }const error=$('#chat-error');if(error?.dataset.kind==='load')error.hidden=true;void markRead(peerId);
   }catch(error){if(version===getVersion()&&request===loadId&&currentPeer===peerId){const element=$('#chat-error');element.dataset.kind='load';element.innerHTML=`${escape(error.message)} <button class="text-button" data-action="social-retry">重试</button>`;element.hidden=false;}}

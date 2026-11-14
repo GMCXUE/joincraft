@@ -103,3 +103,9 @@ export function animateLayoutChange(element,update){
  const animation=element.animate([{transform:`translate(${x}px,${y}px)`},{transform:'none'}],{duration:220,easing:'cubic-bezier(.16,1,.3,1)'});
  animation.id='joincraft-layout';
 }
+
+export function animateMessageArrival(messages){
+ if(document.hidden||document.documentElement.classList.contains('motion-reduced')||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ // A burst is one arrival, never a long sequence that delays reading.
+ for(const message of messages.slice(-3))message.animate?.([{opacity:.55,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:160,easing:'cubic-bezier(.16,1,.3,1)'});
+}

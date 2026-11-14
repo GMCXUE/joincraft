@@ -55,7 +55,7 @@ test('chat history stays anchored across older pages and new messages, while lat
  globalThis.ResizeObserver=class{constructor(callback){this.callback=callback;observer=this;}observe(){}disconnect(){this.disconnected=true;}};
  try{
   const list=new EventTarget();Object.assign(list,{scrollHeight:1000,clientHeight:200,top:150});Object.defineProperty(list,'scrollTop',{get(){return this.top;},set(value){this.top=Math.max(0,Math.min(value,this.scrollHeight-this.clientHeight));}});
-  const button=new EventTarget();let read=0;const anchor=createScrollAnchor(list,button,()=>read++);assert.equal(button.hidden,false);
+  const button=new Control('jump');let read=0;const anchor=createScrollAnchor(list,button,()=>read++);assert.equal(button.hidden,false);
   let before=anchor.capture();list.scrollHeight=1400;anchor.restore(before,{older:true});assert.equal(list.scrollTop,550);
   before=anchor.capture();list.scrollHeight=1600;anchor.restore(before);assert.equal(list.scrollTop,550);assert.equal(button.hidden,false);
   button.dispatchEvent(new Event('click'));assert.equal(list.scrollTop,1400);assert.equal(button.hidden,true);assert.equal(read,1);
@@ -70,7 +70,7 @@ test('older-page anchoring follows the visible message when a history button dis
  try{
   const list=new EventTarget();Object.assign(list,{scrollHeight:1000,clientHeight:200,scrollTop:100,getBoundingClientRect:()=>({top:100})});let messageY=120;
   const message={dataset:{messageId:'7'},getBoundingClientRect:()=>({top:100+messageY-list.scrollTop,bottom:140+messageY-list.scrollTop})};list.querySelectorAll=()=>[message];
-  const button=new EventTarget(),anchor=createScrollAnchor(list,button),before=anchor.capture();
+  const button=new Control('jump'),anchor=createScrollAnchor(list,button),before=anchor.capture();
   list.scrollHeight=1300;messageY+=250;anchor.restore(before,{older:true});
   assert.equal(list.scrollTop,350);assert.equal(message.getBoundingClientRect().top-list.getBoundingClientRect().top,before.offset);anchor.dispose();
  }finally{globalThis.ResizeObserver=original;}
@@ -125,4 +125,35 @@ test('layout switching commits immediately and cancels an interrupted transition
   animateLayoutChange(element,()=>top=100);assert.equal(cancelled,1);assert.equal(animation.frames[0].transform,'translate(0px,-40px)');
   globalThis.matchMedia=()=>({matches:true});animateLayoutChange(element,()=>top=50);assert.equal(top,50);assert.equal(cancelled,2);
  }finally{globalThis.matchMedia=oldMatch;globalThis.document=oldDocument;}
+});
+
+test('new-message counts accumulate above the latest view and clear on returning to it',()=>{
+ const original=globalThis.ResizeObserver;globalThis.ResizeObserver=class{observe(){}disconnect(){}};
+ try{
+  const list=new EventTarget();Object.assign(list,{scrollHeight:1000,clientHeight:200,scrollTop:100});
+  const button=new Control('jump'),anchor=createScrollAnchor(list,button);
+  let before=anchor.capture();list.scrollHeight=1200;anchor.restore(before,{newMessages:2});assert.equal(list.scrollTop,100);assert.equal(button.dataset.unread,'2');assert.equal(button.getAttribute('aria-label'),'2 条新消息，回到最新消息');
+  before=anchor.capture();list.scrollHeight=1400;anchor.restore(before,{newMessages:1});assert.equal(button.dataset.unread,'3');
+  before=anchor.capture();list.scrollHeight=1600;anchor.restore(before,{older:true,newMessages:20});assert.equal(button.dataset.unread,'3');
+  list.scrollTop=list.scrollHeight-list.clientHeight;list.dispatchEvent(new Event('scroll'));assert.equal(button.dataset.unread,undefined);assert.equal(button.hidden,true);anchor.dispose();
+ }finally{globalThis.ResizeObserver=original;}
+});
+class MessageNode{
+ constructor(id,content='',dataset={}){this.dataset=id?{messageId:id}:dataset;this.content=content;this.tagName='ARTICLE';this.className='message';}
+ isEqualNode(other){return this.content===other.content&&this.className===other.className;}
+ get nextElementSibling(){return this.parent.children[this.parent.children.indexOf(this)+1]||null;}
+ remove(){if(this.parent){const children=this.parent.children;children.splice(children.indexOf(this),1);this.parent=null;}}
+}
+function messageList(nodes){const list={children:[],get firstElementChild(){return this.children[0]||null;},insertBefore(node,cursor){node.remove();const index=cursor?this.children.indexOf(cursor):this.children.length;assert(index>=0);this.children.splice(index,0,node);node.parent=this;}};for(const node of nodes)list.insertBefore(node,null);return list;}
+test('new messages preserve existing nodes, while older pages keep the same day separator and message order',async()=>{
+ const {reconcileMessageChildren}=await import('./public/interaction.js');
+ const day=new MessageNode(null,'today',{messageDay:'2026-11-14'}),a=new MessageNode('2','first'),b=new MessageNode('3','second'),list=messageList([day,a,b]);
+ const fresh=()=>[new MessageNode(null,'today',{messageDay:'2026-11-14'}),new MessageNode('2','first'),new MessageNode('3','second')];
+ const c=new MessageNode('4','new');assert.deepEqual(reconcileMessageChildren(list,[...fresh(),c]),[c]);assert.equal(list.children[0],day);assert.equal(list.children[1],a);assert.equal(list.children[2],b);
+ reconcileMessageChildren(list,[fresh()[0],new MessageNode('1','older'),...fresh().slice(1),new MessageNode('4','new')]);assert.deepEqual(list.children.map(n=>n.dataset.messageId||'day'),['day','1','2','3','4']);assert.equal(list.children[2],a);assert.equal(list.children[3],b);assert.equal(list.children[4],c);
+});
+test('profile changes replace only affected messages and repeated delivery adds no duplicate nodes',async()=>{
+ const {reconcileMessageChildren}=await import('./public/interaction.js'),a=new MessageNode('1','old name'),b=new MessageNode('2','untouched'),list=messageList([a,b]);
+ assert.deepEqual(reconcileMessageChildren(list,[new MessageNode('1','new name'),new MessageNode('2','untouched')]),[]);assert.notEqual(list.children[0],a);assert.equal(list.children[1],b);assert.equal(a.parent,null);
+ const next=[...list.children];reconcileMessageChildren(list,[new MessageNode('1','new name'),new MessageNode('2','untouched')]);assert.deepEqual(list.children,next);
 });

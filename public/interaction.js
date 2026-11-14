@@ -57,8 +57,8 @@ export function mountDialogs(root=document){
 export function createScrollAnchor(list,button,onBottom){
  const controller=new AbortController();
  const atBottom=()=>list.scrollHeight-list.scrollTop-list.clientHeight<70;
- let following=atBottom();
- const update=()=>{following=atBottom();button.hidden=following||list.scrollHeight<=list.clientHeight+70;};
+ let following=atBottom(),unseen=0;
+ const update=()=>{following=atBottom();if(following)unseen=0;button.hidden=following||list.scrollHeight<=list.clientHeight+70;if(unseen)button.dataset.unread=String(unseen>99?'99+':unseen);else delete button.dataset.unread;button.setAttribute('aria-label',unseen?`${unseen} 条新消息，回到最新消息`:'回到最新消息');};
  list.addEventListener('scroll',()=>{update();if(atBottom())onBottom?.();},{signal:controller.signal,passive:true});
  button.addEventListener('click',()=>{list.scrollTop=list.scrollHeight;update();onBottom?.();},{signal:controller.signal});
  const observer=new ResizeObserver(()=>{if(following)list.scrollTop=list.scrollHeight;update();});observer.observe(list);update();
@@ -67,7 +67,8 @@ export function createScrollAnchor(list,button,onBottom){
   if(edge!==undefined)for(const message of list.querySelectorAll('[data-message-id]')){const rect=message.getBoundingClientRect();if(rect.bottom>edge+2){position.id=message.dataset.messageId;position.offset=rect.top-edge;break;}}
   return position;
  };
- return {atBottom,capture,restore(before,{older=false,follow=false}={}){
+ return {atBottom,capture,restore(before,{older=false,follow=false,newMessages=0}={}){
+  if(!before.bottom&&!older)unseen+=newMessages;
   const anchor=older&&before.id?[...list.querySelectorAll('[data-message-id]')].find(message=>message.dataset.messageId===before.id):null;
   if(anchor)list.scrollTop+=anchor.getBoundingClientRect().top-list.getBoundingClientRect().top-before.offset;
   else list.scrollTop=older?before.top+list.scrollHeight-before.height:follow||before.bottom?list.scrollHeight:before.top;
@@ -92,4 +93,25 @@ export function showControlFeedback(button,{html,label,duration=1800,setTimer=se
   for(const [key,value] of [['aria-label',original.label],['title',original.title]])if(value===null)button.removeAttribute(key);else button.setAttribute(key,value);
   delete button.dataset.feedback;
  },duration);
+}
+
+const messageNodeKey=node=>node.dataset.messageId?'message/'+node.dataset.messageId:node.dataset.messageDay?'day/'+node.dataset.messageDay:node.dataset.action?'action/'+node.dataset.action:'other/'+node.tagName+'/'+node.className;
+// Keep unchanged message nodes (and text selections) when realtime state catches up.
+export function reconcileMessageChildren(list,nodes){
+ const previous=new Map([...list.children].map(node=>[messageNodeKey(node),node])),keep=new Set(),added=[];
+ let cursor=list.firstElementChild;
+ for(const next of nodes){
+  const old=previous.get(messageNodeKey(next)),node=old?.isEqualNode(next)?old:next;
+  if(!old&&next.dataset.messageId)added.push(next);
+  if(node!==cursor)list.insertBefore(node,cursor);
+  keep.add(node);cursor=node.nextElementSibling;
+ }
+ for(const node of [...list.children])if(!keep.has(node))node.remove();
+ return added;
+}
+const messageMarkup=new WeakMap();
+export function renderMessageList(list,html){
+ if(!list||messageMarkup.get(list)===html)return [];
+ const template=list.ownerDocument.createElement('template');template.innerHTML=html;
+ const added=reconcileMessageChildren(list,[...template.content.children]);messageMarkup.set(list,html);return added;
 }

@@ -1,6 +1,7 @@
 import {avatarHTML} from './avatars.js';
 import {createVoice} from './voice.js';
-import {createScrollAnchor} from './interaction.js';
+import {createScrollAnchor,renderMessageList} from './interaction.js';
+import {animateMessageArrival} from './motion.js';
 export function createCommunityUI({api,realtime,getState,getVersion,escape,initials,icon,setHTML,toast,smallDialog,formHandler,refresh}){
  const $=s=>document.querySelector(s),drafts=new Map(),cache=new Map(),reads=new Map(),attempts=new Map();
  let currentId='',identity=-1,load=0,sending=false,showMembers=false,reading=null;
@@ -62,11 +63,12 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
    drawMessages(id);reading.restore(position,{older,follow:!older&&stick});if(!older&&stick)void read(id);
   }catch(e){if(request===load&&version===getVersion()&&currentId===id){if(!cache.has(id))setHTML($('#room-message-list'),`<div class="message-load-error"><p>${escape(e.message)}</p><button class="button small" type="button" data-action="community-retry">重新加载</button></div>`);else error(e.message,'load');}}
  }
- function drawMessages(id){const data=cache.get(id);if(!data)return;let day='';
-  const html=data.messages.map(m=>{const member=selected()?.members.find(member=>member.id===m.userId);if(member)m={...m,name:member.name,avatarId:member.avatarId};const date=new Date(m.at),stamp=date.toLocaleDateString('zh-CN'),divider=stamp!==day?`<div class="room-day"><span>${escape(stamp)}</span></div>`:'';day=stamp;return `${divider}<article data-message-id="${m.id}" class="room-message">${avatar(m)}<div><div class="room-message-meta"><strong>${escape(m.name)}</strong><time datetime="${date.toISOString()}">${date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</time></div><p>${escape(m.content)}</p></div></article>`;}).join('');
-  setHTML($('#room-message-list'),`${data.hasMore?'<button class="text-button older-messages" data-action="community-older">查看更早消息</button>':''}${html||'<div class="room-chat-empty"><span>#</span><h2>房间聊天</h2><p>约个时间，一起开玩。</p></div>'}`);
+ function drawMessages(id,arrive=false){const data=cache.get(id);if(!data)return;let day='';
+  const html=data.messages.map(m=>{const member=selected()?.members.find(member=>member.id===m.userId);if(member)m={...m,name:member.name,avatarId:member.avatarId};const date=new Date(m.at),stamp=date.toLocaleDateString('zh-CN'),divider=stamp!==day?`<div class="room-day" data-message-day="${escape(stamp)}"><span>${escape(stamp)}</span></div>`:'';day=stamp;return `${divider}<article data-message-id="${m.id}" class="room-message">${avatar(m)}<div><div class="room-message-meta"><strong>${escape(m.name)}</strong><time datetime="${date.toISOString()}">${date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</time></div><p>${escape(m.content)}</p></div></article>`;}).join('');
+  const added=renderMessageList($('#room-message-list'),`${data.hasMore?'<button class="text-button older-messages" data-action="community-older">查看更早消息</button>':''}${html||'<div class="room-chat-empty"><span>#</span><h2>房间聊天</h2><p>约个时间，一起开玩。</p></div>'}`);
+  if(arrive)animateMessageArrival(added);
  }
- async function read(id){if(document.hidden||currentId!==id||!$('#room-chat-form'))return;const last=cache.get(id)?.messages.at(-1)?.id;if(!last||last<=(reads.get(id)||0))return;const version=getVersion();reads.set(id,last);try{await realtime('room.read',{roomId:id,lastId:last});}catch{if(version===getVersion())reads.delete(id);}}
+ async function read(id){if(document.hidden||currentId!==id||!$('#room-chat-form')||!atBottom())return;const last=cache.get(id)?.messages.at(-1)?.id;if(!last||last<=(reads.get(id)||0))return;const version=getVersion();reads.set(id,last);try{await realtime('room.read',{roomId:id,lastId:last});}catch{if(version===getVersion())reads.delete(id);}}
  async function send(id){if(sending)return;const input=$('#room-chat-input'),content=input.value.trim();if(!content)return;const version=getVersion();let attempt=attempts.get(id);if(!attempt||attempt.content!==content){attempt={content,clientId:crypto.randomUUID()};attempts.set(id,attempt);}sending=true;composer();error('');try{
   const message=await realtime('room.send',{roomId:id,...attempt});if(version!==getVersion())return;receive({type:'room.message',roomId:id,message});attempts.delete(id);if((drafts.get(id)||'').trim()===content){drafts.delete(id);if(currentId===id&&$('#room-chat-input'))$('#room-chat-input').value='';}if(currentId===id&&$('#room-message-list')){$('#room-message-list').scrollTop=$('#room-message-list').scrollHeight;reading?.update();$('#room-chat-input')?.focus();}
  }catch(e){if(version===getVersion()&&currentId===id)error(e.message);}finally{if(version===getVersion()){sending=false;composer();}}}
@@ -76,7 +78,7 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
   if(history?.messages.some(item=>item.id===message.id))return;
   const position=currentId===id&&reading?reading.capture():null,messages=new Map((history?.messages||[]).map(item=>[item.id,item]));messages.set(message.id,message);
   cache.set(id,{...history,messages:[...messages.values()].sort((a,b)=>a.id-b.id),loaded:history?.loaded||false,hasMore:history?.hasMore??true});
-  if(position){drawMessages(id);reading.restore(position);if(position.bottom)void read(id);}
+  if(position){drawMessages(id,position.bottom);reading.restore(position,{newMessages:message.userId===getState().profile?.id?0:1});if(position.bottom)void read(id);}
  }
  async function resync(){
   const id=currentId,history=cache.get(id);if(!id)return;
@@ -85,8 +87,8 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
   try{for(;;){
    const result=await api(`/api/rooms/${id}/messages?after=${cursor}`);
    if(version!==getVersion()||request!==load||currentId!==id)return;
-   const position=reading.capture(),latest=cache.get(id),messages=new Map(latest.messages.map(message=>[message.id,message]));for(const message of result.messages)messages.set(message.id,message);
-   cache.set(id,{...latest,messages:[...messages.values()].sort((a,b)=>a.id-b.id)});drawMessages(id);reading.restore(position);
+   const position=reading.capture(),latest=cache.get(id),messages=new Map(latest.messages.map(message=>[message.id,message])),newMessages=result.messages.filter(message=>message.userId!==getState().profile?.id&&!messages.has(message.id)).length;for(const message of result.messages)messages.set(message.id,message);
+   cache.set(id,{...latest,messages:[...messages.values()].sort((a,b)=>a.id-b.id)});drawMessages(id);reading.restore(position,{newMessages});
    if(!result.hasMore||!result.messages.length)break;cursor=result.messages.at(-1).id;
   }if($('#room-chat-error')?.dataset.kind==='load')error('');void read(id);
   }catch(reason){if(version===getVersion()&&request===load&&currentId===id)error(reason.message,'load');}

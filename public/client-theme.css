@@ -234,7 +234,12 @@
 @keyframes feedback-arrive { from { opacity:.5; } to { opacity:1; } }
 @media (prefers-reduced-motion:reduce) {
  :root.pixel-theme.client-theme dialog,:root.pixel-theme.client-theme dialog::backdrop { transform:none; transition:none; }
- :root.pixel-theme.client-theme :is(.toast,.form-error,[data-feedback=success] .icon,button[aria-busy=true]::after) { animation:none; }
+ :root.pixel-theme.client-theme :is(.toast,.form-error,[data-feedback=success] .icon),:root.pixel-theme.client-theme button[aria-busy=true]::after { animation:none; }
 }
 :root.pixel-theme.client-theme.motion-reduced dialog,:root.pixel-theme.client-theme.motion-reduced dialog::backdrop { transform:none; transition:none; }
-:root.pixel-theme.client-theme.motion-reduced :is(.toast,.form-error,[data-feedback=success] .icon,button[aria-busy=true]::after) { animation:none; }
+:root.pixel-theme.client-theme.motion-reduced :is(.toast,.form-error,[data-feedback=success] .icon),:root.pixel-theme.client-theme.motion-reduced button[aria-busy=true]::after { animation:none; }
+
+:root.pixel-theme.client-theme :is(#message-list,#room-message-list) { overflow-anchor:none; }
+:root.pixel-theme.client-theme .message-jump { background:var(--selected); color:var(--text); border:1px solid var(--strong-border); border-radius:6px; box-shadow:none; }
+:root.pixel-theme.client-theme .message-jump:hover { background:var(--hover); }
+:root.pixel-theme.client-theme .message-jump[data-unread]::before { content:attr(data-unread); display:inline-grid; place-items:center; min-width:20px; height:20px; padding-inline:4px; border-radius:4px; color:var(--green-dark); background:var(--diamond-core); font:600 12px/1 var(--ui-font); font-variant-numeric:tabular-nums; }
