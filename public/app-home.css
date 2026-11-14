@@ -68,3 +68,6 @@
 .home-microsoft p{font:400 12px/1.7 var(--ui-font);color:var(--muted);text-align:center;}
 .home-device-code{font:600 24px/1.5 var(--ui-font);letter-spacing:.12em;color:var(--diamond-core);user-select:all;}
 .home-identity-error{font:400 12px/1.6 var(--ui-font);color:var(--error);width:100%;}
+
+.home-game-identity{min-height:0;overflow:auto;justify-content:safe center;scrollbar-width:thin;}
+.home-game-identity>img,.home-identity-form,.home-microsoft{flex-shrink:0;}

@@ -54,7 +54,7 @@ export function createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShel
     else if(action==='home-login'){summary=await bridge.login();draftMode='microsoft';}
     else if(action==='home-logout')summary=await bridge.logout();
     else if(action==='home-settings'||action==='home-account'){document.querySelector('#small-dialog')?.close();await bridge.configure({id:summary?.selectedId,accountMode:action==='home-account'?target.dataset.mode:undefined});}
-   }catch(reason){if(['home-save-identity','home-use-offline','home-use-microsoft','home-login','home-logout'].includes(action))identityError=reason.message||'账号操作失败';else error=reason.message||'操作失败，请重试';if(!isAppHome(location.hash))toast(error);}
+   }catch(reason){if(['home-save-identity','home-use-offline','home-use-microsoft','home-login','home-logout'].includes(action))identityError=reason.message||'账号操作失败';else error=reason.message||'操作失败，请重试';if(!isAppHome(location.hash))toast(identityError||error);}
    finally{pending=null;paint();if(isAppHome(location.hash)&&document.activeElement===document.body)document.querySelector('[data-action="'+(action==='home-select'?'home-versions':action)+'"]')?.focus({preventScroll:true});}
    return true;
   }
