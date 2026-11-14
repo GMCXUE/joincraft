@@ -148,6 +148,7 @@ document.addEventListener('click',async e=>{const target=e.target.closest('[data
 });
 $('.dialog-tabs').addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();openRoomDialog(dialogMode==='join'?'create':'join');$(dialogMode==='join'?'#join-tab':'#create-tab').focus();}});
 document.addEventListener('keydown',e=>{if(e.target.matches('label[tabindex]')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();document.getElementById(e.target.htmlFor)?.click();}});
+document.querySelector('.skip-to-content')?.addEventListener('click',e=>{e.preventDefault();$('#main').focus({preventScroll:true});});
 window.addEventListener('hashchange',()=>{render(true);$('#main').scrollTop=0;$('#main').focus({preventScroll:true});navigationMotion.transition();});
 function clearIdentity(){
  void communityUI.disconnect();
