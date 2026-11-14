@@ -18,7 +18,7 @@ function message(error) { $('#message').hidden = !error; text('#message', error?
 function item() { return state.instances.find(i => i.id === state.selected); }
 const playerRoot=()=>item()?.root||state.root;
 const prefKey = selected => `${selected.root}/${selected.version}`;
-let worldUI=null;
+let worldUI=null,homeOpen=null,initialized=false;
 const memoryUI=createMemoryControls({api,locked:()=>state.busy||state.runs.some(r=>['checking','starting','running'].includes(r.state)),getRun:()=>state.runs.find(r=>r.id===state.selected),onChange:()=>remember(),onRefresh:()=>controls()});
 window.addEventListener('beforeunload',()=>memoryUI.dispose());
 function remember() {
@@ -135,6 +135,7 @@ worldUI=mountWorlds({api,onChange:controls,onError:message});
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
 function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
+function applyHomeOpen(event){if(event.id)state.selected=event.id;if(event.accountMode)state.accountMode=event.accountMode;render();worldUI.setTab('settings');remember();const target=event.accountMode?$('#'+(event.accountMode==='offline'?'player-name':'microsoft-tab')):$('#java-select');target?.focus({preventScroll:true});if(event.accountMode)target.scrollIntoView({block:'center',behavior:'instant'});else $('#instance-content').scrollTop=0;}
 async function action(fn,operation='change') { if(state.busy)return;message(null); state.busy = true;state.operation=operation; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false;state.operation=null; controls(); } }
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
@@ -150,7 +151,7 @@ $('#open-microsoft').onclick = () => api.microsoftPage().catch(message);
 $('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); },'check');
 $('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); },'launch');
 $('#launch-configure').onclick=()=>{worldUI.setTab('settings');const target=!state.javaPath?$('#java-select'):state.accountMode==='microsoft'?$('#microsoft-tab'):$('#player-name');target.focus({preventScroll:true});target.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
-$('#rooms').onclick = () => api ? api.rooms().catch(message) : location.assign('/app/#friends');
+$('#rooms').onclick = () => api ? action(async()=>{if(item()&&api.saveLaunchSettings)await api.saveLaunchSettings(input());await api.rooms();}) : location.assign('/app/#home');
 $('.brand').onclick = event => { event.preventDefault(); $('#rooms').click(); };
 if (!api) { $('#web-note').hidden = false; text('#surface-label', '网页预览'); render(); }
 else {
@@ -161,12 +162,13 @@ else {
     if(event.type==='library-scanning'){libraryScanMotion?.cancel();libraryScanMotion=miningFeedback.start('正在识别整合包',{success:'游戏库已更新'});}
     if(event.type==='library'){libraryScanMotion?.done();libraryScanMotion=null;const key=item()&&prefKey(item());Object.assign(state,event);state.selected=state.instances.find(i=>prefKey(i)===key)?.id||state.instances[0]?.id;render();}
     if(event.type==='game-play'){const previous=state.selected;syncPlay(event);if(previous!==state.selected)render();}
+    if(event.type==='home-open'){if(initialized)applyHomeOpen(event);else homeOpen=event;}
     if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
     if (event.type === 'device-code') { text('#code', event.code); $('#device-code').hidden = false; }
     if (event.type === 'account') { state.account = event; renderAccount(); }
     if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
   });
-  api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();if(result.play)syncPlay(result.play,true);void scanJava(); }).catch(message);
+  api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}initialized=true;render();if(result.play)syncPlay(result.play,true);if(homeOpen){applyHomeOpen(homeOpen);homeOpen=null;}void scanJava(); }).catch(message);
 }
 
 if(api){

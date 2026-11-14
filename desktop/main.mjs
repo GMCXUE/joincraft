@@ -28,6 +28,7 @@ import {HostHelper} from '../launcher/host-helper.mjs';
 import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
+import {LauncherHome} from './home.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +44,7 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let worlds, gamePlay, p2pRuntime, playToken=null;
+let worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
 const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy);
@@ -62,6 +63,7 @@ const emit = event => {
   if(event.type==='pack-install'&&alive(roomWindow))roomWindow.webContents.send('packs:event',event);
   if(event.type==='game-play'&&alive(roomWindow))roomWindow.webContents.send('play:event',event);
   if(event.type==='update')surfaces?.notifyFocus();
+  if(['run','account','library','pack-selected','game-play','pack-install'].includes(event.type)&&alive(roomWindow))roomWindow.webContents.send('home:changed');
 };
 function shellSender(event){
   const view=[surfaces?.library,roomWindow].find(view=>alive(view)&&event.sender===view.webContents&&event.senderFrame===view.webContents.mainFrame);
@@ -121,7 +123,7 @@ function openRooms() {
       event.preventDefault();surfaces.closeNotifications();void openLibrary().then(()=>emit({type:'close-blocked',message:anyPackBusy()?'整合包仍在传输或安装，请完成或取消后再关闭。':'游戏仍在运行，请先退出游戏再关闭 joincraft。'}));
     }
   });
-  target.hash='friends';void loadRooms(roomWindow,target.href);
+  if(!target.hash)target.hash='home';void loadRooms(roomWindow,target.href);
 }
 async function openLibrary(){await surfaces.showLibrary();}
 
@@ -178,6 +180,16 @@ else {
       await openNotifications();return {ok:true,value:null};
     }catch(error){return {ok:false,error:error.message||'操作失败'};}
   });
+  launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
+    if(!gamePlay.active&&gamePlay.context)gamePlay.clear();
+    if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance?.javaPath)launcher.javaPath=instance.javaPath;}
+    await openLibrary();emit({type:'home-open',...input});
+  }});
+  for(const action of ['state','select','configure','start'])ipcMain.handle('home:'+action,async(event,input)=>{
+    try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:await launcherHome[action](input)};}
+    catch(error){return {ok:false,error:error.message||'启动操作失败'};}
+  });
+  handle('save-launch-settings',input=>launcherHome.remember(input));
   handle('import-pack',async()=>{const buffer=await pickMrpack();return buffer?installPack(buffer):null;});
   handle('install-state',()=>packState());
   handle('cancel-pack',()=>packTransfer.busy?packTransfer.cancel():managedPacks.cancel());
