@@ -37,3 +37,6 @@ release/
 /game-helper/**/build/
 
 /game-helper/**/logs/
+
+# Bundled safe Markdown renderer (source in frontend/mod-content.js)
+public/launcher/mod-content.js

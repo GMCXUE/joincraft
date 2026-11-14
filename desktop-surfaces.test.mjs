@@ -72,3 +72,9 @@ test('room pack IPC permits room navigation hashes but rejects other pages, orig
  for(const url of ['https://evil.invalid/app/#room','https://www.joincraft.top/login','https://www.joincraft.top/app/?different=1','https://www.joincraft.top:444/app/']){frame.url=url;assert.equal(trustedRoomFrame(event,view,'https://www.joincraft.top/app/'),false);}
  frame.url='https://www.joincraft.top/app/#room';assert.equal(trustedRoomFrame({...event,senderFrame:{...frame}},view,'https://www.joincraft.top/app/'),false);assert.equal(trustedRoomFrame({...event,sender:{}},view,'https://www.joincraft.top/app/'),false);
 });
+test('local mod descriptions open only HTTPS Modrinth or GitHub project pages in the system browser',async()=>{
+ const pageURL='file:///joincraft/public/launcher/index.html',opened=[];const handler=repositoryLinkHandler({webContents:{getURL:()=>pageURL},pageURL,openExternal:url=>opened.push(url)});
+ const allowed=['https://modrinth.com/mod/jei','https://github.com/mezz/JustEnoughItems/issues'];for(const url of allowed)assert.deepEqual(handler({url}),{action:'deny'});
+ for(const url of ['https://modrinth.com.evil.invalid/mod/jei','https://modrinth.com/oauth','https://user@modrinth.com/mod/jei','https://github.com:444/mezz/JEI','http://modrinth.com/mod/jei','javascript:alert(1)','file:///tmp/data'])handler({url});
+ await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(opened,allowed);
+});
