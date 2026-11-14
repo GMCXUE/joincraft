@@ -232,3 +232,18 @@ Windows 真实安装、更新重启、原生窗口控件、完整 Forge 处理�
 验证：构建和 224 项完整回归通过，最终客户端实际载荷在 Electron Node CLI 中通过 32 项 HTTP/缓存/Forge/ZIP 取消检查。实际 EXE/ZIP 的签名、大小/SHA-512、核心载荷及源码匹配、Go 更新助手校验和解包通过。VPS 用一致性备份的临时副本完成健康、界面及真实 ZIP 取消预检后切换服务。公网资源匹配源码，0.9.24 客户端可发现 0.9.25，ZIP Range 及完整公网 EXE/ZIP 摘要校验通过。
 
 用户原始 368,241,711-byte 香草 ZIP 中取消可复现旧任务 7 秒仍未结束；新代码约 991ms 发出取消、994ms 结束读取（本机测量）。真实包的 20 个空文件全部提取并通过固定摘要校验。没有运行实际游戏；Windows 实机取消、旧实例重新识别及完整启动仍待用户验证。旧版若已卡住，先退出重开再更新，升级后优先重新检查现有实例。
+
+
+## 2026-11-14 · 0.9.26 自有存档与 Forge 自动开房
+
+网站与应用服务发布至 `/opt/joincraft/releases/0.9.26-20261114-world-host`，源码检查点 `7051936`；回滚目录 `/opt/joincraft/releases/0.9.25-20261114-pack-cancel`。SQLite schema 7 未变；一致性数据库与整合包备份为 `/opt/joincraft/backups/before-0926.sqlite` 及 `.packs`，数据库备份权限 0600。先在备份的临时副本上验证健康、ZIP 取消和新版原生入口资源，再切换服务。nginx、外部端口、中继协议与语音配置保持原状。
+
+客户端仅列出 Joincraft 自有实例并展示存档。房主选择世界及端口，游戏通过 Quick Play 进入存档，辅助组件调用集成服务器 API 开放指定端口；客户端确认 MC 状态及房间身份/整合包后建立现有 HTTPS/WSS 中继。成员可复用已保存启动设置直接加入。停止联机保留游戏，已开放的本机 LAN 随退出世界关闭。
+
+辅助组件 `com.joincraft:host-helper:1.0.0` 随客户端资源发布，JAR 10924 bytes，SHA-256 `2280cb319e4f636ef7b70f262e94ab01b6e27315d7bb45b1d9fd3ae0d9fd652e`。客户端校验后安装到 `.minecraft/.joincraft/components/maven`，通过 Forge Maven 参数加载；没有放入 `mods`，不修改房间整合包。编译与独立发现测试基于 Forge 47.3.33 / Minecraft 1.20.1 / Java 17，真实 Forge 加载器已从带中文、空格及逗号的私有路径发现并解析实际 JAR。
+
+已发布安装程序 `joincraft-0.9.26-win-x64-setup.exe`，130425414 bytes，SHA-256 `bee3ede13e4e44f55e90e7b2caa6814288a664aff5cc05abb4fa3d0a9980e548`；应用内更新 `joincraft-0.9.26-win-x64.zip`，167088957 bytes，SHA-256 `a345ed18423414c50130769cd854b987057991df5635a19498702fd6644bcd4a`。稳定安装与更新别名、两份 Ed25519 清单均指向 0.9.26。签名公钥未变，旧 NSIS latest.yml 仍固定为 0.9.3；两份前版清单分别备份到 `/opt/joincraft/backups/windows-x64-before-0.9.26.json` 与 `windows-x64-setup-before-0.9.26.json`。
+
+验证：249 项完整回归、最终客户端实际载荷在 Electron Node 中的 85 项检查、Java 辅助状态机 7 个模拟场景与真实 Forge JAR 发现通过。实际 EXE/ZIP 的签名、大小/SHA-512、核心载荷及新增组件一致，Go 更新助手成功校验并解包实际更新 ZIP。公网网站与入口脚本匹配发布字节，0.9.25 可发现 0.9.26，ZIP Range 及完整公网安装程序/更新 ZIP 的摘要检查通过。Windows 安装程序沿用既有构建方式，未配置 Authenticode；应用内更新继续用固定 Ed25519 公钥验证。
+
+本次没有启动 Minecraft；Windows 双机真实游戏、整合包兼容性、自动端口开放与加入仍待用户实测。未发布新的 macOS DMG。
