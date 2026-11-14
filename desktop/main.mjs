@@ -29,6 +29,7 @@ import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
 import {LauncherHome,returnToHome} from './home.mjs';
+import {ModDownloads} from '../launcher/mod-downloads.mjs';
 import {ManagedMods} from '../launcher/mods.mjs';
 import {launchSettings} from '../launcher/launch-settings.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
@@ -46,7 +47,7 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
+let modDownloads,mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
 const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy||mods?.busy);
@@ -200,6 +201,10 @@ else {
   handle('pick-install-root',async()=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或整合包任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择 Joincraft 安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
   mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
+  modDownloads=new ModDownloads({mods,gatewayOrigin:new URL(serverURL()).origin});
+  handle('mods-preview',input=>modDownloads.preview(input));
+  handle('mods-install',input=>modDownloads.install(input));
+  handle('mods-download-state',()=>modDownloads.progress.state());
   handle('mod-search',input=>mods.search(input));
   handle('mod-project',input=>mods.provider.project(input?.projectId));
   handle('mod-versions',input=>mods.versions(input));

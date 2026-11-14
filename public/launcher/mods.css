@@ -3,3 +3,5 @@
 .mod-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}.mod-history-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #424750}
 
 .mod-switch{display:flex;gap:8px;margin-bottom:20px}.mod-switch button[aria-pressed=true]{background:#343943;color:#58c7cf}#catalog-state{margin-left:auto}#catalog-results .mod-copy small{max-width:75ch}#mods-catalog{min-height:260px}
+
+#mods-download-progress{margin-bottom:20px}#mods-download-progress .pack-progress-stages{display:none}.mod-optional{display:block;margin:12px 0}.mod-optional input{accent-color:#58c7cf}

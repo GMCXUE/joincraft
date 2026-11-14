@@ -1,0 +1,25 @@
+import path from 'node:path';import {mkdir,rm,statfs} from 'node:fs/promises';import {randomUUID} from 'node:crypto';
+import {resolveModPlan} from './mod-plans.mjs';import {scanMods,inspectMod,fileHash} from './mod-metadata.mjs';import {readModState,modTransaction} from './mod-transactions.mjs';import {InstallProgress} from './install-progress.mjs';import {downloadMany} from './pack-download.mjs';import {packURL} from '../shared/pack-format.mjs';import {createDownloadFetch} from './download-gateway.mjs';
+export class ModDownloads {
+ constructor({mods,gatewayOrigin,fetchImpl,now=Date.now}){Object.assign(this,{mods,now});this.drafts=new Map();this.fetchImpl=fetchImpl||createDownloadFetch({origin:gatewayOrigin});this.progress=new InstallProgress(e=>mods.notify({...e,type:'mods-download'}));}
+ async preview({id,versionId,versionIds,optionalIds=[]}){
+  if(this.mods.busy)throw Error('请先结束模组任务');const instance=await this.mods.instance(id),files=await scanMods(instance.root),state=await readModState(instance),known=await this.mods.provider.hashes(files.map(f=>f.sha512).filter(Boolean));
+  const plan=await resolveModPlan({provider:this.mods.provider,instance,files,versionIds:versionIds||[versionId],optionalIds,known,pins:state.pins});
+  for(const [key,draft] of this.drafts)if(draft.expires<this.now())this.drafts.delete(key);if(this.drafts.size>=20)this.drafts.delete(this.drafts.keys().next().value);
+  const planId=randomUUID();this.drafts.set(planId,{id,plan,files,expires:this.now()+15*60000});return {planId,id,editable:!!instance.editable,items:plan.items.map(x=>({versionId:x.version.id,projectId:x.version.project_id,name:x.version.name||x.file.name,fileName:x.file.name,version:x.version.version_number,size:x.file.size,replace:x.replace.map(f=>f.fileName),reason:x.reason,changelog:String(x.version.changelog||'').slice(0,10000)})),optional:plan.optional,conflicts:plan.conflicts,skipped:plan.skipped};
+ }
+ async install({planId}){const draft=this.drafts.get(planId);if(!draft||draft.expires<this.now())throw Error('安装预览已过期，请重新选择版本');if(draft.plan.conflicts.length)throw Error(draft.plan.conflicts.join('；'));return this.mods.exclusive(async signal=>{
+  let instance=await this.mods.instance(draft.id);const {plan,files}=draft;if(!plan.items.length)return {id:instance.id};
+  // Preview is bound to the exact inventory; external edits must be reviewed again.
+  const current=await scanMods(instance.root,{signal});if(JSON.stringify(current.map(f=>[f.fileName,f.sha512]).sort())!==JSON.stringify(files.map(f=>[f.fileName,f.sha512]).sort()))throw Error('模组文件已变化，请重新预览');
+  const parent=path.dirname(instance.root),staging=path.join(parent,'mod-downloads',planId);await mkdir(staging,{recursive:true});const size=plan.items.reduce((n,i)=>n+i.file.size,0),space=await statfs(parent);if(Number(space.bavail)*Number(space.bsize)<size*3+128*1024**2)throw Error('磁盘空间不足');
+  this.progress.begin('安装模组');this.progress.phase('mods','下载模组与前置',1,plan.items.map(x=>x.file));
+  const local=new Map(plan.items.map(i=>[i.file.path,files.filter(f=>f.sha512===i.file.hashes.sha512).map(f=>path.join(instance.root,'mods',f.fileName))]));
+  try{await downloadMany(plan.items.map(x=>x.file),staging,{signal,cacheDir:path.join(path.dirname(path.dirname(parent)),'cache'),fetchImpl:this.fetchImpl,checkURL:packURL,progress:this.progress,localFiles:async p=>local.get(p)||[],concurrency:16});
+   this.progress.phase('verify','检查模组文件',1);const remove=plan.items.flatMap(x=>x.replace),removedIds=new Set(remove.map(f=>f.fileId)),declared=new Set(current.filter(f=>f.enabled&&!removedIds.has(f.fileId)).flatMap(f=>f.mods.map(m=>m.id)));
+   for(const item of plan.items){signal.throwIfAborted();const inspected=await inspectMod(path.join(staging,item.file.path),{signal});if(inspected.status!=='ready')throw Error('下载的文件不是可识别模组：'+item.file.name);if(!inspected.loaders.includes(instance.loader)&&!(instance.loader==='Quilt'&&inspected.loaders.includes('Fabric')))throw Error('下载的 JAR 加载器不匹配：'+item.file.name);for(const mod of new Set(inspected.mods.map(m=>m.id))){if(declared.has(mod))throw Error('存在重复 Mod ID：'+mod);declared.add(mod);}this.progress.detail(item.file.name);}
+   instance=await this.mods.editable(instance.id,signal);const expected=Object.fromEntries(remove.map(f=>[f.fileName,f.sha512]));
+   await modTransaction(instance,{remove:remove.map(f=>f.fileName),put:plan.items.map(i=>({name:i.file.name,source:path.join(staging,i.file.path),sha512:i.file.hashes.sha512})),expected,label:'安装 / 更新 '+plan.items.length+' 个模组',statePatch:state=>{for(const item of plan.items)state.sources[item.file.hashes.sha512]={provider:'modrinth',projectId:item.version.project_id,versionId:item.version.id,downloads:item.file.downloads,size:item.file.size,sha1:item.file.hashes.sha1};return state;}},{signal});this.progress.end('done','模组安装完成');await this.mods.changed(instance.id);await rm(staging,{recursive:true,force:true});return {id:instance.id};
+  }catch(error){this.progress.end(signal.aborted?'cancelled':'failed',error.message);throw error;}
+ });}
+}
