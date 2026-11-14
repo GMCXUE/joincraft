@@ -8,8 +8,43 @@ export async function returnToHome({showHome,remember,onSaveError=()=>{}},input)
 
 // The hosted home receives a small, path- and credential-free launcher view.
 export class LauncherHome {
-  constructor(options) { Object.assign(this, options); this.pending=false; }
+  constructor(options) { Object.assign(this, options); this.pending=false; this.running=new Set(); this.recentRevision=0; }
   instances() { return [...this.library.values()].filter(item=>item.managed); }
+  history() {
+    const history=this.prefs.homePlayHistory;
+    return Object.fromEntries(this.instances().map(item=>[item.id,history?.[item.id]]).filter(([,at])=>Number.isSafeInteger(at)&&at>0));
+  }
+  recordRun(event) {
+    if(['run','library'].includes(event.type)){this.recentCache=null;this.recentRevision++;}
+    if(event.type!=='run'||!this.library.get(event.id)?.managed)return;
+    if(event.state!=='running'){this.running.delete(event.id);return;}
+    if(this.running.has(event.id))return;
+    this.running.add(event.id);
+    this.prefs.homePlayHistory=Object.fromEntries(Object.entries({...this.history(),[event.id]:(this.now||Date.now)()}).sort((a,b)=>b[1]-a[1]).slice(0,64));
+    // A history write failure must not turn a successfully launched game into a failure.
+    void this.save().catch(()=>{});
+  }
+  async recent() {
+    if(this.recentPending)return this.recentPending;
+    const now=(this.now||Date.now)(),revision=this.recentRevision;
+    if(this.recentCache&&now-this.recentCache.at<15000)return this.recentCache.value;
+    const selected=this.selected()?.id,history=this.history();
+    const candidates=this.instances().sort((a,b)=>(history[b.id]||0)-(history[a.id]||0)||(b.id===selected)-(a.id===selected)||(b.createdAt||0)-(a.createdAt||0)).slice(0,3);
+    this.recentPending=Promise.all(candidates.map(async item=>{
+      let lastWorld=null,worldsUnavailable=false;
+      try {
+        const result=await this.worlds?.list(item.id);
+        const world=result?.worlds.filter(w=>w.readable&&Number.isSafeInteger(w.lastPlayed)&&w.lastPlayed>0).sort((a,b)=>b.lastPlayed-a.lastPlayed)[0];
+        if(world)lastWorld={name:String(world.name||'未命名世界').slice(0,160),lastPlayed:world.lastPlayed};
+      } catch { worldsUnavailable=true; }
+      // Only this allowlist may cross into the hosted page; never send paths, NBT or launch inputs.
+      return {id:item.id,name:item.name,minecraft:item.minecraft||'',loader:item.loader||'',error:!!item.error,lastLaunchAt:history[item.id]||null,lastWorld,worldsUnavailable};
+    })).then(instances=>{
+      const value={instances:instances.sort((a,b)=>Math.max(b.lastLaunchAt||0,b.lastWorld?.lastPlayed||0)-Math.max(a.lastLaunchAt||0,a.lastWorld?.lastPlayed||0))};
+      if(revision===this.recentRevision)this.recentCache={at:now,value};return value;
+    }).finally(()=>{this.recentPending=null;});
+    return this.recentPending;
+  }
   selected() { return this.instances().find(item=>item.id===this.getSelected()) || this.instances().find(item=>item.id===this.prefs.homeInstance) || this.instances()[0]; }
   owned(id) { const item=this.library.get(id); if(!item?.managed)throw Error('请选择已安装的 Joincraft 整合包'); return item; }
   assertIdle() { if(this.pending||this.packBusy()||this.gamePlay.active||this.launcher.states().some(run=>['checking','starting','running'].includes(run.state)))throw Error('请先结束当前游戏或任务'); }

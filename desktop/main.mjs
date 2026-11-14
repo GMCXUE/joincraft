@@ -65,6 +65,7 @@ let saving = Promise.resolve();
 const prefsPath = () => path.join(app.getPath('userData'), 'launcher.json');
 const save = () => { const content = JSON.stringify(prefs); saving = saving.catch(() => {}).then(async () => {await mkdir(path.dirname(prefsPath()),{recursive:true});await writeFile(prefsPath(), content, { mode: 0o600 });}); return saving; };
 const emit = event => {
+  launcherHome?.recordRun(event);
   if(event.type==='device-code')launcherHome?.setDeviceCode(event);
   for(const view of [surfaces?.library,surfaces?.notifications])if(alive(view))view.webContents.send('launcher:event',event);
   if(event.type==='pack-install'&&alive(roomWindow))roomWindow.webContents.send('packs:event',event);
@@ -187,12 +188,12 @@ else {
       await openNotifications();return {ok:true,value:null};
     }catch(error){return {ok:false,error:error.message||'操作失败'};}
   });
-  launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,identityChanged:()=>emit({type:'game-identity',identity:launcherHome.launchIdentity()}),packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
+  launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,worlds,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,identityChanged:()=>emit({type:'game-identity',identity:launcherHome.launchIdentity()}),packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
     if(!gamePlay.active&&gamePlay.context)gamePlay.clear();
     if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance)launcher.javaPath=prefs.managedJavaPaths?.[instance.id]||instance.javaPath||launcher.javaPath;}
     await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath,gameIdentity:launcherHome.launchIdentity(),settings:prefs.managedLaunchInputs?.[input.id]});
   }});
-  for(const action of ['state','select','configure','start','identity','login','logout','microsoft-page'])ipcMain.handle('home:'+action,async(event,input)=>{
+  for(const action of ['state','recent','select','configure','start','identity','login','logout','microsoft-page'])ipcMain.handle('home:'+action,async(event,input)=>{
     try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:action==='microsoft-page'?await shell.openExternal('https://www.microsoft.com/devicelogin'):await launcherHome[action](input)};}
     catch(error){return {ok:false,error:error.message||'启动操作失败'};}
   });

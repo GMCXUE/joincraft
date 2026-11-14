@@ -62,3 +62,25 @@ test('advanced settings persist per instance and homepage launch ignores remotel
  const f=fixture();await f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto',jvmArgs:'-XX:+UseG1GC',gameArgs:'--custom value',windowMode:'1600x900'});await f.home.start({id:'one',jvmArgs:'-jar untrusted.jar'});assert.equal(f.calls.at(-1)[1].jvmArgs,'-XX:+UseG1GC');assert.equal(f.calls.at(-1)[1].windowMode,'1600x900');assert(!JSON.stringify(f.home.state()).includes('UseG1GC'));
  const previous=JSON.stringify(f.prefs);await assert.rejects(f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto',jvmArgs:'-Xmx4G'}));assert.equal(JSON.stringify(f.prefs),previous);
 });
+
+test('home play history records actual native running events once, without trusting setup or external instances',async()=>{
+ const f=fixture();let now=1000,saves=0;f.home.now=()=>now;f.home.save=async()=>{saves++;};
+ f.home.recordRun({type:'run',id:'one',state:'checking'});f.home.recordRun({type:'run',id:'external',state:'running'});assert.equal(saves,0);
+ f.home.recordRun({type:'run',id:'one',state:'running'});now=2000;f.home.recordRun({type:'run',id:'one',state:'running'});assert.equal(saves,1);assert.deepEqual(f.prefs.homePlayHistory,{one:1000});
+ f.home.recordRun({type:'run',id:'one',state:'exited'});f.home.save=async()=>{throw Error('read only');};f.home.recordRun({type:'run',id:'one',state:'running'});await Promise.resolve();assert.equal(f.prefs.homePlayHistory.one,2000);
+});
+
+test('recent games expose bounded owned summaries, genuine world dates and no local or account secrets',async()=>{
+ const f=fixture();f.prefs.homePlayHistory={one:500,external:900,unknown:10000,bad:'not a date'};
+ for(let i=0;i<5;i++)f.library.set('pack'+i,{id:'pack'+i,managed:true,name:'Pack '+i,createdAt:i});
+ const scans=[];f.home.worlds={list:async id=>{scans.push(id);if(id==='pack4')throw Error('PRIVATE_DISK_ERROR');return {worlds:[{name:'Broken',readable:false,lastPlayed:9000},{id:'WORLD_ID',folder:'SECRET_FOLDER',seed:'PRIVATE_SEED',name:'山谷里的家',readable:true,lastPlayed:300}]};}};
+ const result=await f.home.recent();assert.equal(result.instances.length,3);assert.deepEqual(scans,['one','pack4','pack3']);assert.equal(result.instances[0].lastLaunchAt,500);assert.deepEqual(result.instances[0].lastWorld,{name:'山谷里的家',lastPlayed:300});assert(result.instances.some(i=>i.worldsUnavailable));
+ assert(!/PRIVATE|SECRET|OUTSIDE|WORLD_ID|worldId|root|seed|javaPath|accessToken/.test(JSON.stringify(result)));assert.deepEqual(f.home.history(),{one:500});
+ await f.home.recent();assert.equal(scans.length,3);f.home.recordRun({type:'library'});await f.home.recent();assert.equal(scans.length,6);
+});
+
+test('overlapping recent scans share work and cannot cache an older snapshot after a launch event',async()=>{
+ const f=fixture();let release,scans=0;f.home.now=()=>1000;f.home.worlds={list:async()=>{if(++scans===1)await new Promise(resolve=>release=resolve);return {worlds:[]};}};
+ const first=f.home.recent(),overlap=f.home.recent();f.home.recordRun({type:'run',id:'one',state:'running'});release();await Promise.all([first,overlap]);assert.equal(scans,1);
+ const fresh=await f.home.recent();assert.equal(scans,2);assert.equal(fresh.instances[0].lastLaunchAt,1000);
+});
