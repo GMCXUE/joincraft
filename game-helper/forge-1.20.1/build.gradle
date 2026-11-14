@@ -1,0 +1,11 @@
+plugins { id 'net.minecraftforge.gradle' version '6.0.54' }
+version = '1.0.0'
+group = 'com.joincraft'
+base { archivesName = 'host-helper' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+minecraft { mappings channel: 'official', version: '1.20.1' }
+dependencies { minecraft 'net.minecraftforge:forge:1.20.1-47.3.33' }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('jar', Jar).configure { preserveFileTimestamps = false; reproducibleFileOrder = true; finalizedBy 'reobfJar' }
+tasks.register('simulate', JavaExec) { dependsOn testClasses; classpath = sourceSets.test.runtimeClasspath; mainClass = 'com.joincraft.host.HostSessionTest'; enableAssertions = true }
+tasks.register('verifyLocator', JavaExec) { dependsOn testClasses, reobfJar; classpath = sourceSets.test.runtimeClasspath; mainClass = 'com.joincraft.host.LocatorTest'; jvmArgs '--add-opens=java.base/java.lang.invoke=ALL-UNNAMED', '--add-opens=java.base/java.util.jar=ALL-UNNAMED'; enableAssertions = true; args project.layout.buildDirectory.dir('locator-simulation').get().asFile.absolutePath, tasks.jar.archiveFile.get().asFile.absolutePath }

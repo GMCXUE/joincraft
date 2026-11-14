@@ -1,4 +1,5 @@
 import '../focus.js';
+import {mountWorlds} from './worlds.js';
 import {mountPackInstaller} from './packs.js';
 import {miningFeedback,animatePage} from '../motion.js';
 let libraryScanMotion=null;
@@ -15,6 +16,7 @@ function message(error) { $('#message').hidden = !error; text('#message', error?
 function item() { return state.instances.find(i => i.id === state.selected); }
 const playerRoot=()=>item()?.root||state.root;
 const prefKey = selected => `${selected.root}/${selected.version}`;
+let worldUI=null;
 const memoryUI=createMemoryControls({api,locked:()=>state.busy||state.runs.some(r=>['checking','starting','running'].includes(r.state)),getRun:()=>state.runs.find(r=>r.id===state.selected),onChange:()=>remember(),onRefresh:()=>controls()});
 window.addEventListener('beforeunload',()=>memoryUI.dispose());
 function remember() {
@@ -27,7 +29,7 @@ function remember() {
   preferences.instances[prefKey(selected)] = { ...memoryUI.preferences(), mode: $('#directory-mode').value };
   try { localStorage.setItem('blockroom-launcher-preferences', JSON.stringify(preferences)); } catch {}
 }
-function input() { return { id: state.selected, name: $('#player-name').value.trim(), accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
+function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), id: state.selected, name: $('#player-name').value.trim(), accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
 function pathLabel() {
   const selected = item(); if (!selected) return;
   const mode = $('#directory-mode').value === 'auto' ? selected.isolation?.mode : $('#directory-mode').value;
@@ -63,17 +65,24 @@ function controls() {
   for (const id of ['#import-pack','#empty-install','#pick-install-root', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
   $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
-  $('#launch').disabled = $('#check').disabled || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
+  $('#launch').disabled = $('#check').disabled || state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test($('#player-name').value.trim()) || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
   for (const id of ['#directory-mode', '#player-name', '#offline-tab', '#microsoft-tab']) $(id).disabled = state.busy || running;
   $('#directory-mode').disabled ||= !!selected?.managed;
   $('#login').disabled = !api || !state.account.configured || state.account.busy || state.busy || running;
   $('#logout').disabled = state.account.busy || state.busy || running;
+  worldUI?.setLocked(running||state.busy);
   memoryUI.sync();
-  const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':'';
+  const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test($('#player-name').value.trim())?'在启动设置中填写玩家名':'';
   text('#launch-hint',blocked);
+  const context=state.play?.context,phase=state.play?.progress?.phase,active=['launching','world-loading','checking','connecting','online'].includes(phase);
+  $('#play-context').hidden=!context;$('#host-port-field').hidden=context?.role!=='host';
+  if(context){text('#play-role',context.role==='host'?'房主':'成员');text('#play-room-name',context.roomName);text('#play-progress',state.play.progress?.message||'');}
+  $('#clear-play').disabled=active||state.busy;$('#stop-play').hidden=!active;$('#stop-play').disabled=state.busy;$('#host-port').disabled=active||running||state.busy;
+  if(context?.instanceId&&context.instanceId!==state.selected)$('#launch').disabled=true;
+  if((worldUI?.tab==='worlds'&&context?.role!=='guest'||context?.role==='host')&&(!worldUI?.selected||worldUI.loading))$('#launch').disabled=true;
   const run = state.runs.find(r => r.id === state.selected);
   text('#pack-status', run?.message || (selected?.error ? '需要修复' : ''));
-  text('#launch', run?.state === 'running' ? '游戏运行中' : state.busy ? '请稍候…' : '启动游戏');
+  text('#launch', run?.state === 'running' ? '游戏运行中' : state.busy ? '请稍候…' : state.play?.context?.role==='host'?'启动世界并开房':state.play?.context?.role==='guest'?'加入游戏':worldUI?.tab==='worlds'?'进入世界':'启动游戏');
 }
 function renderAccount() {
   const online = state.accountMode === 'microsoft';
@@ -105,14 +114,18 @@ function render() {
     pathLabel(); text('#check-result', '');
     if (selected.error) message(selected.error);
   }
-  renderPlayer();renderJava();renderAccount();
+  renderPlayer();renderJava();renderAccount();void worldUI?.load(selected);
 }
+worldUI=mountWorlds({api,onChange:controls,onError:message});
+$('#stop-play').onclick=()=>action(()=>api.stopPlay());
+$('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
+function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
 async function action(fn) { message(null); state.busy = true; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false; controls(); } }
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
-$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;remember();};
+$('#player-name').oninput=()=>{preferences.playerNames||={};preferences.playerNames[playerRoot()]=$('#player-name').value;remember();controls();};
 $('#offline-tab').onclick = () => { state.accountMode = 'offline'; remember(); renderAccount(); };
 $('#microsoft-tab').onclick = () => { state.accountMode = 'microsoft'; remember(); renderAccount(); };
 $('#login').onclick = () => action(async () => { try { state.account = await api.login(); renderAccount(); } finally { $('#device-code').hidden = true; } });
@@ -130,12 +143,13 @@ else {
     if(event.type==='close-blocked'){message(event.message);document.querySelector('#message').scrollIntoView({block:'nearest'});}
     if(event.type==='library-scanning'){libraryScanMotion?.cancel();libraryScanMotion=miningFeedback.start('正在识别整合包',{success:'游戏库已更新'});}
     if(event.type==='library'){libraryScanMotion?.done();libraryScanMotion=null;const key=item()&&prefKey(item());Object.assign(state,event);state.selected=state.instances.find(i=>prefKey(i)===key)?.id||state.instances[0]?.id;render();}
+    if(event.type==='game-play'){syncPlay(event);render();}
     if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
     if (event.type === 'device-code') { text('#code', event.code); $('#device-code').hidden = false; }
     if (event.type === 'account') { state.account = event; renderAccount(); }
     if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
   });
-  api.state().then(result => { Object.assign(state, result);if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();void scanJava(); }).catch(message);
+  api.state().then(result => { Object.assign(state, result);if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode = preferences.accountMode === 'microsoft' ? 'microsoft' : 'offline'; if(state.root&&typeof preferences.name==='string'&&preferences.name!=='Player'){preferences.playerNames||={};preferences.playerNames[playerRoot()]??=preferences.name.slice(0,16);delete preferences.name;}render();if(result.play)syncPlay(result.play,true);void scanJava(); }).catch(message);
 }
 
 if(api){

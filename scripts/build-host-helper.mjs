@@ -1,0 +1,13 @@
+import {spawnSync} from 'node:child_process';
+import {readFile,writeFile,mkdir,copyFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'..'), project=path.join(root,'game-helper/forge-1.20.1');
+const gradle=process.env.JOINCRAFT_GRADLE||(process.platform==='win32'?'gradle.bat':'gradle');
+const result=spawnSync(gradle,['--no-daemon','build','simulate','verifyLocator'],{cwd:project,stdio:'inherit',shell:process.platform==='win32'});
+if(result.error)throw result.error;if(result.status!==0)throw Error('Forge helper build or simulation failed');
+const file='host-helper-1.0.0.jar', source=path.join(project,'build/libs',file),bytes=await readFile(source);
+if(bytes.length>1024*1024||bytes.readUInt32LE(0)!==0x04034b50)throw Error('Invalid helper JAR');
+const out=path.join(root,'build-resources/generated/host-helper');await mkdir(out,{recursive:true});await copyFile(source,path.join(out,file));
+await writeFile(path.join(out,'manifest.json'),JSON.stringify({schema:1,minecraft:'1.20.1',loader:'Forge',coordinate:'com.joincraft:host-helper:1.0.0',file,size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')})+'\n');
+console.log('Managed Forge helper packaged:',file,bytes.length);

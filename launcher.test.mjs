@@ -410,3 +410,10 @@ test('Launcher prepares logging before spawn and retains one argument across mem
   await launcher.start(input);assert.equal(spawns,1);child.emit('exit',0,null);
   assert.equal(await stat(path.join(f.root,'assets','log_configs')).then(()=>true,()=>false),false);
 });
+
+test('managed Quick Play keeps helper JVM properties before main and world folder literal through memory refresh',async t=>{
+ const f=await fixture(t);f.instance.managed=true;await put(path.join(f.root,'.joincraft','instance.json'),{schema:1,version:f.pack});let child,args,available=4096,exits=0;
+ const launcher=new GameLauncher({library:new Map([[f.instance.id,f.instance]]),account:{},cacheDir:path.join(f.temp,'cache'),platform,probe:async()=>f.options.java,memoryProvider:()=>({totalMB:8192,availableMB:available,maxMB:8192}),prepare:async()=>{available=2048;},spawnImpl:(_exe,argv,options)=>{args=argv;assert.equal(options.shell,false);child=new EventEmitter();queueMicrotask(()=>child.emit('spawn'));return child;}});launcher.javaPath=f.options.java.path;
+ await launcher.start({id:f.instance.id,accountMode:'offline',name:'Player_1',mode:'auto',memoryMode:'auto',gameArgs:['--untrusted']},{type:'world',folder:'建筑 世界 & $()',helper:{jvmArgs:['-Djoincraft.host.request=C:\\玩家, 空间\\request.json'],gameArgs:['--fml.mods','com.joincraft:host-helper:1.0.0','--fml.mavenRoots','.joincraft/components/maven']},onExit:()=>exits++});
+ assert(args.indexOf('-Djoincraft.host.request=C:\\玩家, 空间\\request.json')<args.indexOf(f.child.mainClass));assert.equal(args[args.indexOf('--quickPlaySingleplayer')+1],'建筑 世界 & $()');assert.equal(args.filter(a=>a==='--fml.mods').length,1);assert(!args.includes('--untrusted'));assert(args.some(a=>/^-Xmx2048[mM]$/.test(a)));child.emit('exit',0,null);assert.equal(exits,1);
+});

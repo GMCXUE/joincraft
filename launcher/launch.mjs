@@ -116,7 +116,7 @@ export class GameLauncher {
     const plan = await this.plan(input);
     return { memoryMB:plan.options.maxMemory, files: plan.files, gamePath: plan.gamePath, javaMajor: plan.options.version.javaVersion.majorVersion, accountReady: input.accountMode === 'offline' || Boolean(this.account.summary().profile) };
   }
-  async start(input) {
+  async start(input, target = null) {
     if (['checking', 'starting', 'running'].includes(this.runs.get(input.id)?.state)) throw new Error('该实例已在启动或运行中');
     // A shared game directory can contain the same saves even when the version IDs differ.
     if ([...this.runs.values()].some(r => ['checking', 'starting', 'running'].includes(r.state))) throw new Error('请先退出当前游戏，再启动另一个实例');
@@ -128,11 +128,20 @@ export class GameLauncher {
       await this.prepare(plan);
       const memoryMB=resolveMemory(input,await this.memoryProvider());
       if(memoryMB!==plan.options.maxMemory){plan.options.maxMemory=memoryMB;plan.argv=await generateArguments(plan.options);}
+      target?.signal?.throwIfAborted();
+      if(target){
+        if(!this.library.get(input.id)?.managed||plan.gamePath!==this.library.get(input.id).root)throw Error('自动进入仅支持自有独立实例');
+        if(target.type==='world'){
+          if(typeof target.folder!=='string'||!target.folder||target.folder==='.'||target.folder==='..'||/[\\/\x00-\x1f]/.test(target.folder))throw Error('存档名称无效');
+          plan.argv=[plan.argv[0],...(target.helper?.jvmArgs||[]),...plan.argv.slice(1),'--quickPlaySingleplayer',target.folder,...(target.helper?.gameArgs||[])];
+        }else if(target.type==='server'&&/^127\.0\.0\.1:[0-9]{1,5}$/.test(target.address)&&Number(target.address.split(':')[1])<=65535&&Number(target.address.split(':')[1])>0){plan.argv.push('--quickPlayMultiplayer',target.address);}
+        else throw Error('游戏进入目标无效');
+      }
       this.state(input.id, 'starting', '正在创建 Java 进程',{memoryMB});
       const child = this.spawnImpl(plan.argv[0], plan.argv.slice(1), { cwd: plan.gamePath, shell: false, windowsHide: true, stdio: 'ignore' });
       this.runs.get(input.id).child = child;
       const cleanup = () => rm(plan.nativeRoot, { recursive: true, force: true }).catch(() => {});
-      child.once('exit', (code, signal) => { this.state(input.id, code === 0 ? 'exited' : 'failed', code === 0 ? '游戏已退出' : `游戏进程已退出（${signal || code}），可查看该实例 logs/latest.log`); void cleanup(); });
+      child.once('exit', (code, signal) => { target?.onExit?.(); this.state(input.id, code === 0 ? 'exited' : 'failed', code === 0 ? '游戏已退出' : `游戏进程已退出（${signal || code}），可查看该实例 logs/latest.log`); void cleanup(); });
       await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', () => { this.state(input.id, 'failed', 'Java 进程启动失败，请检查所选 Java'); void cleanup(); reject(new Error('Java 进程启动失败，请检查所选 Java')); }); });
       if (this.runs.get(input.id).state === 'starting') this.state(input.id, 'running', '游戏进程已启动');
       return { started: true };

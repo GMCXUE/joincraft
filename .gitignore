@@ -31,3 +31,9 @@ release/
 # Native update helper build output (source in desktop/update-helper)
 /build-resources/generated/
 *.pem
+
+# Managed game component build cache
+/game-helper/**/.gradle/
+/game-helper/**/build/
+
+/game-helper/**/logs/

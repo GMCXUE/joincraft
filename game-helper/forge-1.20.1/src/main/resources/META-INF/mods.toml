@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[47,48)"
+license="All Rights Reserved"
+[[mods]]
+modId="joincraft_host"
+version="1.0.0"
+displayName="Joincraft Host Helper"
+description="Client-managed LAN hosting component. Loaded from a private Maven root."
+displayTest="IGNORE_ALL_VERSION"
+[[dependencies.joincraft_host]]
+modId="forge"
+mandatory=true
+versionRange="[47,48)"
+ordering="NONE"
+side="CLIENT"
+[[dependencies.joincraft_host]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1]"
+ordering="NONE"
+side="CLIENT"

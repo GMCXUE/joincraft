@@ -15,3 +15,6 @@ contextBridge.exposeInMainWorld('joincraftPacks',Object.freeze({transferVersion:
 
 // Shared DOM markers let every in-window surface reserve native window controls.
 window.addEventListener('DOMContentLoaded',()=>{document.documentElement.dataset.desktopPlatform=process.platform;});
+
+const playCall=name=>async input=>{const result=await ipcRenderer.invoke('play:'+name,input);if(!result.ok)throw Error(result.error);return result.value;};
+contextBridge.exposeInMainWorld('joincraftPlay',Object.freeze({version:1,select:playCall('select'),stop:playCall('stop'),state:playCall('state'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('play:event',listener);return()=>ipcRenderer.removeListener('play:event',listener);}}));

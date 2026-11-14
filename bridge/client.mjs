@@ -2,7 +2,8 @@ import net from 'node:net';
 import { WebSocket, createWebSocketStream } from 'ws';
 import { status } from './minecraft.mjs';
 
-export function startBridge({server,ticket,onState=()=>{}}) {
+export function startBridge({server,ticket,onState=()=>{},signal}) {
+  signal?.throwIfAborted();
   const url=new URL(server);
   const loopback=['127.0.0.1','localhost','[::1]'].includes(url.hostname);
   if((url.protocol!=='https:'&&!(url.protocol==='http:'&&loopback))||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('服务地址必须是 HTTPS；仅本机测试允许 HTTP');
@@ -13,7 +14,8 @@ export function startBridge({server,ticket,onState=()=>{}}) {
     const control=open('/bridge/control'),sockets=new Set(),streams=new Set();
     let listener,heartbeat,probe,stopped=false,settled=false,role='',gamePort=0,lastPing=Date.now(),busyProbe=false;
     const send=m=>{if(control.readyState===WebSocket.OPEN)control.send(JSON.stringify(m));};
-    const close=()=>{if(stopped)return;stopped=true;clearInterval(heartbeat);clearInterval(probe);listener?.close();for(const s of sockets)s.destroy();for(const s of streams)s.destroy();control.terminate();};
+    const close=()=>{if(stopped)return;stopped=true;signal?.removeEventListener('abort',abort);if(!settled){settled=true;reject(signal?.reason||Error('连接已取消'));}clearInterval(heartbeat);clearInterval(probe);listener?.close();for(const s of sockets)s.destroy();for(const s of streams)s.destroy();control.terminate();};
+    const abort=()=>close();signal?.addEventListener('abort',abort,{once:true});
     const failed=message=>{if(stopped)return;send({type:'error',message});onState({status:'error',message});if(!settled){settled=true;reject(Error(message));}setTimeout(close,100).unref();};
     const ready=address=>{if(stopped)return;send({type:'ready',...(role==='host'?{version:address}:{port:Number(address.split(':').at(-1))})});onState({status:'ready',role,address:role==='guest'?address:undefined,version:role==='host'?address:undefined});if(!settled){settled=true;resolve({role,address:role==='guest'?address:undefined,close});}};
     const connect=(socket,path)=>{
@@ -30,7 +32,7 @@ export function startBridge({server,ticket,onState=()=>{}}) {
       heartbeat=setInterval(()=>{if(Date.now()-lastPing>45000){failed('与联机服务失去连接，请回到网页重新连接');}},5000).unref();
     });
     control.on('error',()=>failed('连接服务失败，凭据可能已过期或已使用，请回到网页重新生成'));
-    control.on('close',()=>{if(stopped)return;close();if(!settled){settled=true;reject(Error('连接已关闭，请重新生成连接指令'));}else onState({status:'closed',message:'联机连接已结束'});});
+    control.on('close',()=>{if(stopped)return;const wasSettled=settled;close();if(wasSettled)onState({status:'closed',message:'联机连接已结束'});});
     control.on('message',async raw=>{
       try{
         const m=JSON.parse(raw.toString());
@@ -38,8 +40,8 @@ export function startBridge({server,ticket,onState=()=>{}}) {
           if(m.role!=='host'&&m.role!=='guest')throw Error('服务端角色无效');role=m.role;
           if(role==='host'){
             if(!Number.isInteger(m.port)||m.port<1024||m.port>65535)throw Error('游戏端口无效');gamePort=m.port;
-            const result=await status(gamePort);if(stopped)return;ready(result.version);
-            probe=setInterval(async()=>{if(busyProbe||stopped)return;busyProbe=true;try{await status(gamePort);}catch(e){failed(e.message);}finally{busyProbe=false;}},10000).unref();
+            const result=await status(gamePort,4000,signal);if(stopped)return;ready(result.version);
+            probe=setInterval(async()=>{if(busyProbe||stopped)return;busyProbe=true;try{await status(gamePort,4000,signal);}catch(e){failed(e.message);}finally{busyProbe=false;}},10000).unref();
           }else{
             listener=net.createServer({pauseOnConnect:true},socket=>{
               if(sockets.size>=8){socket.destroy();return;}connect(socket,'/bridge/data/new');

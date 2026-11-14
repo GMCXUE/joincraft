@@ -10,10 +10,12 @@ export function readVarint(buffer, offset=0) {
   throw Error('无效的 MC 数据包');
 }
 export const packet=body=>Buffer.concat([varint(body.length),body]);
-export function status(port, timeout=4000) {
+export function status(port, timeout=4000, signal) {
+  signal?.throwIfAborted();
   return new Promise((resolve,reject)=>{
     const socket=net.createConnection({host:'127.0.0.1',port});let buffer=Buffer.alloc(0),done=false;
-    const finish=(error,result)=>{if(done)return;done=true;socket.destroy();error?reject(error):resolve(result);};
+    const finish=(error,result)=>{if(done)return;done=true;signal?.removeEventListener('abort',abort);socket.destroy();error?reject(error):resolve(result);};
+    const abort=()=>finish(signal.reason||Error('已取消连接'));signal?.addEventListener('abort',abort,{once:true});
     socket.setTimeout(timeout,()=>finish(Error('MC 没有响应，请确认已开放局域网并填写正确端口')));
     socket.on('error',()=>finish(Error('无法连接 MC，请检查世界是否已开放局域网')));
     socket.on('end',()=>finish(Error('该端口没有返回 Java 版 MC 状态')));

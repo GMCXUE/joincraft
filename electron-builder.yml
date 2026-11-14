@@ -9,6 +9,8 @@ files:
   - desktop/**/*
   - launcher/**/*
   - shared/**/*
+  - bridge/client.mjs
+  - bridge/minecraft.mjs
   - public/launcher/**/*
   - public/pack-progress.*
   - public/desktop-notifications.*
@@ -30,6 +32,9 @@ files:
   - '!desktop/update-helper/**/*'
   - '!**/*.test.*'
   - '!**/*.map'
+extraResources:
+  - from: build-resources/generated/host-helper
+    to: host-helper
 extraMetadata:
   main: desktop/main.mjs
 artifactName: joincraft-${version}-${os}-${arch}.${ext}

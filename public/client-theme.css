@@ -192,3 +192,11 @@
 @media(max-width:600px) { :root.pixel-theme.client-theme .room-rail .user-avatar { width: 40px; height: 40px; min-height: 40px; border-radius: 10px; } }
 
 :root.pixel-theme.client-theme .profile-avatar-option > input:checked + span { background: #58c7cf14; border-color: var(--diamond-core); }
+
+/* World rows and tabs are navigation, using the same quiet selection as channels. */
+:root.pixel-theme.client-theme .instance-tabs>button{background:transparent;border:0;border-radius:0;box-shadow:none;padding:10px 2px 12px;color:var(--muted)}
+:root.pixel-theme.client-theme .instance-tabs>button[aria-pressed=true]{color:var(--text)}
+:root.pixel-theme.client-theme .world-row{background:transparent;border:1px solid transparent;border-bottom-color:var(--border);box-shadow:none;padding:12px;min-height:80px}
+:root.pixel-theme.client-theme .world-row:hover{background:#ffffff05}
+:root.pixel-theme.client-theme .world-row[aria-pressed=true]{background:#58c7cf0c;border-color:#58c7cf70}
+:root.pixel-theme.client-theme .world-row:disabled{opacity:.65}
