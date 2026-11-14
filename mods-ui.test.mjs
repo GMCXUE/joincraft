@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {filterMods} from './public/launcher/mods.js';
+const files=[{name:'Example',fileName:'x.jar',version:'1',enabled:true,status:'ready',warnings:[],mods:[{id:'test',name:'Example',authors:['Builder']}]},{name:'Broken',fileName:'b.jar.disabled',enabled:false,status:'broken',warnings:['损坏'],mods:[]}];
+test('mod search includes IDs, authors and file names; filters preserve file grouping',()=>{assert.equal(filterMods(files,'builder').length,1);assert.equal(filterMods(files,'test').length,1);assert.equal(filterMods(files,'','enabled').length,1);assert.equal(filterMods(files,'','warnings')[0].name,'Broken');assert.equal(filterMods(files,'missing').length,0);});

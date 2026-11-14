@@ -2,6 +2,7 @@ import '../focus.js';
 import {createLibraryReturn} from './navigation.js';
 import {mountLibraryExperience,launchPresentation} from './experience.js';
 const experience=mountLibraryExperience();
+import {mountMods} from './mods.js';
 import {mountWorlds} from './worlds.js';
 import {mountPackInstaller} from './packs.js';
 import {miningFeedback,animatePage} from '../motion.js';
@@ -19,7 +20,7 @@ function message(error) { $('#message').hidden = !error; text('#message', error?
 function item() { return state.instances.find(i => i.id === state.selected); }
 const playerRoot=()=>item()?.root||state.root;
 const prefKey = selected => `${selected.root}/${selected.version}`;
-let worldUI=null,homeOpen=null,initialized=false;
+let modsUI=null,worldUI=null,homeOpen=null,initialized=false;
 const memoryUI=createMemoryControls({api,locked:()=>state.busy||state.runs.some(r=>['checking','starting','running'].includes(r.state)),getRun:()=>state.runs.find(r=>r.id===state.selected),onChange:()=>remember(),onRefresh:()=>controls()});
 window.addEventListener('beforeunload',()=>memoryUI.dispose());
 function remember() {
@@ -71,7 +72,7 @@ function controls() {
   $('#launch').disabled = $('#check').disabled || state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test(state.gameIdentity?.name||'') || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
   for (const id of ['#directory-mode','#jvm-args','#game-args','#window-mode','#save-launch-settings']) $(id).disabled = state.busy || running;
   $('#directory-mode').disabled ||= !!selected?.managed;
-  worldUI?.setLocked(running||state.busy);
+  worldUI?.setLocked(running||state.busy);modsUI?.setLocked(running||state.busy);if(worldUI?.tab==='mods')void modsUI?.load(selected);
   memoryUI.sync();
   const blocked=!selected||!api||running||state.busy?'':selected.error?'请先修复实例配置':!state.javaPath?'选择 Java 运行环境后即可启动':state.accountMode==='microsoft'&&!state.account.profile?'回首页登录微软账号后即可启动':!memoryUI.canLaunch()?'请检查内存分配提示':state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test(state.gameIdentity?.name||'')?'回首页设置离线玩家名':'';
   text('#launch-hint',blocked);
@@ -122,6 +123,7 @@ function render() {
   }
   renderJava();renderAccount();void worldUI?.load(selected);
 }
+modsUI=mountMods({api,onError:message});
 worldUI=mountWorlds({api,onChange:controls,onError:message});
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});

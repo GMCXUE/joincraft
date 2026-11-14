@@ -25,7 +25,7 @@ export function mountWorlds({api,onChange=()=>{},onError=()=>{}}){
  const $=s=>document.querySelector(s);let tab='settings',listId=null;
  const mode=world=>world.hardcore?'极限模式':['生存','创造','冒险','旁观'][world.gameMode]||'未知模式';
  const model=createWorldSelection({read:api?input=>api.worlds(input):null,onChange:render,onError});
- function setTab(value){if(tab===value)return;const direction=value==='worlds'?1:-1;tab=value;$('#launch-settings').hidden=value!=='settings';$('#worlds-panel').hidden=value!=='worlds';for(const name of ['settings','worlds'])$('#'+name+'-tab').setAttribute('aria-pressed',String(name===value));revealClientPanel($('#instance-content'),{direction});onChange();}
+ function setTab(value){if(tab===value)return;const direction=value==='worlds'?1:-1;tab=value;$('#launch-settings').hidden=value!=='settings';$('#worlds-panel').hidden=value!=='worlds';$('#mods-panel').hidden=value!=='mods';for(const name of ['settings','worlds','mods'])$('#'+name+'-tab').setAttribute('aria-pressed',String(name===value));revealClientPanel($('#instance-content'),{direction});onChange();}
  function render(state){
   const {worlds,loading,locked,selected}=state;
   $('#world-count').textContent=worlds.length?String(worlds.length):'';
@@ -50,6 +50,6 @@ export function mountWorlds({api,onChange=()=>{},onError=()=>{}}){
   if(listId!==state.id&&!loading&&worlds.length){listId=state.id;revealClientPanel(list);}
   onChange();
  }
- $('#settings-tab').onclick=()=>setTab('settings');$('#worlds-tab').onclick=()=>setTab('worlds');$('#refresh-worlds').onclick=()=>model.load({id:model.state.id},{force:true});
+ $('#mods-tab').onclick=()=>setTab('mods');$('#settings-tab').onclick=()=>setTab('settings');$('#worlds-tab').onclick=()=>setTab('worlds');$('#refresh-worlds').onclick=()=>model.load({id:model.state.id},{force:true});
  return {load:model.load,setTab,setLocked:model.setLocked,get tab(){return tab;},get selected(){return model.state.selected;},get selectedWorld(){return model.state.worlds.find(world=>world.id===model.state.selected);},get loading(){return model.state.loading;}};
 }

@@ -29,6 +29,7 @@ import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
 import {LauncherHome,returnToHome} from './home.mjs';
+import {ManagedMods} from '../launcher/mods.mjs';
 import {launchSettings} from '../launcher/launch-settings.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
@@ -45,7 +46,7 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
+let mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
 const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy);
@@ -198,6 +199,8 @@ else {
   handle('retry-pack',()=>{if(!lastPackInput)throw Error('请重新导入整合包');return installPack(lastPackInput.buffer,lastPackInput.sha512);});
   handle('pick-install-root',async()=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或整合包任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择 Joincraft 安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
+  mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit});
+  handle('mods-list',input=>mods.list(input));
   handle('worlds',input=>worlds.list(input?.id));
   handle('play-stop',()=>gamePlay.stop());
   handle('play-clear',()=>gamePlay.clear());
