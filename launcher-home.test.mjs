@@ -56,3 +56,9 @@ test('home Microsoft login shows the official device code then a credential-free
  const f=fixture();let profile=null,busy=false,finish;f.home.account={summary:()=>({configured:true,profile,busy}),login:async()=>{busy=true;f.home.setDeviceCode({code:'ABCD-EFGH',url:'https://untrusted.invalid'});await new Promise(resolve=>finish=resolve);busy=false;profile={name:'OnlineBuilder',id:'PRIVATE',accessToken:'SECRET'};},logout:async()=>{profile=null;}};
  const login=f.home.login();assert.equal(f.home.state().account.deviceCode,'ABCD-EFGH');assert(!/untrusted|SECRET|PRIVATE/.test(JSON.stringify(f.home.state())));finish();await login;assert.equal(f.home.state().account.name,'OnlineBuilder');assert.equal(f.home.state().account.mode,'microsoft');assert.equal(f.home.state().account.deviceCode,null);assert(!/SECRET|PRIVATE/.test(JSON.stringify(f.home.state())));await f.home.logout();assert.equal(f.home.state().account.ready,false);
 });
+
+
+test('advanced settings persist per instance and homepage launch ignores remotely supplied overrides',async()=>{
+ const f=fixture();await f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto',jvmArgs:'-XX:+UseG1GC',gameArgs:'--custom value',windowMode:'1600x900'});await f.home.start({id:'one',jvmArgs:'-jar untrusted.jar'});assert.equal(f.calls.at(-1)[1].jvmArgs,'-XX:+UseG1GC');assert.equal(f.calls.at(-1)[1].windowMode,'1600x900');assert(!JSON.stringify(f.home.state()).includes('UseG1GC'));
+ const previous=JSON.stringify(f.prefs);await assert.rejects(f.home.remember({id:'one',accountMode:'offline',name:'Builder',memoryMode:'auto',jvmArgs:'-Xmx4G'}));assert.equal(JSON.stringify(f.prefs),previous);
+});

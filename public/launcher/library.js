@@ -30,10 +30,10 @@ function remember() {
   preferences.accountMode = state.accountMode;
   preferences.connectionMode=$('#connection-mode').value;
   preferences.instances ||= {};
-  preferences.instances[prefKey(selected)] = { ...memoryUI.preferences(), mode: $('#directory-mode').value };
+  preferences.instances[prefKey(selected)] = { ...memoryUI.preferences(),jvmArgs:$('#jvm-args').value,gameArgs:$('#game-args').value,windowMode:$('#window-mode').value, mode: $('#directory-mode').value };
   try { localStorage.setItem('blockroom-launcher-preferences', JSON.stringify(preferences)); } catch {}
 }
-function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), connectionMode:$('#connection-mode').value,id: state.selected, name:state.gameIdentity?.name||'', accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
+function input() { return {...((worldUI?.tab==='worlds'||state.play?.context?.role==='host')&&worldUI?.selected?{worldId:worldUI.selected}:{}),...(state.play?.context?.role==='host'?{port:Number($('#host-port').value)}:{}), connectionMode:$('#connection-mode').value,id: state.selected,jvmArgs:$('#jvm-args').value,gameArgs:$('#game-args').value,windowMode:$('#window-mode').value,name:state.gameIdentity?.name||'', accountMode: state.accountMode, ...memoryUI.request(), mode: $('#directory-mode').value }; }
 function pathLabel() {
   const selected = item(); if (!selected) return;
   const mode = $('#directory-mode').value === 'auto' ? selected.isolation?.mode : $('#directory-mode').value;
@@ -69,7 +69,7 @@ function controls() {
   $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
   $('#launch').disabled = $('#check').disabled || state.accountMode==='offline'&&!/^[A-Za-z0-9_]{3,16}$/.test(state.gameIdentity?.name||'') || !memoryUI.canLaunch() || (state.accountMode === 'microsoft' && !state.account.profile);
-  for (const id of ['#directory-mode']) $(id).disabled = state.busy || running;
+  for (const id of ['#directory-mode','#jvm-args','#game-args','#window-mode','#save-launch-settings']) $(id).disabled = state.busy || running;
   $('#directory-mode').disabled ||= !!selected?.managed;
   worldUI?.setLocked(running||state.busy);
   memoryUI.sync();
@@ -112,7 +112,8 @@ function render() {
     text('#pack-name', selected.name); text('#pack-icon', selected.name.slice(0, 2).toUpperCase());
     text('#pack-meta', selected.error ? '已安装实例' : `${selected.loader} / ${selected.minecraft}`);
     text('#isolation-hint', selected.isolation?.mode === 'unknown' ? '请选择游戏目录' : '');
-    const saved = preferences.instances?.[prefKey(selected)];
+    const native=state.launchInputs?.[selected.id],saved=preferences.instances?.[prefKey(selected)]||native&&{...native,memory:native.memoryMB};
+    for(const [selector,value]of [['#jvm-args',saved?.jvmArgs||''],['#game-args',saved?.gameArgs||''],['#window-mode',saved?.windowMode||'default']])$(selector).value=value;
     $('#directory-mode').options[0].textContent=selected.managed?'独立实例目录':'跟随识别结果';
     $('#directory-mode').value=selected.managed?'auto':['auto','shared','isolated'].includes(saved?.mode)?saved.mode:'auto';
     memoryUI.restore(saved);
@@ -125,12 +126,14 @@ worldUI=mountWorlds({api,onChange:controls,onError:message});
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
 function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
-function applyHomeOpen(event){if(event.gameIdentity){state.gameIdentity=event.gameIdentity;state.accountMode=event.gameIdentity.accountMode;}if(event.javaPath)state.javaPath=event.javaPath;if(event.id)state.selected=event.id;if(event.accountMode)state.accountMode=event.accountMode;render();worldUI.setTab('settings');remember();$('#java-select').focus({preventScroll:true});$('#instance-content').scrollTop=0;}
+function applyHomeOpen(event){if(event.gameIdentity){state.gameIdentity=event.gameIdentity;state.accountMode=event.gameIdentity.accountMode;}if(event.settings){state.launchInputs||={};state.launchInputs[event.id]=event.settings;}if(event.javaPath)state.javaPath=event.javaPath;if(event.id)state.selected=event.id;if(event.accountMode)state.accountMode=event.accountMode;render();worldUI.setTab('settings');remember();$('#java-select').focus({preventScroll:true});$('#instance-content').scrollTop=0;}
 async function action(fn,operation='change') { if(state.busy)return;message(null); state.busy = true;state.operation=operation; controls(); try { await fn(); } catch (e) { libraryScanMotion?.fail(e);libraryScanMotion=null;message(e); } finally { state.busy = false;state.operation=null; controls(); } }
 $('#pick-java').onclick = () => action(async () => { const java = await api.pickJava(); if(java)setJava(java); });
 $('#scan-java').onclick=scanJava;
 $('#java-select').onchange=()=>action(async()=>{const selected=$('#java-select').value;if(!selected){renderJava();return;}try{setJava(await api.selectJava(selected));}catch(error){renderJava();throw error;}});
 $('#connection-mode').onchange=async()=>{const previous=state.connectionMode||'auto',value=$('#connection-mode').value;$('#connection-mode').disabled=true;try{if(typeof api?.setConnectionMode!=='function')throw Error('请更新客户端后使用联机设置');await api.setConnectionMode(value);state.connectionMode=value;remember();message(null);}catch(error){$('#connection-mode').value=previous;message(error);}finally{controls();}};
+for(const selector of ['#jvm-args','#game-args','#window-mode'])$(selector).addEventListener('input',()=>{remember();text('#launch-settings-result','');});
+$('#save-launch-settings').onclick=()=>action(async()=>{await api.saveLaunchSettings(input());remember();text('#launch-settings-result','已保存');},'save');
 $('#directory-mode').onchange = () => { pathLabel(); remember(); };
 $('#check').onclick = () => action(async () => { const result = await api.check(input()); text('#check-result', `${result.files} 个文件校验通过${result.accountReady ? '，可以启动' : '，还需登录微软账号'}`); text('#game-path', result.gamePath); },'check');
 $('#launch').onclick = () => action(async () => { await api.start(input()); text('#check-result', '已创建游戏进程，等待游戏窗口打开'); },'launch');

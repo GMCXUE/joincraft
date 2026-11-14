@@ -1,3 +1,4 @@
+import {launchSettings} from '../launcher/launch-settings.mjs';
 export async function returnToHome({showHome,remember,onSaveError=()=>{}},input){
   showHome();
   if(!input)return {returned:true};
@@ -46,8 +47,8 @@ export class LauncherHome {
     this.owned(input?.id);
     if(!['offline','microsoft'].includes(input.accountMode)||typeof input.name!=='string'||input.name.length>16||!['auto','custom'].includes(input.memoryMode)||input.memoryMode==='custom'&&(!Number.isInteger(input.memoryMB)||input.memoryMB<512||input.memoryMB>1048576))throw Error('启动设置无效');
     const previous=this.prefs.managedLaunchInputs,previousId=this.prefs.homeInstance,previousJava=this.prefs.managedJavaPaths;
-    const identity=this.prefs.gameIdentity||{accountMode:input.accountMode,name:input.name.trim()};
-    this.prefs.managedLaunchInputs={...previous,[input.id]:{...identity,memoryMode:input.memoryMode,memoryMB:input.memoryMode==='auto'?4096:input.memoryMB,mode:'auto'}};
+    const identity=this.prefs.gameIdentity||{accountMode:input.accountMode,name:input.name.trim()},advanced=launchSettings(input);
+    this.prefs.managedLaunchInputs={...previous,[input.id]:{...identity,...advanced,memoryMode:input.memoryMode,memoryMB:input.memoryMode==='auto'?4096:input.memoryMB,mode:'auto'}};
     this.prefs.homeInstance=input.id;
     if(this.launcher.javaPath)this.prefs.managedJavaPaths={...previousJava,[input.id]:this.launcher.javaPath};
     try{await this.save();}catch(error){this.prefs.managedLaunchInputs=previous;this.prefs.homeInstance=previousId;this.prefs.managedJavaPaths=previousJava;throw error;}
@@ -63,7 +64,7 @@ export class LauncherHome {
       if(this.gamePlay.context)this.gamePlay.clear();
       this.setSelected(id);this.launcher.javaPath=this.prefs.managedJavaPaths?.[id]||instance.javaPath||this.launcher.javaPath;
       const {accountMode,name,memoryMode,memoryMB}=input;
-      await this.launcher.start({id,accountMode,name,memoryMode,memoryMB,mode:'auto'});return {started:true};
+      await this.launcher.start({id,accountMode,name,memoryMode,memoryMB,mode:'auto',...launchSettings(input)});return {started:true};
     }finally{this.pending=false;this.changed();}
   }
 }

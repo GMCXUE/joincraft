@@ -9,6 +9,7 @@ import { generateArguments, getPlatform, LaunchPrecheck, MinecraftFolder } from 
 import { inside, resolveInstance, isolationFor } from './library.mjs';
 import { offlineIdentity } from './auth.mjs';
 import {readSystemMemory,resolveMemory} from './memory.mjs';
+import {compileLaunchSettings} from './launch-settings.mjs';
 import {resolveLogging,prepareLogging} from './logging.mjs';
 
 export function parseJava(text) {
@@ -65,7 +66,7 @@ export async function validateFiles(root, version, {signal}={}) {
   return files.length;
 }
 
-export async function buildPlan({ instance, java, memoryMB, mode, identity, cacheDir, platform = getPlatform() }) {
+export async function buildPlan({ instance, java, memoryMB, mode, identity, cacheDir, platform = getPlatform(),settings={} }) {
   if (!Number.isInteger(memoryMB) || memoryMB < 512 || memoryMB > Math.floor(os.totalmem() / 1048576)) throw new Error('内存必须在 512 MB 与本机物理内存上限之间');
   const { version, hierarchy } = await resolveInstance(instance, platform);
   const isolation = await isolationFor(instance.root, instance.version, hierarchy);
@@ -81,7 +82,8 @@ export async function buildPlan({ instance, java, memoryMB, mode, identity, cach
   // can also be tested on macOS without executing a cross-platform command.
   const separator = platform.name === 'windows' ? ';' : ':';
   const classpath = [...version.libraries.filter(l => !l.isNative).map(l => inside(path.join(instance.root, 'libraries'), l.download.path)), path.join(instance.root, 'versions', version.minecraftVersion, `${version.minecraftVersion}.jar`)].join(separator);
-  const options = { javaPath: java.path, gamePath, resourcePath: instance.root, version: { ...version, logging: undefined }, platform, nativeRoot, maxMemory: memoryMB, minMemory: Math.min(512, memoryMB), gameProfile: { id: identity.id, name: identity.name }, accessToken: identity.accessToken, userType: identity.userType, launcherName: 'joincraft', launcherBrand: '0.9.0', extraJVMArgs: logging ? [logging.argument] : [], features: { blockroom_values: { clientid: identity.clientId || '0', auth_xuid: identity.xuid || '0', classpath, classpath_separator: separator } } };
+  const advanced=compileLaunchSettings(settings);
+  const options = { ...advanced,javaPath: java.path, gamePath, resourcePath: instance.root, version: { ...version, logging: undefined }, platform, nativeRoot, maxMemory: memoryMB, minMemory: Math.min(512, memoryMB), gameProfile: { id: identity.id, name: identity.name }, accessToken: identity.accessToken, userType: identity.userType, launcherName: 'joincraft', launcherBrand: '0.9.0', extraJVMArgs: [...advanced.extraJVMArgs,...(logging?[logging.argument]:[])], features: { blockroom_values: { clientid: identity.clientId || '0', auth_xuid: identity.xuid || '0', classpath, classpath_separator: separator } } };
   const argv = await generateArguments(options);
   if (argv.some(arg => /\$\{[^}]+\}/.test(arg))) throw new Error('此实例包含尚未支持的启动参数，请通过 PCL 启动');
   if (argv.some(arg => arg.includes('\0'))) throw new Error('启动参数包含无效字符');
@@ -109,7 +111,7 @@ export class GameLauncher {
     // Checking files never opens Microsoft sign-in or creates a game process.
     const identity = input.accountMode === 'offline' ? offlineIdentity(input.name) : realLaunch ? await this.account.forLaunch() : { name: 'AccountCheck', id: '00000000000000000000000000000000', accessToken: '0', userType: 'msa', clientId: this.account.clientId || '0', xuid: '0' };
     const java = await this.probe(this.javaPath);
-    try { return await buildPlan({ instance, java, memoryMB: resolveMemory(input,await this.memoryProvider()), mode: input.mode, identity, cacheDir: this.cacheDir, platform: this.platform }); }
+    try { return await buildPlan({ instance, java, memoryMB: resolveMemory(input,await this.memoryProvider()), mode: input.mode, identity, cacheDir: this.cacheDir, platform: this.platform,settings:input }); }
     catch(error){if(instance.managed&&/PCL/.test(error.message))throw new Error(error.message.replace(/请先在 PCL 中补齐|请先在 PCL 中修复该实例|请先在 PCL 中修复该实例/g,'请重新安装此整合包，旧实例和存档会保留'));throw error;}
   }
   async check(input) {

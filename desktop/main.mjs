@@ -29,6 +29,7 @@ import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
 import {LauncherHome,returnToHome} from './home.mjs';
+import {launchSettings} from '../launcher/launch-settings.mjs';
 import {readSystemMemory} from '../launcher/memory.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -184,7 +185,7 @@ else {
   launcherHome=new LauncherHome({library,prefs,launcher,account,gamePlay,getSelected:()=>managedSelection,setSelected:id=>{managedSelection=id;},save,identityChanged:()=>emit({type:'game-identity',identity:launcherHome.launchIdentity()}),packBusy:anyPackBusy,assertCanLaunch:()=>clientUpdater.assertCanLaunch(),changed:()=>{if(alive(roomWindow))roomWindow.webContents.send('home:changed');},openSettings:async input=>{
     if(!gamePlay.active&&gamePlay.context)gamePlay.clear();
     if(input.id){managedSelection=input.id;const instance=library.get(input.id);if(instance)launcher.javaPath=prefs.managedJavaPaths?.[instance.id]||instance.javaPath||launcher.javaPath;}
-    await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath,gameIdentity:launcherHome.launchIdentity()});
+    await openLibrary();emit({type:'home-open',...input,javaPath:launcher.javaPath,gameIdentity:launcherHome.launchIdentity(),settings:prefs.managedLaunchInputs?.[input.id]});
   }});
   for(const action of ['state','select','configure','start','identity','login','logout','microsoft-page'])ipcMain.handle('home:'+action,async(event,input)=>{
     try{if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本机启动首页');return {ok:true,value:action==='microsoft-page'?await shell.openExternal('https://www.microsoft.com/devicelogin'):await launcherHome[action](input)};}
@@ -201,7 +202,7 @@ else {
   handle('play-stop',()=>gamePlay.stop());
   handle('play-clear',()=>gamePlay.clear());
   handle('connection-mode',async value=>{if(!['auto','relay'].includes(value))throw Error('联机方式无效');if(gamePlay.active)throw Error('请先停止联机再更改连接方式');const previous=prefs.connectionMode;prefs.connectionMode=value;try{await save();}catch(error){prefs.connectionMode=previous;throw error;}return value;});
-  handle('state', async () => ({ gameIdentity:launcherHome.launchIdentity(),connectionMode:prefs.connectionMode||'auto',memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
+  handle('state', async () => ({ launchInputs:prefs.managedLaunchInputs||{},gameIdentity:launcherHome.launchIdentity(),connectionMode:prefs.connectionMode||'auto',memory:await readSystemMemory(), play:gamePlay.state(), root: managedPacks.root, managedRoot:managedPacks.root,install:packState(),selectedInstance:managedSelection, instances: [...library.values()], javaPath: launcher.javaPath, account: account.summary(), runs: launcher.states(), roomURL: serverURL(), javaInstallations, arch:process.arch }));
   const assertIdle=()=>{if(launcher.states().some(r=>['checking','starting','running'].includes(r.state)))throw new Error('请先退出当前游戏，再切换 Java');};
   handle('scan-java',()=>{
     if(!javaScan)javaScan=discoverJava({root:managedPacks.root,savedPath:launcher.javaPath,externalRuntimes:false}).then(found=>{javaInstallations=found;return found;}).finally(()=>{javaScan=null;});
@@ -220,7 +221,7 @@ else {
     javaInstallations=[java,...javaInstallations.filter(item=>item.path!==java.path)];return java;
   });
   handle('check', input => launcher.check(input));
-  handle('start', async input => {input={...input,...launcherHome.launchIdentity()};clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
+  handle('start', async input => {input={...input,...launcherHome.launchIdentity()};clientUpdater.assertCanLaunch();if(anyPackBusy())throw Error('请等待当前整合包任务完成');const result=gamePlay.context||input.worldId?await gamePlay.launch(input,{worldId:input.worldId,port:input.port}):await launcher.start(input);if(library.get(input.id)?.managed){prefs.managedJavaPaths={...prefs.managedJavaPaths,[input.id]:launcher.javaPath};prefs.managedLaunchInputs||={};prefs.managedLaunchInputs[input.id]={...launchSettings(input),accountMode:input.accountMode,name:input.name,memoryMode:input.memoryMode,memoryMB:input.memoryMB,mode:'auto',connectionMode:input.connectionMode||'auto'};await save();}return result;});
   handle('login', () => account.login());
   handle('logout', () => account.logout());
   handle('microsoft-page', () => shell.openExternal('https://www.microsoft.com/devicelogin'));
