@@ -55,3 +55,13 @@ test('integrated room flow keeps install and repair actions for missing and chan
 test('legacy clients keep their standalone game entry',async t=>{
  const f=fixture(t);let opened=0;f.native.open=async()=>{opened++;return {started:true};};const pending=f.ui.handle('pack-start',null,f.room);f.requests[0].resolve({status:'ready'});await pending;assert.equal(opened,1);assert.match(f.ui.panel(f.room),/启动游戏/);
 });
+
+test('editable room publishing requires explicit revision confirmation',async t=>{
+ const f=fixture(t),calls=[];f.native.transferVersion=2;f.native.revisionVersion=1;f.native.choose=async()=>({revision:{snapshotId:'snapshot',versionId:'2',diff:{added:[],removed:[],changed:[]},candidates:[]}});f.native.export=async input=>{calls.push(['export',input.versionId]);return {draftId:'draft'};};f.native.publish=async input=>{calls.push(['publish',input.expected]);};
+ await f.ui.handle('pack-publish',{dataset:{packId:'custom'}},f.room);assert.deepEqual(calls,[]);
+ globalThis.document.querySelector=selector=>selector==='#pack-revision-name'?{value:'2'}:null;
+ await f.ui.handle('pack-export-confirm',null,f.room);assert.deepEqual(calls,[['export','2'],['publish',f.room.pack.sha512]]);
+});
+test('member sync previews differences and stale room revisions cannot install',async t=>{
+ const f=fixture(t,{integratedPlay:true}),calls=[];f.native.transferVersion=2;f.native.revisionVersion=1;f.native.difference=async()=>({pack:f.room.pack,added:[{path:'mods/a.jar'}],removed:[],changed:[]});f.native.installFromRoom=async()=>calls.push('install');const pending=f.ui.handle('pack-start',null,f.room);f.requests[0].resolve({status:'missing'});await pending;assert.deepEqual(calls,[]);f.room.pack={...f.room.pack,sha512:'b'.repeat(128)};await f.ui.handle('pack-sync-confirm',null,f.room);assert.deepEqual(calls,[]);assert(f.toasts.includes('房间版本已变化，请重新查看差异'));
+});

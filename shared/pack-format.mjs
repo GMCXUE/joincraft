@@ -42,7 +42,8 @@ export function inspectIndex(index){
     return {path:filePath,hashes:{sha1:file.hashes.sha1.toLowerCase(),sha512:file.hashes.sha512.toLowerCase()},size:file.fileSize,downloads,client};
   }).filter(file=>file.client!=='unsupported');
   if(totalBytes>20*1024**3)throw Error('整合包超过首版 20 GB 安装上限');
-  return {name,versionId,minecraft,loader,loaderKey,loaderVersion,files,totalBytes};
+  const base=index.joincraft?.baseSha512;if(base!==undefined&&!/^[a-f0-9]{128}$/.test(base))throw Error('整合包来源版本无效');
+  return {name,versionId,minecraft,loader,loaderKey,loaderVersion,files,totalBytes,...(base?{baseSha512:base}:{})};
 }
 export async function archiveSize(source){
   const size=Buffer.isBuffer(source)?source.length:typeof source==='string'?await stat(source).then(info=>info.isFile()?info.size:0):0;
@@ -100,5 +101,5 @@ export async function extractMrpackOverrides(source,entries,root,{signal,onProgr
     if(written!==entries.length)throw Error('整合包缺少内置文件');
   }finally{zip.close();}
 }
-export function packSummary(pack){const {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes}=pack;return {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes};}
+export function packSummary(pack){const {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes}=pack;return {sha512,name,versionId,minecraft,loader,loaderVersion,archiveSize,totalBytes,...(pack.baseSha512?{baseSha512:pack.baseSha512}:{})};}
 export function destination(root,relative){return path.join(root,...packPath(relative).split('/'));}

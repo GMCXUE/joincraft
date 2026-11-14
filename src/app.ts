@@ -199,6 +199,7 @@ export async function createApp(options: AppOptions = {}) {
   app.put<{Params:{id:string;upload:string};Querystring:{offset?:string}}>('/api/rooms/:id/pack/uploads/:upload/chunk',{bodyLimit:UPLOAD_CHUNK_BYTES},async request=>packs.chunk(actor(request),request.params.id,request.params.upload,request.query.offset,request.body as Readable,request.headers['content-length'],request.headers['x-chunk-sha256']));
   app.post<{Params:{id:string;upload:string}}>('/api/rooms/:id/pack/uploads/:upload/commit',async request=>{object(request.body);return packs.commit(actor(request),request.params.id,request.params.upload);});
   app.post<{Params:{id:string;upload:string}}>('/api/rooms/:id/pack/uploads/:upload/cancel',async request=>{object(request.body);return packs.cancelUpload(actor(request),request.params.id,request.params.upload);});
+  app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack/manifest',async request=>packs.manifest(actor(request),request.params.id,request.query.sha512));
   app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack/meta',async request=>packs.descriptor(actor(request),request.params.id,request.query.sha512));
   app.get<{Params:{id:string};Querystring:{sha512?:string}}>('/api/rooms/:id/pack/archive',async(request,reply)=>{
     const result=await packs.archive(actor(request),request.params.id,request.query.sha512,request.headers.range);

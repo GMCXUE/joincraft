@@ -1,6 +1,6 @@
 import {renderInstallProgress,formatBytes} from './pack-progress.js';
 export function createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,getRoom,getSession=()=>null}){
-  const native=window.joincraftPacks,integratedPlay=window.joincraftPlay?.version===1,statuses=new Map();let progress={state:'idle'},busy=false,loadingKey=null,pendingPublish=null,statusRevision=0,progressRevision=0;
+  const native=window.joincraftPacks,integratedPlay=window.joincraftPlay?.version===1,statuses=new Map();let progress={state:'idle'},busy=false,loadingKey=null,pendingPublish=null,statusRevision=0,progressRevision=0,pendingExport=null,pendingInstall=null;
   const key=room=>room.id+'/'+room.pack?.sha512;
   function panel(room){
     if(!native)return '';
@@ -21,15 +21,28 @@ export function createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,get
   }
   async function choose(room){
     const local=await native.list();
-    smallDialog('设置房间整合包','<p class="dialog-description">选择已安装的整合包，或导入 .mrpack / .zip 文件。</p><div id="room-pack-modal-progress" hidden></div><div class="room-pack-options">'+local.map(item=>'<button class="button room-pack-option" data-action="pack-publish" data-pack-id="'+escape(item.id)+'"><strong>'+escape(item.pack.name)+'</strong><span>'+escape(item.pack.versionId)+' · '+escape(item.pack.loader)+'</span></button>').join('')+'</div><button class="button primary full" data-action="pack-publish">'+icon('plus')+'选择整合包文件</button><p class="dialog-footnote">'+(native.transferVersion===2?'支持含 Modrinth 清单的 ZIP，最大 600 MB；模组由客户端下载。':'更新客户端后可支持最大 600 MB 的整合包。')+'</p>'+(room.pack?'<button class="text-button danger-text" data-action="pack-remove">解除房间绑定</button>':''));
+    smallDialog('设置房间整合包','<p class="dialog-description">选择已安装的整合包，或导入 .mrpack / .zip 文件。</p><div id="room-pack-modal-progress" hidden></div><div class="room-pack-options">'+local.map(item=>'<button class="button room-pack-option" data-action="pack-publish" data-pack-id="'+escape(item.id)+'"><strong>'+escape(item.pack.name)+'</strong><span>'+escape(item.pack.versionId)+' · '+escape(item.pack.loader)+(item.editable?' · 编辑副本':'')+'</span></button>').join('')+'</div><button class="button primary full" data-action="pack-publish">'+icon('plus')+'选择整合包文件</button><p class="dialog-footnote">'+(native.transferVersion===2?'支持含 Modrinth 清单的 ZIP，最大 600 MB；模组由客户端下载。':'更新客户端后可支持最大 600 MB 的整合包。')+'</p>'+(room.pack?'<button class="text-button danger-text" data-action="pack-remove">解除房间绑定</button>':''));
   }
   async function handle(action,target,room){
     if(!native||!room||busy)return;busy=true;if(target)target.disabled=true;
     try{
       if(action==='pack-choose'){await choose(room);return;}
       if(action==='pack-check'){statusRevision++;statuses.delete(key(room));loadingKey=null;await sync(room);return;}
+      if(action==='pack-export-confirm'){
+        if(!pendingExport||pendingExport.roomId!==room.id)throw Error('请重新选择编辑副本');
+        const chosen=await native.export({snapshotId:pendingExport.snapshotId,versionId:document.querySelector('#pack-revision-name').value,include:[...document.querySelectorAll('[data-pack-config]:checked')].map(e=>e.value)});
+        pendingPublish={roomId:room.id,draftId:chosen.draftId,expected:pendingExport.expected};document.querySelector('#small-dialog')?.close();await native.publish({...pendingPublish,token:getSession()});statuses.clear();await refresh(true);toast('房间新版本已发布');return;
+      }
+      if(action==='pack-sync-confirm'){
+        if(!pendingInstall||pendingInstall.roomId!==room.id||pendingInstall.sha512!==room.pack?.sha512)throw Error('房间版本已变化，请重新查看差异');document.querySelector('#small-dialog')?.close();await native.installFromRoom({...pendingInstall,token:getSession()});statuses.delete(key(room));pendingInstall=null;await refresh(true);toast('整合包已同步，旧实例及存档保留');return;
+      }
       if(action==='pack-publish'){
         const chosen=await native.choose(target?.dataset.packId?{id:target.dataset.packId}:{});if(!chosen)return;
+        if(chosen.revision&&native.revisionVersion===1){
+          const revision=chosen.revision;pendingExport={roomId:room.id,snapshotId:revision.snapshotId,expected:room.pack?.sha512??null};
+          const changes=Object.entries(revision.diff).flatMap(([kind,files])=>files.map(f=>'<li>'+({added:'新增',removed:'移除',changed:'更新'})[kind]+' · '+escape(f.path)+'</li>')).join('');
+          smallDialog('发布整合包新版本','<label for="pack-revision-name">版本名称</label><input id="pack-revision-name" maxlength="100" value="'+escape(revision.versionId)+'"><ul class="pack-revision-files">'+(changes||'<li>模组与原版本一致</li>')+'</ul>'+(revision.candidates.length?'<details><summary>新增配置与脚本（'+revision.candidates.length+'）</summary>'+revision.candidates.map(p=>'<label class="pack-config-choice"><input type="checkbox" data-pack-config value="'+escape(p)+'">'+escape(p)+'</label>').join('')+'</details>':'')+'<p class="dialog-description">发布后成员可同步此版本，存档和账号数据不会上传。</p><button class="button primary full" data-action="pack-export-confirm">确认发布新版本</button>');return;
+        }
         if(native.transferVersion===2){pendingPublish={roomId:room.id,draftId:chosen.draftId,expected:room.pack?.sha512??null};document.querySelector('#small-dialog')?.close();await native.publish({...pendingPublish,token:getSession()});}else await api('/api/rooms/'+room.id+'/pack',{archive:chosen.archive,expected:room.pack?.sha512??null});
         document.querySelector('#small-dialog')?.close();await refresh(true);toast('房间整合包已设置');return;
       }
@@ -39,6 +52,7 @@ export function createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,get
       if(action==='pack-start'){
         const revision=statusRevision,status=await native.status({sha512:room.pack.sha512});if(revision!==statusRevision){await sync(room);return;}statuses.set(key(room),status);
         if(status.status==='ready'){if(integratedPlay){await refresh(true);return;}const opened=await native.open({sha512:room.pack.sha512});if(opened.started)toast('游戏已启动');return;}
+        if(native.revisionVersion===1){const diff=await native.difference({roomId:room.id,sha512:room.pack.sha512,token:getSession()});pendingInstall={roomId:room.id,sha512:room.pack.sha512};const rows=Object.entries({added:diff.added,removed:diff.removed,changed:diff.changed}).flatMap(([kind,files])=>files.map(f=>'<li>'+({added:'新增',removed:'移除',changed:'更新'})[kind]+' · '+escape(f.path)+'</li>')).join('');smallDialog('同步房间整合包','<p class="dialog-description">'+escape(diff.pack.versionId)+(diff.previous?' · 当前本地版本 '+escape(diff.previous):'')+'</p><ul class="pack-revision-files">'+(rows||'<li>环境文件一致，将检查并修复游戏运行文件</li>')+'</ul><p class="dialog-description">安装为独立实例，旧实例与存档保留。</p><button class="button primary full" data-action="pack-sync-confirm">确认安装房间版本</button>');return;}
         toast('正在获取整合包清单');
         if(native.transferVersion===2)await native.installFromRoom({roomId:room.id,sha512:room.pack.sha512,token:getSession()});else{const data=await api('/api/rooms/'+room.id+'/pack?sha512='+room.pack.sha512);await native.install({archive:data.archive,sha512:room.pack.sha512});}statuses.delete(key(room));if(!integratedPlay)await native.open({sha512:room.pack.sha512});await refresh(true);if(integratedPlay)toast('整合包已安装');
       }

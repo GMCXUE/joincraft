@@ -29,6 +29,8 @@ import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
 import {createPlayAPI} from './play-api.mjs';
 import {LauncherHome,returnToHome} from './home.mjs';
+import {instanceArchive} from '../launcher/instance-archive.mjs';
+import {ModExports} from '../launcher/mod-export.mjs';
 import {ModUpdates} from '../launcher/mod-updates.mjs';
 import {ModDownloads} from '../launcher/mod-downloads.mjs';
 import {ManagedMods} from '../launcher/mods.mjs';
@@ -48,7 +50,7 @@ let installationConfirmation=null;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let modUpdates,modDownloads,mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
+let modExports,modUpdates,modDownloads,mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
 const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy||mods?.busy);
@@ -56,7 +58,7 @@ const packState=()=>{if(managedPacks.busy)return managedPacks.state();if((packTr
 const anyGameBusy=()=>launcher.states().some(run=>['checking','starting','running'].includes(run.state));
 async function pickMrpack(){const result=await dialog.showOpenDialog(roomWindow,{title:'导入整合包',properties:['openFile'],filters:[{name:'整合包文件（Modrinth）',extensions:['mrpack','zip']}]});if(result.canceled)return null;const file=result.filePaths[0];if((await stat(file)).size>MAX_PACK_BYTES)throw Error('整合包文件最大支持 600 MB');return file;}
 async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');if(packTransfer?.busy||mods?.busy)throw Error('请先完成当前传输或模组任务');lastPackInput={buffer,sha512:hash||null};let instance;try{instance=await managedPacks.install(buffer,hash);lastPackInput.sha512=instance.pack.sha512;}catch(error){lastPackInput.sha512 ||= managedPacks.progress.sha512;throw error;}managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
-async function choosePack(input){if(managedPacks.busy)throw Error('请先完成安装任务');let file;if(input?.id){const instance=(await managedPacks.list()).find(i=>i.id===input.id);if(!instance)throw Error('未找到本地整合包');file=path.join(path.dirname(instance.root),'pack.mrpack');}else file=await pickMrpack();return file?packTransfer.inspect(file):null;}
+async function choosePack(input){if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或当前任务');let file;if(input?.id){const instance=(await managedPacks.list()).find(i=>i.id===input.id);if(!instance)throw Error('未找到本地整合包');if(instance.editable)return {revision:await modExports.preview({id:instance.id}),pack:instance.pack};file=instanceArchive(instance);}else file=await pickMrpack();return file?packTransfer.inspect(file):null;}
 
 let javaInstallations=[], javaScan=null;
 let saving = Promise.resolve();
@@ -204,6 +206,7 @@ else {
   mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
   modDownloads=new ModDownloads({mods,gatewayOrigin:new URL(serverURL()).origin});
   modUpdates=new ModUpdates({mods,downloads:modDownloads});
+  modExports=new ModExports({mods,packTransfer,changed:async id=>{await reloadLibrary();emit({type:'pack-selected',id});}});mods.getInstances=()=>managedPacks.list();
   handle('mods-updates',input=>modUpdates.check(input));
   handle('mods-pin',input=>modUpdates.pin(input));
   handle('mods-preview',input=>modDownloads.preview(input));
@@ -249,17 +252,19 @@ else {
   const returnHome=input=>returnToHome({showHome:()=>{openRooms();roomWindow.webContents.send('home:show');},remember:value=>launcherHome.remember(value),onSaveError:()=>roomWindow.webContents.send('home:notice','已返回首页，启动设置未保存，请稍后重试。')},input);
   handle('return-home',returnHome);
   handle('rooms',()=>returnHome());
-  for(const action of ['list','choose','status','install','open','cancel','progress','retry','publish','install-from-room'])ipcMain.handle('packs:'+action,async(event,input)=>{
+  for(const action of ['list','choose','status','install','open','cancel','progress','retry','publish','install-from-room','export','difference'])ipcMain.handle('packs:'+action,async(event,input)=>{
     try{
       if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本地整合包');
-      if(action==='publish'){if(managedPacks.busy)throw Error('请先完成安装任务');return {ok:true,value:await packTransfer.publish(input||{})};}
+      if(action==='export')return {ok:true,value:await modExports.export(input||{})};
+      if(action==='difference')return {ok:true,value:await modExports.difference(input||{})};
+      if(action==='publish'){if(anyGameBusy()||anyPackBusy())throw Error('请先完成游戏或当前任务');const published=await packTransfer.publish(input||{});await modExports.adopt(input?.draftId,published);return {ok:true,value:published};}
       if(action==='install-from-room'){if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或当前整合包任务');clientUpdater.assertCanLaunch();const result=await packTransfer.download(input||{});const instance=await installPack(result.file,result.pack.sha512);return {ok:true,value:{id:instance.id,pack:instance.pack}};}
-      if(action==='list')return {ok:true,value:(await managedPacks.list()).map(i=>({id:i.id,name:i.name,pack:i.pack}))};
+      if(action==='list')return {ok:true,value:(await managedPacks.list()).map(i=>({id:i.id,name:i.name,pack:i.pack,editable:!!i.editable}))};
       if(action==='choose')return {ok:true,value:await choosePack(input)};
       if(action==='status'){const match=await managedPacks.matching(input?.sha512);return {ok:true,value:{status:match.status,id:match.instance?.id,reason:match.reason,file:match.file}};}
       if(action==='retry'){if(!lastPackInput||input?.sha512!==lastPackInput.sha512)throw Error('请重新获取房间整合包');const result=await installPack(lastPackInput.buffer,lastPackInput.sha512);return {ok:true,value:{id:result.id}};}
       if(action==='progress')return {ok:true,value:packState()};
-      if(action==='cancel'){if(packTransfer.busy)await packTransfer.cancel();else managedPacks.cancel();return {ok:true,value:null};}
+      if(action==='cancel'){if(packTransfer.busy)await packTransfer.cancel();else if(mods?.busy)mods.cancel();else managedPacks.cancel();return {ok:true,value:null};}
       if(action==='install'){
         if(typeof input?.archive!=='string'||input.archive.length>Math.ceil(LEGACY_PACK_BYTES/3)*4||!/^[a-f0-9]{128}$/.test(input.sha512||''))throw Error('整合包文件无效');
         const instance=await installPack(Buffer.from(input.archive,'base64'),input.sha512);return {ok:true,value:{id:instance.id,pack:instance.pack}};

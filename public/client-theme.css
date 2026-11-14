@@ -255,3 +255,6 @@
 :root.pixel-theme.client-theme .message-jump { background:var(--selected); color:var(--text); border:1px solid var(--strong-border); border-radius:6px; box-shadow:none; }
 :root.pixel-theme.client-theme .message-jump:hover { background:var(--hover); }
 :root.pixel-theme.client-theme .message-jump[data-unread]::before { content:attr(data-unread); display:inline-grid; place-items:center; min-width:20px; height:20px; padding-inline:4px; border-radius:4px; color:var(--green-dark); background:var(--diamond-core); font:600 12px/1 var(--ui-font); font-variant-numeric:tabular-nums; }
+
+/* Room revision previews stay inside the shared application dialog. */
+.pack-revision-files{max-height:280px;overflow:auto;padding:12px 24px;background:#1d2026;border-radius:6px;font:12px/1.8 system-ui;overflow-wrap:anywhere}.pack-config-choice{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0;overflow-wrap:anywhere}.pack-config-choice input{flex:none}

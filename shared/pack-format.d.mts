@@ -1,7 +1,7 @@
 export const MAX_PACK_BYTES:number;
 export const LEGACY_PACK_BYTES:number;
 export const UPLOAD_CHUNK_BYTES:number;
-export type PackSummary={sha512:string;name:string;versionId:string;minecraft:string;loader:string;loaderVersion:string;archiveSize:number;totalBytes:number};
+export type PackSummary={baseSha512?:string;sha512:string;name:string;versionId:string;minecraft:string;loader:string;loaderVersion:string;archiveSize:number;totalBytes:number};
 export function packURL(value:string):string;
 export function packPath(value:string):string;
 export function archiveSize(source:Buffer|string):Promise<number>;

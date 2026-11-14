@@ -1,3 +1,4 @@
+import {packManifest} from '../shared/pack-manifest.mjs';
 import path from 'node:path';
 import {mkdtemp,mkdir,readFile,writeFile,rename,rm,stat,open,statfs,readdir} from 'node:fs/promises';
 import {createReadStream,createWriteStream} from 'node:fs';
@@ -18,6 +19,8 @@ export class RoomPacks {
   private verifyQueue:Promise<unknown>=Promise.resolve();
   private jobs=new Map<string,{controller:AbortController;promise:Promise<void>;file:string}>();
   private closing=false;
+  private manifests=new Map<string,ReturnType<typeof packManifest>>();
+  private manifestJobs=new Map<string,Promise<ReturnType<typeof packManifest>>>();
   private constructor(readonly service:RoomService,readonly directory:string,readonly ephemeral:boolean,readonly quota=5*1024**3){}
   static async create(service:RoomService,directory?:string){
     const ephemeral=!directory&&service.store.path===':memory:';
@@ -69,6 +72,11 @@ export class RoomPacks {
     }finally{await rm(temporary,{force:true}).catch(()=>{});}
   }
   descriptor(actor:Principal,id:string,sha512?:string){this.service.accessible(id,actor);const pack=this.summary(id);if(!pack)fail('房间尚未设置整合包',404);if(sha512&&sha512!==pack.sha512)fail('房间整合包已变化，请刷新后重试',409);return {pack,transferVersion:2,maxArchiveSize:MAX_PACK_BYTES};}
+  async manifest(actor:Principal,id:string,sha512?:string){
+    const {pack}=this.descriptor(actor,id,sha512);let files=this.manifests.get(pack.sha512);
+    if(!files){let job=this.manifestJobs.get(pack.sha512);if(!job){job=this.verifyQueue.catch(()=>{}).then(async()=>packManifest(await inspectMrpack(this.storedFile(pack.sha512))));this.verifyQueue=job.then(()=>{});this.manifestJobs.set(pack.sha512,job);}try{files=await job;if(this.manifests.size>=16)this.manifests.delete(this.manifests.keys().next().value!);this.manifests.set(pack.sha512,files);}finally{this.manifestJobs.delete(pack.sha512);}}
+    this.descriptor(actor,id,pack.sha512);return {pack,files};
+  }
   async download(actor:Principal,id:string,sha512?:string){const {pack}=this.descriptor(actor,id,sha512);if(pack.archiveSize>LEGACY_PACK_BYTES)fail('此整合包需要新版客户端，请更新后下载',426);return {pack,archive:(await readFile(this.storedFile(pack.sha512))).toString('base64')};}
   async archive(actor:Principal,id:string,sha512:string|undefined,range:string|undefined){
     const {pack}=this.descriptor(actor,id,sha512);let start=0,end=pack.archiveSize-1,status=200;

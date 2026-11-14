@@ -11,7 +11,7 @@ ipcRenderer.on('shell:covered',(_event,covered)=>{surfaceCovered=covered===true;
 window.addEventListener('DOMContentLoaded',syncSurfaceCoverage);
 
 const packCall=name=>async input=>{const result=await ipcRenderer.invoke('packs:'+name,input);if(!result.ok)throw new Error(result.error);return result.value;};
-contextBridge.exposeInMainWorld('joincraftPacks',Object.freeze({transferVersion:2,publish:packCall('publish'),installFromRoom:packCall('install-from-room'),list:packCall('list'),retry:packCall('retry'),choose:packCall('choose'),status:packCall('status'),install:packCall('install'),open:packCall('open'),cancel:packCall('cancel'),progress:packCall('progress'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('packs:event',listener);return()=>ipcRenderer.removeListener('packs:event',listener);}}));
+contextBridge.exposeInMainWorld('joincraftPacks',Object.freeze({transferVersion:2,revisionVersion:1,export:packCall('export'),difference:packCall('difference'),publish:packCall('publish'),installFromRoom:packCall('install-from-room'),list:packCall('list'),retry:packCall('retry'),choose:packCall('choose'),status:packCall('status'),install:packCall('install'),open:packCall('open'),cancel:packCall('cancel'),progress:packCall('progress'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('packs:event',listener);return()=>ipcRenderer.removeListener('packs:event',listener);}}));
 
 // Shared DOM markers let every in-window surface reserve native window controls.
 window.addEventListener('DOMContentLoaded',()=>{document.documentElement.dataset.desktopPlatform=process.platform;});
