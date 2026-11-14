@@ -331,6 +331,7 @@ test('official homepage and app have separate entries while old desktop root sta
   const other=await fetch(app.url+'/',{headers:{'User-Agent':'Mozilla/5.0 Codex/1.0 Electron/45.3.1'}});assert.match(await other.text(),/hero-title/);
   const libraryModule=await fetch(app.url+'/launcher/memory.js');assert.equal(libraryModule.status,200);assert.match(await libraryModule.text(),/createMemoryControls/);
   const picture=await fetch(app.url+'/home/world-v1.webp');assert.equal(picture.status,200);assert.equal(picture.headers.get('content-type'),'image/webp');assert.match(picture.headers.get('cache-control'),/immutable/);const bytes=new Uint8Array(await picture.arrayBuffer());assert.equal(Buffer.from(bytes.slice(0,4)).toString(),'RIFF');
+  const night=await fetch(app.url+'/home/camp-v2.webp');assert.equal(night.status,200);assert.equal(night.headers.get('content-type'),'image/webp');assert.match(night.headers.get('cache-control'),/immutable/);assert.notDeepEqual(Buffer.from(await night.arrayBuffer()),Buffer.from(bytes));
   const font=await fetch(app.url+'/home/display-900-v1.woff2');assert.equal(font.status,200);assert.equal(font.headers.get('content-type'),'font/woff2');assert.equal(Buffer.from(await font.arrayBuffer()).toString('ascii',0,4),'wOF2');
   assert.equal((await fetch(app.url+'/api/state')).status,401);
  }finally{await app.close();}
@@ -356,10 +357,10 @@ test('standalone password login is public and its cookie authenticates the app',
  try{
   for(const path of ['/login','/login/']){
    const response=await fetch(app.url+path);assert.equal(response.status,200);assert.equal(response.headers.get('set-cookie'),null);
-   const html=await response.text();assert.match(html,/id="account-form" method="post" action="\/api\/auth\/login"/);assert.match(html,/autocomplete="current-password"/);assert.match(html,/src="\/auth\/world-v1.webp"/);assert.doesNotMatch(html,/扫码|短信|QQ|微信/);
+   const html=await response.text();assert.match(html,/id="account-form" method="post" action="\/api\/auth\/login"/);assert.match(html,/autocomplete="current-password"/);assert.match(html,/src="\/auth\/mine-v2.webp"/);assert.doesNotMatch(html,/扫码|短信|QQ|微信/);
    assert.match(response.headers.get('content-security-policy'),/form-action 'self'/);
   }
-  for(const [path,type] of [['/auth/login.js','text/javascript'],['/auth/session.js','text/javascript'],['/auth/style.css','text/css'],['/auth/world-v1.webp','image/webp']]){
+  for(const [path,type] of [['/auth/login.js','text/javascript'],['/auth/session.js','text/javascript'],['/auth/style.css','text/css'],['/auth/world-v1.webp','image/webp'],['/auth/mine-v2.webp','image/webp']]){
    const response=await fetch(app.url+path);assert.equal(response.status,200);assert.ok(response.headers.get('content-type').startsWith(type));
    if(type==='image/webp'){assert.match(response.headers.get('cache-control'),/immutable/);assert.equal(Buffer.from(await response.arrayBuffer()).toString('ascii',0,4),'RIFF');}
   }

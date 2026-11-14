@@ -27,7 +27,9 @@ function show(next){
  if(['waiting','success','cancelled','expired','failed'].includes(next)){
   const labels={waiting:['正在连接客户端','请保持客户端开启，登录会自动完成。'],success:['网页授权已完成','请回到 joincraft 查看登录结果。'],cancelled:['登录已取消','如需登录，请从客户端重新发起。'],expired:['登录已过期','请回到客户端，重新发起登录。'],failed:['暂时无法登录','请回到客户端，重新发起登录。']};
   $('#account-title').textContent=next==='waiting'?'即将进入 joincraft':'joincraft';
-  $('#desktop-result-title').textContent=labels[next][0];$('#desktop-result-note').textContent=labels[next][1];$('#desktop-mark').textContent=next==='success'?'✓':next==='waiting'?'…':'×';
+  $('#desktop-result-title').textContent=labels[next][0];$('#desktop-result-note').textContent=labels[next][1];$('#desktop-result').dataset.state=next;
+  const mark=next==='success'?'<path d="m5 12 4 4L19 6"/>':next==='waiting'||next==='expired'?'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>':'<path d="m6 6 12 12M6 18 18 6"/>';
+  $('#desktop-mark').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+mark+'</svg>';
  }
 }
 async function request(path,body){
