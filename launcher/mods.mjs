@@ -1,3 +1,4 @@
+import {Modrinth} from './modrinth.mjs';
 import path from 'node:path';
 import {lstat,realpath} from 'node:fs/promises';
 import {copyEditable} from './instance-copy.mjs';
@@ -5,12 +6,14 @@ import {modTransaction,recoverMods,modHistory,rollbackMod,readModState} from './
 import {inspectMod,fileHash} from './mod-metadata.mjs';
 import {scanMods} from './mod-metadata.mjs';
 export class ManagedMods {
- constructor({getInstance,notify=()=>{},assertIdle=()=>{},changed=async()=>{}}){Object.assign(this,{getInstance,notify,assertIdle,changed});this.cache=new Map();}
+ constructor({getInstance,notify=()=>{},assertIdle=()=>{},changed=async()=>{}}){Object.assign(this,{getInstance,notify,assertIdle,changed});this.cache=new Map();this.provider=new Modrinth();}
  async instance(id){const instance=await this.getInstance(id);if(!instance?.managed)throw Error('仅支持 Joincraft 管理的实例');const info=await lstat(instance.root);if(!info.isDirectory()||info.isSymbolicLink())throw Error('实例目录不能指向外部链接');return {...instance,root:await realpath(instance.root)};}
  async exclusive(fn){if(this.busy)throw Error('已有模组任务正在进行');this.assertIdle();this.busy=true;this.controller=new AbortController();this.notify({type:'mods-progress',state:'working'});try{const value=await fn(this.controller.signal);this.notify({type:'mods-progress',state:'done'});return value;}catch(error){this.notify({type:'mods-progress',state:this.controller.signal.aborted?'cancelled':'failed',message:error.message});throw error;}finally{this.busy=false;}}
  async editable(id,signal){const instance=await this.instance(id);if(instance.editable)return instance;const copy=await copyEditable(instance,{signal,onProgress:p=>this.notify({type:'mods-progress',id,state:'copying',...p})});return copy;}
  async fork({id}){return this.exclusive(async signal=>{const copy=await this.editable(id,signal);await this.changed(copy.id);return copy;});}
  cancel(){this.controller?.abort(Error('模组操作已取消'));}
+ async search(input){return this.provider.search(input,await this.instance(input.id));}
+ async versions(input){return this.provider.versions(input.projectId,await this.instance(input.id));}
  async prepareLaunch(id){if(this.busy)throw Error('请先结束模组任务');await recoverMods(await this.instance(id));}
  async history({id}){if(this.busy)throw Error('请先结束模组任务');return modHistory(await this.instance(id));}
  async restore({id,backupId}){return this.exclusive(async signal=>{const instance=await this.editable(id,signal);await rollbackMod(instance,backupId,{signal});await this.changed(instance.id);return {id:instance.id};});}
