@@ -39,8 +39,8 @@ test('library and notification surfaces reuse one main window and keep rooms ali
   await f.shell.showNotifications();assert.equal(f.shell.modal,true);assert.equal(f.shell.canNotify(library),false);assert.equal(f.children.at(-1),f.shell.notifications);
   assert.deepEqual(library.webContents.messages.filter(x=>x[0]==='shell:covered').at(-1),['shell:covered',true]);
   assert.deepEqual(f.shell.notifications.webContents.messages.filter(x=>x[0]==='shell:covered').at(-1),['shell:covered',false]);
-  f.shell.closeNotifications();assert.equal(f.shell.notifications.visible,false);assert.equal(f.shell.active,'library');assert.equal(f.closed(),1);
-  f.shell.showRooms();assert.equal(library.visible,false);assert.equal(f.main.webContents.isDestroyed(),false);assert.equal(f.shell.canNotify(f.main),true);
+  f.shell.closeNotifications();assert.equal(f.shell.notifications.visible,false);assert(!f.children.includes(f.shell.notifications));assert.equal(f.shell.active,'library');assert.equal(f.closed(),1);
+  f.shell.showRooms();assert.equal(library.visible,false);assert(!f.children.includes(library));assert.equal(library.webContents.isDestroyed(),false);assert.equal(f.main.webContents.isDestroyed(),false);assert.equal(f.shell.canNotify(f.main),true);
   await f.shell.showLibrary();await f.shell.showNotifications();assert.equal(f.created(),2);
   f.main.getContentSize=()=>[850,600];f.main.emit('resize');assert.deepEqual(library.bounds,{x:0,y:0,width:850,height:600});
   f.main.emit('closed');assert.equal(library.webContents.isDestroyed(),true);assert.equal(f.shell.disposed,true);

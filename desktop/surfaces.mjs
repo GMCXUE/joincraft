@@ -48,7 +48,7 @@ export class DesktopSurfaces {
     return !this.modal&&this.main.isFocused()&&this.main.isVisible()&&alive(view)&&view===(this.active==='library'?this.library:this.main);
   }
   showRooms(){
-    this.sequence++;this.closeNotifications();this.library?.setVisible(false);this.active='rooms';this.focus(this.main);this.notifyFocus();
+    this.sequence++;this.closeNotifications();if(alive(this.library)){this.library.setVisible(false);this.main.contentView.removeChildView(this.library);}this.active='rooms';this.focus(this.main);this.notifyFocus();
   }
   async showLibrary(){
     if(this.modal){this.focus(this.notifications);return;}
@@ -65,7 +65,7 @@ export class DesktopSurfaces {
   }
   closeNotifications(){
     if(!this.modal)return;
-    this.modal=false;this.notifications?.setVisible(false);this.onModalClosed();
+    this.modal=false;if(alive(this.notifications)){this.notifications.setVisible(false);this.main.contentView.removeChildView(this.notifications);}this.onModalClosed();
     this.focus(this.active==='library'?this.library:this.main);this.notifyFocus();
   }
   dispose(){
