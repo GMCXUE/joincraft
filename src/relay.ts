@@ -7,7 +7,7 @@ import { fail, gameFields } from './validation.js';
 
 type Room = { id: string; owner_id: string; closed: number; capacity: number; port: number | null };
 type Game = { id: string; roomId: string; port: number; status: 'waiting' | 'online' | 'error'; error: string; version: string; host?: Agent };
-type Agent = { key: string; actor: Principal; role: 'host' | 'guest'; game: Game; expires: number; used: boolean; ws?: WebSocket; address?: string; error?: string; alive: boolean };
+type Agent = { key: string; actor: Principal; role: 'host' | 'guest'; game: Game; expires: number; used: boolean; ws?: WebSocket; address?: string; error?: string; alive: boolean; peerId: string; p2p: boolean; peers: Set<string>; transport: 'relay' | 'p2p'; latency: number | null };
 type Pair = { id: string; agent: Agent; guest: Duplex; host?: Duplex; timer: NodeJS.Timeout };
 
 /** Authenticated, bounded TCP transport. No public Minecraft listening ports. */
@@ -41,7 +41,8 @@ export class Relay {
   snapshot(id: string, actor: Principal) {
     const g = this.games.get(id), mine = [...this.agents.values()].find(a => a.game === g && a.actor.id === actor.id);
     return { status: g?.status ?? 'offline', error: g?.error || '', version: g?.version || '', port: g?.port ?? null,
-      local: mine ? { status: mine.address || mine.role === 'host' && g?.status === 'online' ? 'ready' : mine.error ? 'error' : mine.ws ? 'checking' : 'waiting', address: mine.address || '', error: mine.error || '', role: mine.role } : null,
+      local: mine ? { status: mine.address || mine.role === 'host' && g?.status === 'online' ? 'ready' : mine.error ? 'error' : mine.ws ? 'checking' : 'waiting', address: mine.address || '', error: mine.error || '', role: mine.role, transport: mine.transport, latency: mine.latency } : null,
+      routes: g ? {direct: [...this.agents.values()].filter(a => a.game === g && a.role === 'guest' && a.address && a.transport === 'p2p').length, relay: [...this.agents.values()].filter(a => a.game === g && a.role === 'guest' && a.address && a.transport === 'relay').length} : {direct:0,relay:0},
       // Transport connections include MC status pings; this is deliberately not a player count.
       connections: g ? [...this.pairs.values()].filter(p => p.agent.game === g && p.host).length : 0 };
   }
@@ -66,7 +67,7 @@ export class Relay {
       for (const a of this.agents.values()) if (a.game === game && a.actor.id === actor.id) this.remove(a);
     }
     const token = randomBytes(32).toString('base64url'), key = digest(token), expires = this.service.now() + 300000;
-    const a: Agent = { key, actor, role: action === 'start' ? 'host' : 'guest', game: game!, expires, used: false, alive: true };
+    const a: Agent = { key, actor, role: action === 'start' ? 'host' : 'guest', game: game!, expires, used: false, alive: true, peerId: randomUUID(), p2p: false, peers: new Set(), transport: 'relay', latency: null };
     this.agents.set(key, a); if (a.role === 'host') game!.host = a;
     this.notify(id);
     return { ticket: token, expiresAt: expires, role: a.role, port: a.role === 'host' ? game!.port : null };
@@ -90,6 +91,7 @@ export class Relay {
   }
   private remove(a: Agent, notify = true) {
     if (!this.agents.delete(a.key)) return;
+    for (const peer of this.agents.values()) if (peer.peers.delete(a.peerId) && peer.ws?.readyState === WebSocket.OPEN) peer.ws.send(JSON.stringify({type:'p2p-left',peerId:a.peerId}));
     for (const p of [...this.pairs.values()]) if (p.agent === a || a.role === 'host' && p.agent.game === a.game) this.dropPair(p);
     a.ws?.terminate();
     if (a.role === 'host' && this.games.get(a.game.roomId) === a.game) {
@@ -146,12 +148,24 @@ export class Relay {
   }
   private control(a: Agent, ws: WebSocket) {
     a.ws = ws; ws.on('error', () => this.remove(a)); ws.on('close', () => this.remove(a)); ws.on('pong', () => a.alive = true);
-    ws.send(JSON.stringify({ type: 'welcome', role: a.role, port: a.role === 'host' ? a.game.port : null }));
+    ws.send(JSON.stringify({ type: 'welcome', role: a.role, port: a.role === 'host' ? a.game.port : null, p2p: 1, peerId: a.peerId }));
     ws.on('message', (raw, binary) => {
       try {
-        if (binary || raw.toString().length > 2048) throw Error();
+        if (binary || raw.toString().length > 32768) throw Error();
         const m = JSON.parse(raw.toString());
+        this.room(a.game.roomId, a.actor);
+        if (m.type === 'p2p-signal') { this.signal(a,m); return; }
         this.service.consume(`bridge-control:${a.key}`, 120, 60000);
+        if (m.type === 'p2p-enable' && m.version === 1 && !a.p2p) {
+          a.p2p = true; this.pairPeers(a); return;
+        }
+        if (m.type === 'p2p-route' && a.role === 'guest' && a.p2p && ['relay','p2p'].includes(m.transport)) {
+          if (m.transport === 'p2p' && !a.peers.size) throw Error();
+          a.transport = m.transport;
+          a.latency = typeof m.latency === 'number' && Number.isFinite(m.latency) && m.latency >= 0 && m.latency <= 60000 ? Math.round(m.latency) : null;
+          this.notify(a.game.roomId); return;
+        }
+        if (raw.toString().length > 2048) throw Error();
         if (m.type === 'ready' && a.role === 'host') {
           a.game.status = 'online'; a.game.error = ''; a.game.version = typeof m.version === 'string' ? m.version.slice(0,80) : '';
         } else if (m.type === 'ready' && a.role === 'guest' && Number.isInteger(m.port) && m.port >= 1024 && m.port <= 65535) {
@@ -162,10 +176,42 @@ export class Relay {
         } else if (m.type === 'failed' && a.role === 'host') {
           const p = this.pairs.get(m.id); if (p?.agent.game === a.game) this.dropPair(p);
         } else throw Error();
-        this.notify(a.game.roomId);
+        this.pairPeers(a); this.notify(a.game.roomId);
       } catch { ws.close(1008, 'Invalid control message'); }
     });
     this.notify(a.game.roomId);
+  }
+  private pairPeers(a: Agent) {
+    if (!a.p2p || a.game.status !== 'online' || a.ws?.readyState !== WebSocket.OPEN) return;
+    const peers = a.role === 'host' ? [...this.agents.values()].filter(p => p.game === a.game && p.role === 'guest') : [a.game.host];
+    for (const peer of peers) {
+      if (!peer?.p2p || peer.ws?.readyState !== WebSocket.OPEN || a.peers.has(peer.peerId)) continue;
+      a.peers.add(peer.peerId); peer.peers.add(a.peerId);
+      // Guest initiates. IDs belong to this live agent, never to bearer credentials.
+      a.ws.send(JSON.stringify({type:'p2p-peer',peerId:peer.peerId,initiator:a.role==='guest'}));
+      peer.ws.send(JSON.stringify({type:'p2p-peer',peerId:a.peerId,initiator:peer.role==='guest'}));
+    }
+  }
+  private signal(a: Agent, message: Record<string, unknown>) {
+    this.service.consume(`bridge-p2p:${a.key}`, 600, 60000);
+    if (!a.p2p || typeof message.peerId !== 'string' || !a.peers.has(message.peerId)) throw Error();
+    const peer = [...this.agents.values()].find(p => p.peerId === message.peerId);
+    if (!peer || peer.game !== a.game || peer.role === a.role || !peer.p2p || peer.ws?.readyState !== WebSocket.OPEN || peer.ws.bufferedAmount > 1048576) throw Error();
+    this.room(peer.game.roomId, peer.actor);
+    const signal = message.signal as Record<string, unknown> | null;
+    if (!signal || typeof signal !== 'object' || Array.isArray(signal)) throw Error();
+    let clean: Record<string, unknown>;
+    if (signal.type === 'offer' || signal.type === 'answer') {
+      if ((signal.type === 'offer') !== (a.role === 'guest') || typeof signal.sdp !== 'string' || signal.sdp.length > 24000) throw Error();
+      clean = {type:signal.type,sdp:signal.sdp};
+    } else if (signal.type === 'candidate') {
+      const value = signal.candidate as Record<string, unknown> | null;
+      if (!value || typeof value.candidate !== 'string' || value.candidate.length > 2048 || typeof value.sdpMid !== 'string' && value.sdpMid !== null || value.sdpMLineIndex !== null && (!Number.isInteger(value.sdpMLineIndex) || Number(value.sdpMLineIndex) < 0 || Number(value.sdpMLineIndex) > 16)) throw Error();
+      if (value.sdpMid !== null && String(value.sdpMid).length > 64) throw Error();
+      clean = {type:'candidate',candidate:{candidate:value.candidate,sdpMid:value.sdpMid,sdpMLineIndex:value.sdpMLineIndex}};
+    } else throw Error();
+    // Ephemeral, authenticated signalling only. SDP and network candidates are not persisted or published in room snapshots.
+    peer.ws.send(JSON.stringify({type:'p2p-signal',peerId:a.peerId,signal:clean}));
   }
   private data(a: Agent, ws: WebSocket, existing?: Pair) {
     const stream = createWebSocketStream(ws, { highWaterMark: 65536 });
