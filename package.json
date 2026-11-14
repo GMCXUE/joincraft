@@ -65,7 +65,7 @@
     "sharp": "^0.35.5",
     "typescript": "^5.9.3"
   },
-  "version": "0.9.29",
+  "version": "0.9.30",
   "main": "desktop/main.mjs",
   "description": "joincraft Minecraft rooms and desktop launcher",
   "author": "GMCXUE",
