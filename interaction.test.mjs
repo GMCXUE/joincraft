@@ -157,3 +157,17 @@ test('profile changes replace only affected messages and repeated delivery adds 
  assert.deepEqual(reconcileMessageChildren(list,[new MessageNode('1','new name'),new MessageNode('2','untouched')]),[]);assert.notEqual(list.children[0],a);assert.equal(list.children[1],b);assert.equal(a.parent,null);
  const next=[...list.children];reconcileMessageChildren(list,[new MessageNode('1','new name'),new MessageNode('2','untouched')]);assert.deepEqual(list.children,next);
 });
+
+
+// Clipboard work can finish after navigation; it must never open a stale modal.
+test('community copy confirms only success, serializes clicks and restores controls',async()=>{
+ const {copyCommunity,COMMUNITY_QQ}=await import('./public/app-home.js');const control={disabled:false,isConnected:true};let finish,calls=0,feedback=0;
+ const options={control,clipboard:{writeText:value=>{assert.equal(value,COMMUNITY_QQ);calls++;return new Promise(resolve=>finish=resolve);}},feedback:()=>feedback++,fallback:()=>assert.fail('Unexpected fallback')};
+ const pending=copyCommunity(options);assert.equal(control.disabled,true);await copyCommunity(options);assert.equal(calls,1);finish();await pending;assert.equal(feedback,1);assert.equal(control.disabled,false);
+});
+test('denied clipboard presents the actual group number, while a detached page stays quiet',async()=>{
+ const {copyCommunity,COMMUNITY_QQ}=await import('./public/app-home.js');const control={disabled:false,isConnected:true},numbers=[];
+ await copyCommunity({control,clipboard:{writeText:async()=>{throw Error('Denied');}},feedback:()=>assert.fail('False copy confirmation'),fallback:number=>numbers.push(number)});
+ assert.deepEqual(numbers,[COMMUNITY_QQ]);assert.equal(control.disabled,false);
+ control.isConnected=false;await copyCommunity({control,clipboard:{writeText:async()=>{throw Error('Denied');}},feedback:()=>assert.fail('Detached confirmation'),fallback:()=>assert.fail('Stale fallback modal')});
+});

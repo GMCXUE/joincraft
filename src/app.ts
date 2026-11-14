@@ -229,6 +229,7 @@ export async function createApp(options: AppOptions = {}) {
   });
   for(const path of ['/launcher','/launcher/','/launcher/index.html'])app.get(path,async (_request,reply)=>reply.redirect('/'));
   const files: Record<string, [string, string]> = {
+    '/app-home.js':['app-home.js','text/javascript'], '/app-home.css':['app-home.css','text/css'],
     '/brand/mining-atlas-v2.png':['brand/mining-atlas-v2.png','image/png'],
     '/motion.js':['motion.js','text/javascript'], '/motion.css':['motion.css','text/css'], '/mining.js':['mining.js','text/javascript'],
     '/community.js': ['community.js','text/javascript'], '/voice.js':['voice.js','text/javascript'], '/voice-sdk.js':['voice-sdk.js','text/javascript'], '/community.css':['community.css','text/css'],

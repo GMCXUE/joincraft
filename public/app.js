@@ -1,4 +1,5 @@
 import './focus.js';
+import {isAppHome,createAppHome,copyCommunity} from './app-home.js';
 import {mountNavigationMotion,miningFeedback} from './motion.js';
 import {bindForm,mountDialogs,normalizeRoomCode,showControlFeedback} from './interaction.js';
 mountDialogs();
@@ -17,7 +18,6 @@ import {createPlayUI,isDesktopClient} from './play.js';
 mountDesktopNotifications();
 const desktop=isDesktopClient();
 document.documentElement.dataset.client=desktop?'desktop':'web';
-document.querySelector('[data-action="game-library"]').hidden=!desktop;
 document.getElementById('web-client-download').hidden=desktop;
 document.querySelector('.connection-state').hidden=!desktop;
 if(desktop)document.querySelector('.preview-label').textContent='桌面版';
@@ -49,12 +49,18 @@ const roomPacksUI=createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,g
 const playUI=createPlayUI({getSession:()=>session,api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion:()=>authVersion});
 const communityUI=createCommunityUI({api,realtime:realtimeRequest,getState:()=>state,getVersion:()=>authVersion,escape,initials,icon,setHTML,toast,smallDialog,formHandler,refresh});
 const profileUI=createProfileUI({api,getState:()=>state,getVersion:()=>authVersion,icon,escape,setHTML,toast,openAuth,formHandler,refresh});
+const homeUI=createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShell});
 const navigationMotion=mountNavigationMotion({rail:$('.room-rail'),sidebar:$('.room-sidebar'),content:$('#main')});
-function renderShell(){navigationMotion.sync();const {room,tab}=route(),selected=room&&!room.closed?room:null;
+function renderShell(){navigationMotion.sync();const {room,tab}=route(),selected=room&&!room.closed?room:null,home=isAppHome(location.hash);$('.workspace').classList.toggle('home-mode',home);$('#home-entry').classList.toggle('selected',home);$('#home-entry').setAttribute('aria-current',home?'page':'false');
  setHTML($('#room-icons'),activeRooms().map(r=>`<a class="room-icon ${r.id===selected?.id?'selected':''}" href="#room/${r.id}/chat" title="${escape(r.name)}" aria-label="房间：${escape(r.name)}" ${r.id===selected?.id?'aria-current="page"':''}>${picture(r)}${r.community?.unread?`<span class="room-unread">${r.community.unread>99?'99+':r.community.unread}</span>`:''}</a>`).join(''));
- $('.rail-home').classList.toggle('selected',!selected&&!profileUI.active());$('.rail-home').setAttribute('aria-current',!selected&&!profileUI.active()?'page':'false');socialUI.renderBadge();
+ $('.rail-home').classList.toggle('selected',!selected&&!profileUI.active()&&!home);$('.rail-home').setAttribute('aria-current',!selected&&!profileUI.active()&&!home?'page':'false');socialUI.renderBadge();
  setHTML($('#account-entry'),state.profile?avatarHTML(state.profile):'登录');$('#account-entry').setAttribute('aria-current',profileUI.active()&&profileUI.own()?'page':'false');$('#account-entry').title=state.profile?state.profile.name+' · '+(state.profile.username?'@'+state.profile.username:'访客'):'登录 / 注册';$('#account-entry').setAttribute('aria-label',state.profile?'个人主页':'登录账号');
  if(profileUI.active()){socialUI.leave();profileUI.shell();return;}
+ if(home){
+  socialUI.leave();$('.workspace').classList.remove('social-mode');$('.connection-state').hidden=true;
+  const homeShell=homeUI.shell();setHTML($('#room-heading'),homeShell.heading);setHTML($('#room-nav'),homeShell.nav);setHTML($('#sidebar-info'),homeShell.info);
+  $('#view-title').textContent='首页';$('#view-icon').innerHTML=icon('home');setHTML($('#view-tools'),'');return;
+ }
  if(!selected){socialUI.renderShell();return;}
  socialUI.leave();$('.workspace').classList.remove('social-mode');playUI.sync(selected);
  setHTML($('#room-heading'),`<div class="room-heading-line"><h2 title="${escape(selected.name)}">${escape(selected.name)}</h2>${selected.hasPassword?icon('lock'):icon('down')}</div><span class="room-number">房间号 ${selected.code}</span>`);
@@ -73,7 +79,7 @@ function members(r){return `<div class="page-body"><div class="member-table"><di
 function game(r){if(!desktop)return `<div class="page-body client-required-page">${playUI.requiredPanel()}</div>`;const configs=parseInstances(localStorage.getItem('blockroom-instances'));return `<div class="page-body">${roomPacksUI.panel(r)}${r.isHost?'':'<p class="readonly-caption">由房主设置</p>'}${r.isHost?`<form id="game-form" class="settings-form">${configs.length&&!r.pack?`<div class="field"><label for="saved-instance">使用已保存的实例配置</label><select id="saved-instance"><option value="">手动填写</option>${configs.map(c=>`<option value="${escape(c.id)}">${escape(c.name)} / ${escape(c.version)}</option>`).join('')}</select></div>`:''}<div class="field-grid"><div class="field"><label for="game-version">Minecraft 版本</label><input id="game-version" name="version" ${r.pack?'readonly':''} maxlength="30" value="${escape(r.version)}" placeholder="例如 1.21.1"></div><div class="field"><label for="game-loader">模组环境</label><select id="game-loader" name="loader" ${r.pack?'disabled':''}>${loaders.map(l=>`<option ${l===r.loader?'selected':''}>${l}</option>`).join('')}</select>${r.pack?`<input type="hidden" name="loader" value="${escape(r.loader)}">`:''}</div></div><div class="field"><label for="game-port">局域网端口</label><input id="game-port" name="port" type="number" min="1024" max="65535" value="${r.port||''}" placeholder="例如 51234"><small>在 MC 中「对局域网开放」后查看端口。</small></div>${errorBox('game-error')}<button class="button primary" type="submit">保存游戏环境</button></form>`:`<dl class="readonly-fields"><div><dt>Minecraft 版本</dt><dd>${r.version?escape(r.version):'尚未填写'}</dd></div><div><dt>模组环境</dt><dd>${escape(r.loader)}</dd></div><div><dt>局域网端口</dt><dd>${r.connection?.port||r.port||'尚未填写'}</dd></div></dl>`}</div>`;}
 function avatarField(room,prefix){return `<div class="avatar-field"><label class="image-picker" for="${prefix}-image"><span class="image-preview" id="${prefix}-preview">${room.image?`<img src="${escape(room.image)}" alt="房间图片">`:escape(initials(room.name))}</span><span class="image-overlay">${icon('image')}</span></label><input type="file" id="${prefix}-image" class="file-input" accept="image/png,image/jpeg,image/webp" aria-label="上传房间图片"><div><strong>房间图片</strong><div class="image-actions"><label for="${prefix}-image" class="text-link" tabindex="0">上传图片</label><button type="button" class="text-button" data-action="remove-image" data-prefix="${prefix}">移除图片</button></div></div></div>`;}
 function settings(r){if(!r.isHost)return `<div class="page-body"><h2>只有房主可以修改房间设置</h2></div>`;settingsImage=r.image;return `<div class="page-body"><form id="settings-form" class="settings-form">${avatarField(r,'settings')}<div class="field"><label for="settings-name">房间名称</label><input id="settings-name" name="name" value="${escape(r.name)}" required maxlength="40"></div><div class="field"><label for="room-description">房间介绍</label><textarea id="room-description" name="description" maxlength="240" rows="3" placeholder="写下房间介绍或联机约定">${escape(r.description)}</textarea></div><div class="field-grid"><div class="field"><label for="room-capacity">成员上限</label><input id="room-capacity" name="capacity" type="number" min="2" max="32" value="${r.capacity}" required></div><div class="field"><label for="password-mode">房间密码</label><select id="password-mode" name="passwordMode"><option value="keep">${r.hasPassword?'保持当前密码':'保持无密码'}</option><option value="set">设置 / 更换密码</option><option value="remove">取消密码</option></select></div></div><div class="field" id="new-password-field" hidden><label for="new-password">新密码</label><input id="new-password" name="password" type="password" maxlength="64" autocomplete="new-password"><small>密码仅对之后加入的成员生效，不会移出现有成员。</small></div>${errorBox('settings-error')}<button class="button primary" type="submit">保存修改</button></form><div class="danger-zone"><div><h3>关闭房间</h3><p>关闭后，房间号失效，所有成员将无法继续使用这个房间。</p></div><button class="button danger" data-action="close-room">关闭房间</button></div></div>`;}
-function render(force=false){communityUI.sync();renderShell();if(profileUI.active()){communityUI.leave();socialUI.leave();$('#main').classList.remove('room-chat-main');lastRender='';profileUI.render(force);return;}profileUI.leave();const chatRoute=route();$('#main').classList.toggle('room-chat-main',!!chatRoute.room&&!chatRoute.room.closed&&chatRoute.tab==='chat');if(chatRoute.tab!=='chat'||!chatRoute.room||chatRoute.room.closed)communityUI.leave();const {room,tab}=route();if(!room||room.closed){lastRender='';socialUI.render(force);return;}if(tab==='chat'){lastRender='';communityUI.render(room);return;}const key=JSON.stringify({route:location.hash,room,profile:state.profile});if(!force&&key===lastRender)return;if(!force&&['game','settings'].includes(tab)&&room&&!room.closed)return;lastRender=key;
+function render(force=false){communityUI.sync();renderShell();if(profileUI.active()){homeUI.leave();communityUI.leave();socialUI.leave();$('#main').classList.remove('room-chat-main');lastRender='';profileUI.render(force);return;}profileUI.leave();if(isAppHome(location.hash)){communityUI.leave();socialUI.leave();$('#main').classList.remove('room-chat-main','chat-main');lastRender='';homeUI.show();return;}homeUI.leave();const chatRoute=route();$('#main').classList.toggle('room-chat-main',!!chatRoute.room&&!chatRoute.room.closed&&chatRoute.tab==='chat');if(chatRoute.tab!=='chat'||!chatRoute.room||chatRoute.room.closed)communityUI.leave();const {room,tab}=route();if(!room||room.closed){lastRender='';socialUI.render(force);return;}if(tab==='chat'){lastRender='';communityUI.render(room);return;}const key=JSON.stringify({route:location.hash,room,profile:state.profile});if(!force&&key===lastRender)return;if(!force&&['game','settings'].includes(tab)&&room&&!room.closed)return;lastRender=key;
  $('#main').innerHTML=tab==='members'?members(room):tab==='game'?game(room):tab==='settings'?settings(room):overview(room);bindMainForms();
 }
 let refreshAgain=false,refreshForce=false;
@@ -115,6 +121,8 @@ function smallDialog(title,content){$('#small-dialog-body').innerHTML=`<h2 id="s
 async function copyCode(room,target){try{await navigator.clipboard.writeText(room.code);showControlFeedback(target,{html:icon('check'),label:'房间号已复制'});toast('房间号已复制');}catch{toast('无法访问剪贴板，请选中房间号手动复制');}}
 document.addEventListener('click',async e=>{const target=e.target.closest('[data-action]');if(!target)return;const action=target.dataset.action,room=route().room;
  if(action.startsWith('community-')){await communityUI.handle(action,target);return;}
+ if(await homeUI.action(action,target))return;
+ if(action==='copy-community'){await copyCommunity({control:target,feedback:(control,label)=>showControlFeedback(control,{html:icon('check')+'已复制',label}),fallback:number=>{smallDialog('QQ 交流群',`<p class="dialog-description">复制未完成，可选中下方群号手动复制。</p><input id="community-number" aria-label="QQ 群号" readonly value="${number}">`);$('#community-number').focus();$('#community-number').select();}});return;}
  if(action==='game-library'){if(desktop)await window.blockroomDesktop.openLibrary();else location.assign('/downloads/client/windows');return;}
  if(action.startsWith('pack-')){await roomPacksUI.handle(action,target,room);return;}
  if(action.startsWith('play-')){await playUI.handle(action,target,room);return;}
@@ -178,7 +186,7 @@ const desktopLogin=mountDesktopLogin({escape,onBusy:value=>{authBusy=value;},onS
  state=result;lastRender='';$('#offline').hidden=true;render(true);announceAuth();startRealtime();
 },onComplete:()=>{
  if(isGuest){location.assign('/app/#friends');return;}
- if(pendingAction){const action=pendingAction;pendingAction=null;openRoomDialog(action);}else location.hash='friends';
+ if(pendingAction){const action=pendingAction;pendingAction=null;openRoomDialog(action);}else location.hash='home';
  toast('登录成功');
 }});
 function openAuth(mode='login'){
@@ -197,7 +205,7 @@ const register=mode==='register';$('#small-dialog').close();$('#room-dialog').cl
    if(isGuest){location.assign('/app/#home');return;}
    await init();announceAuth();startRealtime();
    if(pendingAction){const action=pendingAction;pendingAction=null;openRoomDialog(action);}
-   else location.hash='friends';
+   else location.hash='home';
    toast(register?'账号已创建':'登录成功');
   }finally{authBusy=false;startRealtime();}
  });

@@ -1,4 +1,4 @@
-const defaultDestination='/app/#friends';
+const defaultDestination='/app/#home';
 // Only return to this app; never send credentials or users to an arbitrary origin.
 export function appDestination(value,origin){
  try{

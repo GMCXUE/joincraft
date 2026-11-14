@@ -326,6 +326,7 @@ test('official homepage and app have separate entries while old desktop root sta
  try{
   const home=await fetch(app.url+'/');const html=await home.text();assert.equal(home.status,200);assert.match(html,/一起上线，/);assert.match(html,/href="\/login"/);assert.match(html,/href="\/downloads\/client\/windows"/);assert.ok(!html.includes('src="/app.js"'));assert.equal(home.headers.get('set-cookie'),null);
   for(const path of ['/app','/app/']){const response=await fetch(app.url+path);assert.equal(response.status,200);assert.match(await response.text(),/src="\/app.js"/);}
+  for(const [path,type] of [['/app-home.js','text/javascript'],['/app-home.css','text/css']]){const response=await fetch(app.url+path);assert.equal(response.status,200);assert(response.headers.get('content-type').includes(type));}
   const download=await fetch(app.url+'/downloads/client/windows',{redirect:'manual'});assert.equal(download.status,302);assert.equal(download.headers.get('location'),'https://www.joincraft.top/updates/joincraft-setup.exe');
   const old=await fetch(app.url+'/',{headers:{'User-Agent':'Mozilla/5.0 joincraft/0.9.7 Chrome/146.0 Electron/45.3.1 Safari/537.36'}});assert.match(await old.text(),/src="\/app.js"/);
   const other=await fetch(app.url+'/',{headers:{'User-Agent':'Mozilla/5.0 Codex/1.0 Electron/45.3.1'}});assert.match(await other.text(),/hero-title/);
@@ -341,10 +342,10 @@ test('official homepage and app have separate entries while old desktop root sta
 test('login return destinations stay inside the account app and preserve room links',async()=>{
  const {appDestination,loginPagePath,useLoginPage}=await import('./public/auth/session.js');
  const origin='https://www.joincraft.top';
- for(const value of [null,'','https://evil.example/app/','//evil.example/app/','/\\evil.example/app/','javascript:alert(1)','/downloads/client/windows','/login','/app/../login','/app/%2e%2e/login'])assert.equal(appDestination(value,origin),'/app/#friends');
+ for(const value of [null,'','https://evil.example/app/','//evil.example/app/','/\\evil.example/app/','javascript:alert(1)','/downloads/client/windows','/login','/app/../login','/app/%2e%2e/login'])assert.equal(appDestination(value,origin),'/app/#home');
  assert.equal(appDestination('/app/?code=123456#room/demo',origin),'/app/?code=123456#room/demo');
  assert.equal(appDestination('/app?guest=1&code=123456#home',origin),'/app/?code=123456#home');
- assert.equal(loginPagePath('register','/app/#friends',origin),'/login?mode=register');
+ assert.equal(loginPagePath('register','/app/#home',origin),'/login?mode=register');
  assert.equal(new URL('https://www.joincraft.top'+loginPagePath('login','/app/?code=123456#room/demo',origin)).searchParams.get('next'),'/app/?code=123456#room/demo');
  assert.equal(useLoginPage({desktop:true,guest:false,profile:null}),false);
  assert.equal(useLoginPage({desktop:false,guest:true,profile:null}),false);
