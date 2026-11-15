@@ -40,7 +40,8 @@ export class Relay {
   }
   snapshot(id: string, actor: Principal) {
     const g = this.games.get(id), mine = [...this.agents.values()].find(a => a.game === g && a.actor.id === actor.id);
-    return { status: g?.status ?? 'offline', error: g?.error || '', version: g?.version || '', port: g?.port ?? null,
+    const hostOnline=!!g?.host?.ws&&g.host.ws.readyState===WebSocket.OPEN&&this.service.sessionValid(g.host.actor.tokenHash);
+    return { status: g?.status ?? 'offline',hostOnline,joinable:hostOnline&&g?.status==='online', error: g?.error || '', version: g?.version || '', port: g?.port ?? null,
       local: mine ? { status: mine.address || mine.role === 'host' && g?.status === 'online' ? 'ready' : mine.error ? 'error' : mine.ws ? 'checking' : 'waiting', address: mine.address || '', error: mine.error || '', role: mine.role, transport: mine.transport, latency: mine.latency } : null,
       routes: g ? {direct: [...this.agents.values()].filter(a => a.game === g && a.role === 'guest' && a.address && a.transport === 'p2p').length, relay: [...this.agents.values()].filter(a => a.game === g && a.role === 'guest' && a.address && a.transport === 'relay').length} : {direct:0,relay:0},
       // Transport connections include MC status pings; this is deliberately not a player count.
@@ -62,7 +63,7 @@ export class Relay {
       game = { id: randomUUID(), roomId: id, port, status: 'waiting', error: '', version: '' };
       this.games.set(id, game);
     } else {
-      if (!game || game.status !== 'online') fail('房主尚未开始联机', 409);
+      if (!game || game.status !== 'online'||!game.host?.ws||game.host.ws.readyState!==WebSocket.OPEN||!this.service.sessionValid(game.host.actor.tokenHash)) fail('房主尚未开始联机', 409);
       if (room.owner_id === actor.id) fail('房主直接留在自己的 MC 世界中即可');
       for (const a of this.agents.values()) if (a.game === game && a.actor.id === actor.id) this.remove(a);
     }

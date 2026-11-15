@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const source=(await readFile(new URL('./public/room-packs.js',import.meta.url),'utf8')).replace("import {renderInstallProgress,formatBytes} from './pack-progress.js';","const renderInstallProgress=(_container,state)=>globalThis.__packRender?.(state);const formatBytes=String;");
-const {createRoomPacksUI}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const resolvedSource=source.replace("from './room-readiness.js'","from '"+new URL('./public/room-readiness.js',import.meta.url).href+"'");
+const {createRoomPacksUI}=await import('data:text/javascript;base64,'+Buffer.from(resolvedSource).toString('base64'));
 const deferred=()=>{let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return {promise,resolve,reject};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(t,{integratedPlay=false}={}){
  const old={window:globalThis.window,document:globalThis.document,render:globalThis.__packRender},requests=[],initial=deferred(),frames=[],toasts=[];let callback,refreshes=0;
- const room={id:'room-a',pack:{sha512:'a'.repeat(128),name:'测试整合包',minecraft:'1.20.1',loader:'Forge',versionId:'1'}};
+ const room={id:'room-a',connection:{status:'online'},pack:{sha512:'a'.repeat(128),name:'测试整合包',minecraft:'1.20.1',loader:'Forge',versionId:'1'}};
  globalThis.window={...(integratedPlay?{joincraftPlay:{version:1}}:{}),joincraftPacks:{progress:()=>initial.promise,onEvent:fn=>callback=fn,status:()=>{const value=deferred();requests.push(value);return value.promise;}}};
  globalThis.document={querySelector:()=>null,querySelectorAll:()=>[]};globalThis.__packRender=state=>frames.push({...state});
  t.after(()=>{globalThis.window=old.window;globalThis.document=old.document;globalThis.__packRender=old.render;});
@@ -54,6 +55,9 @@ test('integrated room flow keeps install and repair actions for missing and chan
 });
 test('legacy clients keep their standalone game entry',async t=>{
  const f=fixture(t);let opened=0;f.native.open=async()=>{opened++;return {started:true};};const pending=f.ui.handle('pack-start',null,f.room);f.requests[0].resolve({status:'ready'});await pending;assert.equal(opened,1);assert.match(f.ui.panel(f.room),/启动游戏/);
+});
+test('legacy room pack launch is hidden and blocked while the host is unready',async t=>{
+ const f=fixture(t);f.room.connection={status:'offline',hostOnline:false};const pending=f.ui.sync(f.room);f.requests[0].resolve({status:'ready'});await pending;assert.doesNotMatch(f.ui.panel(f.room),/启动游戏|data-action="pack-start"/);let opened=0;f.native.open=async()=>opened++;const stale=f.ui.handle('pack-start',null,f.room);f.requests[1].resolve({status:'ready'});await stale;assert.equal(opened,0);assert(f.toasts.some(message=>message.includes('等待房主')));
 });
 
 test('editable room publishing requires explicit revision confirmation',async t=>{

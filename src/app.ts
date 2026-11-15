@@ -260,7 +260,7 @@ export async function createApp(options: AppOptions = {}) {
     '/launcher/memory.js':['launcher/memory.js','text/javascript'],
     '/launcher/library.css': ['launcher/library.css', 'text/css'],
     '/room-packs.js':['room-packs.js','text/javascript'],'/pack-progress.js':['pack-progress.js','text/javascript'],'/pack-progress.css':['pack-progress.css','text/css'],'/client-theme.css':['client-theme.css','text/css'],
-    '/play.js': ['play.js', 'text/javascript'], '/play.css': ['play.css', 'text/css'],
+    '/play.js': ['play.js', 'text/javascript'], '/play.css': ['play.css', 'text/css'], '/room-readiness.js':['room-readiness.js','text/javascript'],
     '/ui.js': ['ui.js', 'text/javascript'], '/ui.css': ['ui.css', 'text/css'], '/polish.css': ['polish.css', 'text/css'],
     '/': ['home/index.html', 'text/html'], '/app/':['index.html','text/html'], '/app':['index.html','text/html'],
     '/login':['auth/index.html','text/html'], '/login/':['auth/index.html','text/html'],

@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('joincraftPacks',Object.freeze({transferVersion:
 window.addEventListener('DOMContentLoaded',()=>{document.documentElement.dataset.desktopPlatform=process.platform;});
 
 const playCall=name=>async input=>{const result=await ipcRenderer.invoke('play:'+name,input);if(!result.ok)throw Error(result.error);return result.value;};
-contextBridge.exposeInMainWorld('joincraftPlay',Object.freeze({version:1,select:playCall('select'),stop:playCall('stop'),state:playCall('state'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('play:event',listener);return()=>ipcRenderer.removeListener('play:event',listener);}}));
+contextBridge.exposeInMainWorld('joincraftPlay',Object.freeze({version:1,observe:playCall('observe'),select:playCall('select'),stop:playCall('stop'),state:playCall('state'),onEvent:callback=>{const listener=(_event,value)=>callback(value);ipcRenderer.on('play:event',listener);return()=>ipcRenderer.removeListener('play:event',listener);}}));
 
 const homeCall=name=>async input=>{const result=await ipcRenderer.invoke('home:'+name,input);if(!result.ok)throw Error(result.error);return result.value;};
 contextBridge.exposeInMainWorld('joincraftHome',Object.freeze({version:3,recent:homeCall('recent'),identity:homeCall('identity'),login:homeCall('login'),logout:homeCall('logout'),microsoftPage:homeCall('microsoft-page'),state:homeCall('state'),select:homeCall('select'),configure:homeCall('configure'),start:homeCall('start'),onEvent:callback=>{const listener=()=>callback();ipcRenderer.on('home:changed',listener);return()=>ipcRenderer.removeListener('home:changed',listener);}}));

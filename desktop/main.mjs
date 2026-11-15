@@ -306,10 +306,11 @@ else {
       }
     }catch(error){return {ok:false,error:error.message||'整合包操作失败'};}
   });
-  for(const action of ['select','stop','state'])ipcMain.handle('play:'+action,async(event,input)=>{
+  for(const action of ['select','stop','state','observe'])ipcMain.handle('play:'+action,async(event,input)=>{
     try{
       if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权操作本机联机');
       if(action==='state')return {ok:true,value:gamePlay.state()};
+      if(action==='observe')return {ok:true,value:gamePlay.observeRoom({roomId:input?.roomId,joinable:input?.joinable})};
       if(action==='stop'){if(input?.roomId===gamePlay.context?.roomId)await gamePlay.stop();return {ok:true,value:gamePlay.state()};}
       if(gamePlay.active||anyGameBusy()||anyPackBusy())throw Error('请先退出当前游戏或结束当前任务');
       if(input?.token!==undefined&&input.token!==null&&(typeof input.token!=='string'||input.token.length>200))throw Error('登录会话无效');

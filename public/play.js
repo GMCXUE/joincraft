@@ -1,3 +1,4 @@
+import {canJoinGame,gameWaitingMessage} from './room-readiness.js';
 export function connectionLabel(local){if(local?.transport==='p2p')return 'P2P 直连'+(typeof local.latency==='number'&&Number.isFinite(local.latency)&&local.latency>=0&&local.latency<=60000?' · '+Math.round(local.latency)+' ms':'');return local?.transport==='relay'?'服务器中继':local?.transport==='checking'?'正在尝试直连…':'';}
 export function isDesktopClient(bridge=globalThis.blockroomDesktop){return typeof bridge?.openLibrary==='function';}
 export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion,desktop=isDesktopClient,getSession=()=>null,native=globalThis.joincraftPlay,download=()=>location.assign('/downloads/client/windows')}) {
@@ -7,12 +8,19 @@ export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,to
  function requiredPanel(){return `<section class="play-panel client-required" aria-label="客户端联机"><div class="play-heading"><h3>${icon('gamepad')}在客户端中联机</h3><p>游戏库与 MC 联机请使用 joincraft 客户端。</p></div><div class="client-required-actions"><a class="button primary small" href="/downloads/client/windows">下载客户端</a><span>Windows x64</span></div></section>`;}
  function panel(room){
   if(!desktop())return requiredPanel();
-  const c=room.connection||{status:'offline'},local=c.local;
-
-  return `<section class="play-panel" aria-label="游戏联机"><div class="play-heading"><div><h3>${icon('gamepad')}游戏联机</h3></div><span class="play-status ${c.status==='online'?'ready':''}"><span></span>${labels[c.status]||labels.offline}</span></div>${c.error?`<p class="play-error" role="alert">${escape(c.error)}</p>`:''}<div class="play-controls">${room.isHost?`${['online','waiting'].includes(c.status)?'<button class="button" data-action="play-stop">停止联机</button>':`<button class="button primary" data-action="play-start">${icon('gamepad')}${c.status==='error'?'重新开房':native?.version===1?'选择存档并开房':'开始联机'}</button>`}${c.status==='online'?`<span class="play-detail">${escape(c.version||'Java 版')} · ${c.routes?c.routes.direct+c.routes.relay>0?'直连 '+c.routes.direct+' · 中继 '+c.routes.relay:'等待成员加入':c.connections+' 条游戏连接'}</span>`:''}`:local?.status==='ready'&&native?.version===1?`<span class="play-detail play-route" data-transport="${['p2p','relay','checking'].includes(local.transport)?local.transport:'relay'}">${connectionLabel(local)||'游戏连接已就绪'}</span><button class="text-button" data-action="play-disconnect">断开连接</button>`:local?.status==='ready'?`<div class="play-address"><small>本机连接地址</small><code>${escape(local.address)}</code><button class="icon-button" data-action="play-copy-address" aria-label="复制游戏地址">${icon('copy')}</button></div><button class="text-button" data-action="play-disconnect">断开连接</button>`:local?'<span class="play-detail">等待本地连接程序…</span><button class="text-button" data-action="play-connect">重新生成指令</button>':`<button class="button primary" data-action="play-connect" ${c.status!=='online'?'disabled':''}>${icon('link')}${native?.version===1?'加入游戏':'连接游戏'}</button>`}</div></section>`;
+  const c=room.connection||{status:'offline'},local=c.local,ready=canJoinGame(room);
+  let controls;
+  if(room.isHost)controls=`${['online','waiting'].includes(c.status)?'<button class="button" data-action="play-stop">停止联机</button>':`<button class="button primary" data-action="play-start">${icon('gamepad')}${c.status==='error'?'重新开房':native?.version===1?'选择存档并开房':'开始联机'}</button>`}${c.status==='online'?`<span class="play-detail">${escape(c.version||'Java 版')} · ${c.routes?c.routes.direct+c.routes.relay>0?'直连 '+c.routes.direct+' · 中继 '+c.routes.relay:'等待成员加入':c.connections+' 条游戏连接'}</span>`:''}`;
+  else if(!ready)controls=local?'<button class="text-button" data-action="play-disconnect">断开连接</button>':'';
+  else if(local?.status==='ready'&&native?.version===1)controls=`<span class="play-detail play-route" data-transport="${['p2p','relay','checking'].includes(local.transport)?local.transport:'relay'}">${connectionLabel(local)||'游戏连接已就绪'}</span><button class="text-button" data-action="play-disconnect">断开连接</button>`;
+  else if(local?.status==='ready')controls=`<div class="play-address"><small>本机连接地址</small><code>${escape(local.address)}</code><button class="icon-button" data-action="play-copy-address" aria-label="复制游戏地址">${icon('copy')}</button></div><button class="text-button" data-action="play-disconnect">断开连接</button>`;
+  else controls=local?'<span class="play-detail">等待本地连接程序…</span><button class="text-button" data-action="play-connect">重新生成指令</button>':`<button class="button primary" data-action="play-connect">${icon('link')}${native?.version===1?'加入游戏':'连接游戏'}</button>`;
+  const status=room.isHost?labels[c.status]||labels.offline:ready?labels.online:gameWaitingMessage(room);
+  return `<section class="play-panel" aria-label="游戏联机"><div class="play-heading"><div><h3>${icon('gamepad')}游戏联机</h3></div><span class="play-status ${ready?'ready':''}"><span></span>${escape(status)}</span></div>${c.error?`<p class="play-error" role="alert">${escape(c.error)}</p>`:''}${controls?`<div class="play-controls">${controls}</div>`:''}</section>`;
  }
  function sync(room){
   const c=room.connection||{status:'offline'};
+  if(!room.isHost&&native?.observe)void native.observe({roomId:room.id,joinable:canJoinGame(room)}).catch(()=>{});
   const status=$('.connection-state');if(status)status.hidden=!desktop();
   if(status){status.classList.toggle('connected',c.status==='online');status.querySelector('strong').textContent=c.status==='online'?(!room.isHost&&connectionLabel(c.local)||'Java 联机已开启'):labels[c.status]||'尚未开房';}
   if(!pending||pending.roomId!==room.id||pending.version!==getVersion())return;
@@ -34,6 +42,7 @@ export function createPlayUI({api,escape,icon,smallDialog,formHandler,refresh,to
    if(pending&&pending.version===getVersion()&&pending.expiresAt>Date.now())try{await navigator.clipboard.writeText(pending.command);toast('指令已复制');}catch{toast('请选中指令手动复制');}return;
   }
   if(!room||room.closed)return;
+  if(action==='play-connect'&&!room.isHost&&!canJoinGame(room)){toast(gameWaitingMessage(room));return;}
   if(native?.version===1&&['play-start','play-connect','play-stop','play-disconnect'].includes(action)){
    target.disabled=true;try{if(action==='play-start'||action==='play-connect')await native.select({roomId:room.id,token:getSession()});else{await native.stop({roomId:room.id});await api(`/api/rooms/${room.id}/play/${action==='play-stop'?'stop':'disconnect'}`,{});await refresh();}}catch(error){toast(error.message);}finally{target.disabled=false;}return;
   }

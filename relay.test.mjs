@@ -47,6 +47,12 @@ test('real TCP bridge carries Java status and backpressured binary traffic',()=>
  await waitFor(async()=>(await call('/api/state',undefined,guest)).data.rooms[0].connection.status==='offline');
  await assert.rejects(status(port,300));
 }));
+test('member readiness follows the actual authenticated host bridge lifecycle',()=>fixture(async({start,call,guest,room,host})=>{
+ const state=async()=>(await call('/api/state',undefined,guest)).data.rooms[0].connection;
+ assert.equal((await state()).joinable,false);assert.equal((await state()).hostOnline,false);
+ await start();assert.equal((await state()).joinable,true);assert.equal((await state()).hostOnline,true);
+ await call(`/api/rooms/${room.id}/play/stop`,{},host);await waitFor(async()=>!(await state()).joinable);assert.equal((await state()).hostOnline,false);assert.equal((await call(`/api/rooms/${room.id}/play/connect`,{},guest)).status,409);
+}));
 
 test('relay enforces host/member authority, one-use tickets and revocation on leave',()=>fixture(async({app,call,host,guest,other,room,port,start,join})=>{
  assert.equal((await call(`/api/rooms/${room.id}/play/start`,{port},guest)).status,403);

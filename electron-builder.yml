@@ -19,6 +19,7 @@ files:
   - public/avatars.js
   - public/client-theme.css
   - public/surfaces.css
+  - public/room-readiness.js
   - public/type.css
   - public/pixel-theme.css
   - public/focus.js

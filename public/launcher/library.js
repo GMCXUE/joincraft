@@ -87,6 +87,8 @@ function controls() {
   const network=state.play?.network,route=$('#network-route');route.hidden=!context||!network;route.dataset.transport=network?.transport||'';route.title=network?.reason||'';text('#network-route',network?.transport==='p2p'?`P2P 直连${Number.isFinite(network.latency)?' · '+Math.round(network.latency)+' ms':''}`:network?.transport==='relay'?'服务器中继':network?'正在尝试直连…':'');
   $('#clear-play').disabled=active||state.busy;$('#stop-play').hidden=!active;$('#stop-play').disabled=state.busy;$('#host-port').disabled=active||running||state.busy;
   if(context?.instanceId&&context.instanceId!==state.selected)$('#launch').disabled=true;
+  $('#launch').hidden=context?.role==='guest'&&state.play?.joinable===false;
+  if($('#launch').hidden)text('#launch-hint','等待房主上线并成功开房');
   if((worldUI?.tab==='worlds'&&context?.role!=='guest'||context?.role==='host')&&(!worldUI?.selected||worldUI.loading))$('#launch').disabled=true;
   const run = state.runs.find(r => r.id === state.selected);
   const view=launchPresentation({selectedId:state.selected,run,play:state.play,operation:state.operation,error:selected?.error});

@@ -5,7 +5,7 @@
  const instance={id,managed:true,root:root+'\\instances\\demo\\.minecraft',version:'forge-1.20.1',name:'香草纪元：食旅纪行',minecraft:'1.20.1',loader:'Forge',javaMajor:17,isolation:{mode:'shared'}};
  const instances=[instance,{...instance,id:'vanilla-demo',name:'原版生存',loader:'原版',root:root+'\\instances\\vanilla\\.minecraft'},{...instance,id:'creative-demo',name:'建筑工坊',loader:'Fabric',root:root+'\\instances\\creative\\.minecraft'}];
  const java={path:'C:\\Program Files\\Java\\jdk-17\\bin\\java.exe',major:17,version:'17.0.21',arch:'x64'};
- let play={context:['local','empty'].includes(scenario)?null:{roomId:'11111111-1111-4111-8111-111111111111',roomName:'周末建筑队',instanceId:id,role:scenario==='guest'?'guest':'host',port:25565},progress:{phase:'selected',message:scenario==='guest'?'确认启动设置后加入':'选择存档后开房'}},runs=[],generation=0;
+ let play={joinable:scenario==='guest-offline'?false:null,context:['local','empty'].includes(scenario)?null:{roomId:'11111111-1111-4111-8111-111111111111',roomName:'周末建筑队',instanceId:id,role:scenario.startsWith('guest')?'guest':'host',port:25565},progress:{phase:'selected',message:scenario==='guest'?'确认启动设置后加入':'选择存档后开房'}},runs=[],generation=0;
  const delay=ms=>new Promise(r=>setTimeout(r,ms)),set=(phase,message)=>{play.progress={phase,message};emit({type:'game-play',...play});};
  const run=(id,state,message)=>{const value={id,state,memoryMB:8192,message};runs=[...runs.filter(r=>r.id!==id),value];emit({type:'run',...value});};
  const memory=()=>({totalMB:16384,availableMB:8192,usedMB:8192,recommendedMB:8192,maxMB:16384,lowMemory:false,sampledAt:Date.now()});
