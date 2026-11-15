@@ -28,8 +28,6 @@
 .voice-user-identity h3{font-size:18px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
 .voice-user-identity p{font-size:12px;color:#bbc2cd;overflow-wrap:anywhere;}
 .voice-user-bio{margin-top:14px!important;font-size:13px;color:#bbc2cd;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-line;}
-.voice-user-channel{display:flex;align-items:center;gap:6px;margin-top:12px!important;color:#bbc2cd;font-size:12px;}
-.voice-user-channel:before{content:'';width:6px;height:6px;border-radius:50%;background:#82bc83;flex:none;}
 .voice-user-profile-state{font-size:12px;color:#bbc2cd;}
 .voice-user-profile-state:empty{display:none;}
 .voice-user-level{margin-top:18px;padding-top:16px;border-top:1px solid #ffffff14;}

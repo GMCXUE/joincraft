@@ -62,7 +62,6 @@ export function createVoicePopovers({voice,getState,getVersion,api}){
   if(focus){keyboardMic=true;input.focus({preventScroll:true});}
  }
  function updateLevel(panel,value){const range=panel.querySelector('input[type=range]'),p=percent(value);if(range.value!==String(p))range.value=String(p);range.setAttribute('aria-valuetext',p+'%');const output=panel.querySelector('output'),reset=panel.querySelector('.voice-level-reset');if(output)output.textContent=p+'%';if(reset)reset.disabled=p===100;}
- function status(info,snapshot){return info.self&&snapshot.blocked?'房主已限制麦克风':info.peer.muted?'麦克风已关闭':info.peer.speaking?'正在说话':'麦克风已开启';}
  function sync(){
   const snapshot=voice.snapshot(),button=document.querySelector('[data-action="community-mic"]');
   if(button){button.removeAttribute('title');button.setAttribute('aria-describedby',help.id);button.setAttribute('aria-controls',mic.id);button.setAttribute('aria-expanded',String(opened===mic));}
@@ -76,7 +75,6 @@ export function createVoicePopovers({voice,getState,getVersion,api}){
   const info=voicePeerFor(getState(),snapshot,target.userId,target.roomId);
   if(!info||info.peer.identity!==target.identity||target.owner!==getVersion()){close();return;}
   updateLevel(card,info.self?snapshot.micGain:info.peer.volume);
-  card.querySelector('.voice-user-channel').textContent=info.group.name+' · '+status(info,snapshot);
   card.querySelector('.voice-level-note').textContent=info.self?'调整不会自动打开麦克风。':snapshot.deaf?'你已关闭收听，恢复后生效。':'只影响你听到的音量。';
  }
  async function loadProfile(expected){
@@ -95,7 +93,7 @@ export function createVoicePopovers({voice,getState,getVersion,api}){
  function openUser(userId,roomId,anchor,element){
   const info=voicePeerFor(getState(),voice.snapshot(),userId,roomId);if(!info)return false;
   close();trigger=element||document.activeElement;target={userId,roomId,identity:info.peer.identity,owner:getVersion(),anchor};
-  card.innerHTML=`<button type="button" class="voice-popover-close" aria-label="关闭语音成员资料">${closeIcon}</button><div class="voice-user-profile">${voiceProfileHTML(info.member,info.member)}</div><p class="voice-user-channel"></p><p class="voice-user-profile-state" role="status"></p><div class="voice-user-level"><div class="voice-level-label"><label for="voice-user-level">${info.self?'麦克风输入音量':'收听音量'}</label><output for="voice-user-level">100%</output></div><input id="voice-user-level" type="range" min="0" max="100" step="1" value="100" aria-label="${info.self?'麦克风输入音量':'收听'+escape(info.member.name)+'的音量'}"><div class="voice-level-caption"><p class="voice-level-note"></p><button type="button" class="voice-level-reset">恢复 100%</button></div></div><footer><a href="#profile/${encodeURIComponent(userId)}">个人主页</a>${!info.self&&getState().social?.friends?.some(friend=>friend.id===userId)?`<a href="#chat/${encodeURIComponent(userId)}">发消息</a>`:''}${info.room.isHost&&!info.self?`<button type="button" data-action="community-moderate" data-user="${escape(userId)}" data-room="${escape(roomId)}">语音管理</button>`:''}</footer>`;
+  card.innerHTML=`<button type="button" class="voice-popover-close" aria-label="关闭语音成员资料">${closeIcon}</button><div class="voice-user-profile">${voiceProfileHTML(info.member,info.member)}</div><p class="voice-user-profile-state" role="status"></p><div class="voice-user-level"><div class="voice-level-label"><label for="voice-user-level">${info.self?'麦克风输入音量':'收听音量'}</label><output for="voice-user-level">100%</output></div><input id="voice-user-level" type="range" min="0" max="100" step="1" value="100" aria-label="${info.self?'麦克风输入音量':'收听'+escape(info.member.name)+'的音量'}"><div class="voice-level-caption"><p class="voice-level-note"></p><button type="button" class="voice-level-reset">恢复 100%</button></div></div><footer><a href="#profile/${encodeURIComponent(userId)}">个人主页</a>${!info.self&&getState().social?.friends?.some(friend=>friend.id===userId)?`<a href="#chat/${encodeURIComponent(userId)}">发消息</a>`:''}${info.room.isHost&&!info.self?`<button type="button" data-action="community-moderate" data-user="${escape(userId)}" data-room="${escape(roomId)}">语音管理</button>`:''}</footer>`;
   show(card);sync();position(card,anchor);card.focus({preventScroll:true});void loadProfile(target);return true;
  }
  function rowInfo(element){const row=element?.closest?.('[data-voice-user]');return row&&voicePeerFor(getState(),voice.snapshot(),row.dataset.voiceUser,row.dataset.voiceRoom)?row:null;}
