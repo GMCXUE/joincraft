@@ -253,6 +253,7 @@ export async function createApp(options: AppOptions = {}) {
     '/brand/maskable-512.png':['brand/maskable-512.png','image/png'],
     '/apple-touch-icon.png':['apple-touch-icon.png','image/png'],
     '/site.webmanifest':['site.webmanifest','application/manifest+json'],
+    '/surfaces.css':['surfaces.css','text/css'],
     '/inbox.js':['inbox.js','text/javascript'],'/inbox.css':['inbox.css','text/css'],
     '/desktop-notifications.js':['desktop-notifications.js','text/javascript'], '/desktop-notifications.css':['desktop-notifications.css','text/css'],
     '/launcher/library.js': ['launcher/library.js', 'text/javascript'],

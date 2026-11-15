@@ -1,0 +1,114 @@
+/* Surface depth is shared by the room app and the local game library. */
+.client-theme{--radius-control:8px;--radius-section:14px;--radius-window:16px}
+:root.pixel-theme.client-theme .workspace{border-radius:var(--radius-window)}
+.client-theme :is(.app-page,.library-page){background:var(--outer)}
+.client-theme :is(.room-sidebar,.library-sidebar){background:var(--surface-sidebar);border:0}
+.client-theme :is(.content-panel,.library-page main){background:var(--surface-content)}
+.client-theme .content-header{background:var(--surface-sidebar);border:0}
+.client-theme :is(.room-rail,.titlebar){background:var(--outer)}
+.client-theme .sidebar-bottom{border:0;padding-top:12px}
+.client-theme .connection-state{border:0}
+.client-theme .voice-bar{background:var(--surface-inset);border:0;border-radius:12px;padding:12px 10px;margin-bottom:8px}
+.client-theme :is(.voice-status,.voice-controls){border:0}
+.client-theme .room-chat-layout #room-chat-members{background:var(--surface-sidebar);border:0}
+.client-theme .room-chat-layout.show-members #room-chat-members{background:var(--surface-sidebar)}
+.client-theme .rail-rule{background:var(--surface-section)}
+:root.pixel-theme.client-theme :is(.room-icon,.rail-home,.add-room){background:var(--surface-content);border-color:transparent;border-radius:14px}
+:root.pixel-theme.client-theme .room-rail :is(.room-icon,.rail-home,.add-room,.user-avatar),:root.pixel-theme.client-theme .nav-motion-rail{border-radius:14px}
+:root.pixel-theme.client-theme :is(.room-icon,.rail-home).selected{background:#2d424a}
+.client-theme .room-sidebar .channel:hover:not(.active){background:var(--surface-section)}
+.client-theme .room-sidebar .channel.active{background:var(--selected)}
+.client-theme :is(.voice-person,.room-chat-member):is(:hover,:focus-within){background:var(--surface-section)}
+.client-theme .dm-row:hover{background:var(--surface-section)}
+.client-theme .dm-row.active{background:var(--selected)}
+
+/* Controls sit in a darker well; secondary actions use the raised surface. */
+:root.pixel-theme.client-theme :is(.app-page,.library-page) :is(button,.button){border-color:transparent;border-radius:var(--radius-control)}
+:root.pixel-theme.client-theme :is(.app-page,.library-page) :is(input:not([type=radio]):not([type=checkbox]):not([type=range]):not([type=file]),select,textarea):not(.chat-composer textarea,.room-chat-composer textarea,.friend-search input){border-color:transparent;background:var(--input);border-radius:var(--radius-control)}
+:root.pixel-theme.client-theme :is(.app-page,.library-page) :is(input,select,textarea):focus-visible{outline:2px solid var(--pixel-focus);outline-offset:2px}
+:root.pixel-theme.client-theme .app-page :is(.chat-composer,.room-chat-composer){background:var(--surface-section);border-color:transparent;border-radius:12px}
+:root.pixel-theme.client-theme .app-page :is(.chat-composer,.room-chat-composer):focus-within{border-color:var(--diamond-core)}
+:root.pixel-theme.client-theme .app-page :is(.chat-composer,.room-chat-composer) textarea{background:transparent;outline:0}
+.client-theme .friend-search{background:var(--surface-inset);border-color:transparent}
+:root.pixel-theme.client-theme .friend-search input{background:transparent}
+.client-theme .friend-row{background:var(--surface-section);border:0;border-radius:12px;padding:16px;margin-bottom:8px}
+.client-theme .friend-row:hover{background:var(--hover)}
+.client-theme .member-table-head{border:0;padding:12px 16px;background:var(--surface-inset);border-radius:8px;margin-bottom:8px}
+.client-theme .member-row{border:0;padding:16px;background:var(--surface-section);border-radius:8px;margin-bottom:8px}
+
+/* Home: room rows, games and the guide each have a clear, quiet surface. */
+.client-theme .home-room-list{border:0;display:grid;gap:8px}
+.client-theme .home-room-row{padding:16px;background:var(--surface-section);border:0;border-radius:var(--radius-section)}
+.client-theme .home-room-row:hover{background:var(--hover)}
+.client-theme .home-game-card{background:var(--surface-section);border-color:transparent;border-radius:var(--radius-section)}
+.client-theme .home-game-card.is-selected{background:#2e3d47;border-color:#58c7cf60}
+.client-theme .home-guide{background:var(--surface-sidebar);border:0;border-radius:var(--radius-section);padding:20px;align-self:start}
+.client-theme .app-home-community{background:var(--surface-sidebar);border:0;border-radius:var(--radius-section);padding:20px}
+.client-theme .home-account-tabs{background:var(--surface-inset)}
+.client-theme :is(.home-empty,.home-web-games){background:var(--surface-section);border-radius:var(--radius-section)}
+
+/* Room details and settings use functional groups instead of separator lines. */
+.client-theme :is(.room-identity,.room-invitation,.game-summary,.activity){background:var(--surface-section);border:0;border-radius:var(--radius-section);padding:20px}
+.client-theme .room-identity{margin-bottom:16px}
+.client-theme .room-invitation{margin-block:16px 0;min-height:88px}
+.client-theme .overview-columns{gap:16px;margin-top:16px}
+.client-theme .activity{border:0}
+.client-theme .overview-bottom{border:0;padding-top:20px}
+.client-theme :is(.room-pack-panel,.play-panel,.pack-progress){background:var(--surface-section);border:0;border-radius:var(--radius-section)}
+.client-theme .room-pack-bottom{border:0}
+.client-theme .room-pack-panel .pack-progress{background:transparent}
+.client-theme .page-body>.settings-form{background:var(--surface-section);padding:24px;border-radius:var(--radius-section)}
+.client-theme .danger-zone{background:var(--surface-sidebar);border:0;border-radius:var(--radius-section);padding:20px;margin-top:20px}
+.client-theme .profile-facts{background:var(--surface-section);border:0;border-radius:var(--radius-section);padding:20px}
+.client-theme .profile-rooms{border:0;padding-top:0}
+.client-theme .profile-rooms ul{display:grid;gap:8px}
+.client-theme .profile-rooms li+li{border:0}
+.client-theme .profile-rooms li>a{background:var(--surface-section);border-radius:8px;padding:14px 16px}
+.client-theme .profile-rooms li>a:hover{background:var(--hover)}
+.client-theme .profile-account-actions{border:0}
+.client-theme .profile-avatar-option>span{border-width:1px;border-color:transparent;border-radius:10px;background:var(--surface-section)}
+
+/* The local library uses the same sidebar, content and setting depths. */
+:root.pixel-theme.client-theme .library-page .library-sidebar{background:var(--surface-sidebar);border:0}
+.client-theme .library-page .instance-heading{background:var(--surface-sidebar);margin-bottom:16px}
+.client-theme .library-page .instance-tabs{background:var(--surface-sidebar);border:0;border-radius:8px;padding:4px;gap:4px;margin-bottom:0}
+:root.pixel-theme.client-theme .library-page .instance-tabs>button{padding:8px 14px;border-radius:5px;font-size:13px}
+:root.pixel-theme.client-theme .library-page .instance-tabs>button[aria-pressed=true]{background:var(--selected)}
+.client-theme .library-page .instance-tabs>button:after{display:none}
+.client-theme .library-page #launch-settings .settings-section{background:var(--surface-section);border:0;border-radius:var(--radius-section);padding:20px;margin-bottom:16px}
+.client-theme .library-page .advanced-launch{background:var(--surface-section);border:0;border-radius:var(--radius-section);padding:0 20px}
+.client-theme .library-page .launch-footer{background:var(--surface-sidebar);border:0}
+:root.pixel-theme.client-theme .library-page .instance[aria-current=true]{border-color:transparent}
+:root.pixel-theme.client-theme .library-page .world-row{background:var(--surface-section);border-color:transparent;border-radius:12px}
+:root.pixel-theme.client-theme .library-page .world-row:hover:not(:disabled){background:var(--hover);border-color:transparent}
+:root.pixel-theme.client-theme .library-page .world-row[aria-pressed=true]{background:#2e3d47;border-color:#58c7cf60}
+:root.pixel-theme.client-theme .library-page .mod-project-card{background:var(--surface-section);border-color:transparent;border-radius:var(--radius-section)}
+:root.pixel-theme.client-theme .library-page .mod-project-card:hover{background:var(--hover);border-color:transparent}
+.client-theme :is(.mod-subtoolbar,.catalog-compatibility){border-color:transparent}
+.client-theme .mod-row{border:0;border-radius:6px;padding-inline:10px}
+.client-theme .mod-row:nth-child(odd){background:var(--surface-section)}
+.client-theme .mod-row:hover{background:var(--hover)}
+.client-theme .catalog-install-panel{border:0;background:var(--surface-inset);border-radius:8px;padding:16px}
+
+/* Elevated, borderless floating surfaces are distinct from the workspace. */
+:root.pixel-theme.client-theme :is(dialog,#client-updates,.desktop-update-notice){background:var(--surface-floating);border-color:transparent;border-radius:var(--radius-window);box-shadow:0 18px 60px #0006}
+.client-theme :is(.voice-popover,.inbox-panel){background:var(--surface-floating);border:0;border-radius:var(--radius-section);box-shadow:0 12px 36px #0006}
+.client-theme .voice-mic-popover{border-radius:8px}
+.client-theme .inbox-toolbar{background:#00000010;border:0}
+.client-theme .inbox-row{border:0}
+.client-theme .inbox-row:nth-child(even){background:#0000000c}
+.client-theme .inbox-row.is-unread{background:#58c7cf0b}
+.client-theme :is(.voice-user-level,.voice-user-popover footer){border-color:#ffffff0c}
+
+@media(max-width:1100px){.client-theme .home-guide{padding:20px}}
+@media(max-width:600px){
+ .client-theme .room-sidebar{border:0}
+ .client-theme .home-room-row{padding:14px}
+ .client-theme :is(.room-identity,.room-invitation,.game-summary,.activity,.page-body>.settings-form,.profile-facts,.danger-zone){padding:16px}
+ .client-theme .app-home-community{padding:16px}
+ .client-theme .home-guide{padding:16px}
+ .client-theme .library-page #launch-settings .settings-section{padding:16px}
+ .client-theme .library-page .advanced-launch{padding-inline:16px}
+ .client-theme .friend-row{padding:14px}
+ .client-theme .voice-bar{padding:8px;margin-bottom:8px}
+}

@@ -18,6 +18,7 @@ files:
   - public/inbox.*
   - public/avatars.js
   - public/client-theme.css
+  - public/surfaces.css
   - public/type.css
   - public/pixel-theme.css
   - public/focus.js
