@@ -1,0 +1,19 @@
+.diagnostics-panel{padding:24px 0;max-width:100%;min-width:0;font-family:var(--font-body,system-ui,sans-serif)}
+.diagnostics-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.diagnostics-heading h3{margin:0 0 8px;font-size:18px}
+.diagnostics-heading p{margin:0;color:var(--text-secondary,#c0c8d3);font-size:13px;line-height:1.7;max-width:65ch}
+.diagnostics-actions{display:flex;gap:8px;flex-wrap:wrap}
+.diagnostics-summary{padding:16px 18px;margin:24px 0 0;background:var(--surface-inset,#1f242c);border-radius:12px;font-size:14px;line-height:1.7;overflow-wrap:anywhere}
+.diagnostic-finding{padding:22px 0;border-bottom:1px solid var(--line,#3f4651)}
+.diagnostic-finding h4{font-size:15px;margin:0 0 8px}
+.diagnostic-finding p{font-size:13px;line-height:1.8;margin:0 0 12px;max-width:70ch;color:var(--text-secondary,#c0c8d3)}
+.diagnostic-finding code{display:block;font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-muted,#a6afbd)}
+.diagnostics-sources{margin-top:24px}
+.diagnostics-sources details{padding:14px 0;border-bottom:1px solid var(--line,#3f4651);font-size:13px}
+.diagnostics-sources summary{cursor:pointer;overflow-wrap:anywhere}
+.diagnostics-sources pre{background:var(--surface-inset,#1f242c);border-radius:12px;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.8 ui-monospace,monospace;max-height:320px;overflow:auto;tab-size:2}
+.diagnostics-note{font-size:12px;line-height:1.7;color:var(--text-muted,#a6afbd)}
+.library-page.diagnostics-page .launch-footer{display:none}
+.library-page.diagnostics-page #connection-mode-field{display:none}
+.diagnostics-shortcut{margin:8px 0;font-size:13px}
+@media(max-width:900px){.diagnostics-heading{gap:14px}.diagnostics-actions{width:100%}.diagnostics-actions button{flex:1}.diagnostics-panel{padding-top:20px}}

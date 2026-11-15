@@ -11,6 +11,7 @@ import { offlineIdentity } from './auth.mjs';
 import {readSystemMemory,resolveMemory} from './memory.mjs';
 import {compileLaunchSettings} from './launch-settings.mjs';
 import {resolveLogging,prepareLogging} from './logging.mjs';
+import {GameDiagnostics} from './diagnostics.mjs';
 
 export function parseJava(text) {
   const match = text.match(/(?:java|openjdk) version "(\d+)(?:\.(\d+))?/i);
@@ -100,6 +101,7 @@ export class GameLauncher {
     Object.assign(this, { library, account, cacheDir, notify, spawnImpl, probe, platform, prepare, memoryProvider,beforePlan });
     this.runs = new Map();
     this.javaPath = null;
+    this.diagnostics = new GameDiagnostics({getInstance:id=>this.library.get(id)});
   }
   states() { return [...this.runs.entries()].map(([id, run]) => ({ id, state: run.state, message: run.message, ...(Number.isInteger(run.memoryMB)?{memoryMB:run.memoryMB}:{}) })); }
   state(id, state, message, details={}) { const run = this.runs.get(id) || {}; if(state==='checking')delete run.memoryMB;Object.assign(run, { state, message },details); this.runs.set(id, run); this.notify({ type: 'run', id, state, message, ...(Number.isInteger(run.memoryMB)?{memoryMB:run.memoryMB}:{}) }); }
@@ -123,10 +125,12 @@ export class GameLauncher {
     if (['checking', 'starting', 'running'].includes(this.runs.get(input.id)?.state)) throw new Error('该实例已在启动或运行中');
     // A shared game directory can contain the same saves even when the version IDs differ.
     if ([...this.runs.values()].some(r => ['checking', 'starting', 'running'].includes(r.state))) throw new Error('请先退出当前游戏，再启动另一个实例');
+    const diagnostic=this.diagnostics.begin(input.id);
     this.state(input.id, 'checking', '正在校验游戏文件');
     let plan;
     try {
       plan = await this.plan(input, true);
+      diagnostic.secrets=[plan.options.accessToken].filter(value=>typeof value==='string'&&value!=='0');
       await prepareLogging(plan.logging);
       await this.prepare(plan);
       const memoryMB=resolveMemory(input,await this.memoryProvider());
@@ -141,14 +145,16 @@ export class GameLauncher {
         else throw Error('游戏进入目标无效');
       }
       this.state(input.id, 'starting', '正在创建 Java 进程',{memoryMB});
-      const child = this.spawnImpl(plan.argv[0], plan.argv.slice(1), { cwd: plan.gamePath, shell: false, windowsHide: true, stdio: 'ignore' });
+      const child = this.spawnImpl(plan.argv[0], plan.argv.slice(1), { cwd: plan.gamePath, shell: false, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
+      for(const [source,stream] of [['stdout',child.stdout],['stderr',child.stderr]]){stream?.on('data',chunk=>this.diagnostics.capture(diagnostic,chunk,source));stream?.on('error',()=>{});}
       this.runs.get(input.id).child = child;
       const cleanup = () => rm(plan.nativeRoot, { recursive: true, force: true }).catch(() => {});
-      child.once('exit', (code, signal) => { target?.onExit?.(); this.state(input.id, code === 0 ? 'exited' : 'failed', code === 0 ? '游戏已退出' : `游戏进程已退出（${signal || code}），可查看该实例 logs/latest.log`); void cleanup(); });
+      child.once('exit', (code, signal) => { diagnostic.exitCode=code;diagnostic.signal=signal||null;target?.onExit?.(); this.state(input.id, code === 0 ? 'exited' : 'failed', code === 0 ? '游戏已退出' : `游戏进程已退出（${signal || code}），请打开“故障诊断”查看原因`); void cleanup(); });
       await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', () => { this.state(input.id, 'failed', 'Java 进程启动失败，请检查所选 Java'); void cleanup(); reject(new Error('Java 进程启动失败，请检查所选 Java')); }); });
       if (this.runs.get(input.id).state === 'starting') this.state(input.id, 'running', '游戏进程已启动');
       return { started: true };
     } catch (e) {
+      this.diagnostics.failed(input.id,e);
       if (plan) await rm(plan.nativeRoot, { recursive: true, force: true }).catch(() => {});
       this.state(input.id, 'failed', e.message || '启动失败，请先通过 PCL 检查实例');
       throw e;

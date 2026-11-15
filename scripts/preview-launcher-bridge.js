@@ -10,6 +10,7 @@
  const run=(id,state,message)=>{const value={id,state,memoryMB:8192,message};runs=[...runs.filter(r=>r.id!==id),value];emit({type:'run',...value});};
  const memory=()=>({totalMB:16384,availableMB:8192,usedMB:8192,recommendedMB:8192,maxMB:16384,lowMemory:false,sampledAt:Date.now()});
  window.blockroomLauncher={
+  diagnostics:async()=>({summary:'发现 1 项可能的问题（模拟）',findings:[{id:'memory',title:'游戏或系统内存不足',suggestion:'关闭占用内存较多的程序，并在启动设置中调整内存。',evidence:'java.lang.OutOfMemoryError: Java heap space',source:'本次启动输出'}],sources:[{name:'logs/latest.log',text:'[模拟日志] java.lang.OutOfMemoryError: Java heap space'}],warnings:[]}),exportDiagnostics:async()=>({saved:true}),
   setConnectionMode:async value=>value,
   state:async()=>({gameIdentity:{accountMode:'offline',name:'Builder'},root,managedRoot:root,selectedInstance:id,instances:scenario==='empty'?[]:instances,javaPath:java.path,javaInstallations:[java],arch:'x64',account:{configured:false},runs,memory:memory(),play}),
   saveLaunchSettings:async()=>({}),memory:async()=>memory(),scanJava:async()=>{await delay(450);return [java];},selectJava:async()=>java,pickJava:async()=>java,installState:async()=>({state:'idle'}),

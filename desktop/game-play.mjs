@@ -43,6 +43,6 @@ export class GamePlay {
   signal.throwIfAborted();if(this.active!==operation)return;this.set('online','开房成功，朋友可以加入游戏');
  }
  async dispose(operation){operation.controller.abort(Error('联机已停止'));operation.bridge?.close();await operation.helper?.cleanup();if(operation.issued&&operation.context)await this.api(`/api/rooms/${operation.context.roomId}/play/${operation.context.role==='host'?'stop':'disconnect'}`,{}).catch(()=>{});}
- async fail(operation,error){if(this.active!==operation)return;this.active=null;this.network=null;this.set('failed',error.message||'联机失败');await this.dispose(operation).catch(()=>{});}
+ async fail(operation,error){if(this.active!==operation)return;this.launcher.diagnostics?.failed(operation.id,error);this.active=null;this.network=null;this.set('failed',error.message||'联机失败');await this.dispose(operation).catch(()=>{});}
  async stop(){const operation=this.active;this.active=null;this.network=null;this.set('stopped','联机已停止，游戏保持运行');if(operation)await this.dispose(operation).catch(()=>{});}
 }

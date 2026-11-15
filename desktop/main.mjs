@@ -229,6 +229,13 @@ else {
   handle('mods-fork',input=>mods.fork(input));
   handle('mods-list',input=>mods.list(input));
   handle('worlds',input=>worlds.list(input?.id));
+  handle('diagnostics',input=>launcher.diagnostics.read({id:input?.id}));
+  handle('export-diagnostics',async input=>{
+    const report=await launcher.diagnostics.read({id:input?.id});
+    const chosen=await dialog.showSaveDialog(roomWindow,{title:'导出脱敏诊断日志',defaultPath:'joincraft-diagnostics.json',filters:[{name:'诊断报告',extensions:['json']}]});
+    if(chosen.canceled||!chosen.filePath)return null;
+    await writeFile(chosen.filePath,JSON.stringify(report,null,2)+'\n',{mode:0o600});return {saved:true};
+  });
   handle('play-stop',()=>gamePlay.stop());
   handle('play-clear',()=>gamePlay.clear());
   handle('connection-mode',async value=>{if(!['auto','relay'].includes(value))throw Error('联机方式无效');if(gamePlay.active)throw Error('请先停止联机再更改连接方式');const previous=prefs.connectionMode;prefs.connectionMode=value;try{await save();}catch(error){prefs.connectionMode=previous;throw error;}return value;});

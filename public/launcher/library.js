@@ -9,6 +9,7 @@ import {miningFeedback,animatePage} from '../motion.js';
 let libraryScanMotion=null;
 import {createMemoryControls} from './memory.js';
 import {mountInboxShortcut} from '../inbox.js';
+import {mountDiagnostics} from './diagnostics.js';
 import {mountDesktopUpdates} from '../desktop-notifications.js';
 const $ = selector => document.querySelector(selector);
 const api = window.blockroomLauncher;
@@ -22,7 +23,7 @@ function message(error) { $('#message').hidden = !error; text('#message', error?
 function item() { return state.instances.find(i => i.id === state.selected); }
 const playerRoot=()=>item()?.root||state.root;
 const prefKey = selected => `${selected.root}/${selected.version}`;
-let modsUI=null,worldUI=null,homeOpen=null,initialized=false;
+let modsUI=null,worldUI=null,diagnosticsUI=null,homeOpen=null,initialized=false;
 const memoryUI=createMemoryControls({api,locked:()=>state.busy||state.runs.some(r=>['checking','starting','running'].includes(r.state)),getRun:()=>state.runs.find(r=>r.id===state.selected),onChange:()=>remember(),onRefresh:()=>controls()});
 window.addEventListener('beforeunload',()=>memoryUI.dispose());
 function remember() {
@@ -68,6 +69,8 @@ function setJava(java){
 function controls() {
   const selected = item();
   const running = state.installBusy || state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
+  if(worldUI?.tab==='diagnostics')void diagnosticsUI?.load(selected);
+  $('#open-diagnostics').hidden=!(state.runs.find(r=>r.id===state.selected)?.state==='failed'||state.play?.context?.instanceId===state.selected&&state.play?.progress?.phase==='failed');
   for (const id of ['#import-pack','#empty-install','#pick-install-root', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
   $('#scan-java').disabled ||= state.javaScanning;$('#java-select').disabled ||= state.javaScanning;$('#pick-java').disabled ||= state.javaScanning;
   $('#check').disabled = !api || !selected || !!selected.error || !state.javaPath || state.busy || running;
@@ -123,10 +126,12 @@ function render() {
     pathLabel(); text('#check-result', '');
     if (selected.error) message(selected.error);
   }
-  renderJava();renderAccount();void worldUI?.load(selected);
+  diagnosticsUI?.reset(selected);renderJava();renderAccount();void worldUI?.load(selected);
 }
 modsUI=mountMods({api,onError:message});
 worldUI=mountWorlds({api,onChange:controls,onError:message});
+diagnosticsUI=mountDiagnostics({api,onError:message});
+$('#open-diagnostics').onclick=()=>worldUI.setTab('diagnostics');
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
 $('#clear-play').onclick=()=>action(async()=>{await api.clearPlay();});
 function syncPlay(value,force=false){const previous=state.play?.context,changed=previous?.roomId!==value.context?.roomId||previous?.instanceId!==value.context?.instanceId;state.play=value;if(value.context?.instanceId&&(changed||force)){state.selected=value.context.instanceId;$('#host-port').value=value.context.port||25565;worldUI.setTab(value.context.role==='host'?'worlds':'settings');}controls();}
@@ -157,7 +162,7 @@ else {
     if(event.type==='home-open'){if(initialized)applyHomeOpen(event);else homeOpen=event;}
     if(event.type==='pack-selected'){state.selected=event.id;render();remember();}
     if (event.type === 'account') { state.account = event; renderAccount(); }
-    if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed') message(event.message); }
+    if (event.type === 'run') { state.runs = [...state.runs.filter(r => r.id !== event.id), event]; controls(); if (event.id === state.selected) text('#check-result', event.message); if (event.state === 'failed'){message(event.message);if(event.id===state.selected&&worldUI.tab==='diagnostics')void diagnosticsUI.load(item(),{force:true});} }
   });
   api.state().then(result => { Object.assign(state, result);$('#connection-mode').value=result.connectionMode==='relay'?'relay':'auto';if(result.memory)memoryUI.update(result.memory);memoryUI.start(); state.selected = result.selectedInstance || state.instances.find(i => prefKey(i) === preferences.selected)?.id || state.instances[0]?.id; state.accountMode=result.gameIdentity?.accountMode||'offline';initialized=true;render();if(result.play)syncPlay(result.play,true);if(homeOpen){applyHomeOpen(homeOpen);homeOpen=null;}void scanJava(); }).catch(message);
 }
