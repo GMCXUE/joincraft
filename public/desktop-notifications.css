@@ -1,7 +1,7 @@
 /* Client updates sit with the avatar; the titlebar bell belongs to the inbox. */
 .has-client-update{position:relative}
-:root.pixel-theme.client-theme body .client-update-entry{display:grid;place-items:center;position:absolute;z-index:2;right:0;bottom:32px;width:26px;height:26px;min-height:26px;padding:0;border:2px solid var(--outer,#191b20);border-radius:8px;background:var(--selected,#343943);color:var(--secondary,#bbc2cd);cursor:pointer;-webkit-app-region:no-drag;box-shadow:none;font:600 10px/1 var(--ui-font,system-ui);transition:background-color 140ms ease,color 140ms ease}
-.client-update-entry svg{width:15px;height:15px}
+:root.pixel-theme.client-theme body .client-update-entry{display:grid;place-items:center;position:static;z-index:2;width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:12px;background:var(--selected,#343943);color:var(--secondary,#bbc2cd);cursor:pointer;-webkit-app-region:no-drag;box-shadow:none;font:600 12px/1 var(--ui-font,system-ui);transition:background-color 140ms ease,color 140ms ease}
+.client-update-entry svg{width:21px;height:21px}
 :root.pixel-theme.client-theme body .client-update-entry.has-update{background:var(--diamond-core,#58c7cf);color:#10282d}
 :root.pixel-theme.client-theme body .client-update-entry:hover{background:#46515e;color:var(--text,#e9edf3)}
 :root.pixel-theme.client-theme body .client-update-entry.has-update:hover{background:var(--diamond-hover,#73d6dc);color:#10282d}

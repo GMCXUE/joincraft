@@ -1,6 +1,7 @@
 import { app, BrowserWindow, WebContentsView, dialog, ipcMain, shell, systemPreferences } from 'electron';
 import electronUpdater from 'electron-updater';
 import {ClientUpdater} from './updater.mjs';
+import {scheduleUpdateChecks} from './update-checks.mjs';
 import {BundleUpdater,acknowledgeBundle,previousBundleResult} from './bundle-updater.mjs';
 import {UpdateNotifications} from './update-notifications.mjs';
 import {DesktopSurfaces,alive,trustedFrame,trustedRoomFrame} from './surfaces.mjs';
@@ -329,11 +330,8 @@ else {
     const message=await previousBundleResult(app);if(message)clientUpdater.set({message});
   }
   await reloadLibrary();
-  if(app.isPackaged){
-    const initialCheck=setTimeout(()=>void clientUpdater.check(),3000);initialCheck.unref();
-    const periodicCheck=setInterval(()=>void clientUpdater.check(),6*60*60*1000);periodicCheck.unref();
-    app.once('will-quit',()=>{clearTimeout(initialCheck);clearInterval(periodicCheck);clientUpdater.dispose();});
-  }
+  const updateChecks=scheduleUpdateChecks({updater:clientUpdater,packaged:app.isPackaged,window:roomWindow});
+  app.once('will-quit',()=>{updateChecks.dispose();clientUpdater.dispose();});
   app.on('window-all-closed', () => app.quit());
   }).catch(error => { console.error('Desktop initialization failed:', error.message); app.quit(); });
 }

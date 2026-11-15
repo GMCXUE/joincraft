@@ -7,21 +7,22 @@ export function updateEntryState(state={}){
   phase==='cancelling'?'正在取消更新下载':phase==='downloaded'?`更新已下载，重启至 ${state.version}`:
   ['confirming','installing'].includes(phase)?'正在准备重启更新':phase==='available'?`下载客户端更新 ${state.version}`:
   phase==='error'?'更新失败，点击重试':'检查客户端更新';
- return {phase,percent,label,busy,active:!['idle','checking','unsupported'].includes(phase),icon:phase==='downloaded'?'restart':phase==='error'?'alert':'download'};
+ const visible=Boolean(state.version)&&!['idle','unsupported'].includes(phase);
+ return {phase,percent,label,busy,visible,active:!['idle','checking','unsupported'].includes(phase),icon:phase==='downloaded'?'restart':phase==='error'?'alert':'download'};
 }
 export function mountDesktopUpdates(){
  const api=window.joincraftClientUpdates||window.joincraftNotifications;if(!api)return;
  const rail=document.querySelector('.rail-bottom');
  const host=rail||document.querySelector('.library-return')||document.querySelector('.retry-actions');
  if(!host||host.querySelector('.client-update-entry'))return;
- const button=document.createElement('button');button.type='button';button.className='client-update-entry';
+ const button=document.createElement('button');button.type='button';button.hidden=true;button.className='client-update-entry';
  if(rail)host.classList.add('has-client-update');else button.classList.add('client-update-inline');
  button.innerHTML=`${icon('download')}<span class="client-update-label">客户端更新</span><span class="client-update-progress" hidden></span>`;
- host.append(button);
+ if(rail)host.insertBefore(button,host.querySelector('#account-entry'));else host.prepend(button);
  const status=document.createElement('span');status.className='client-update-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');host.append(status);
  let phase='',refreshing=false;
  function render(state){
-  const view=updateEntryState(state);button.dataset.phase=view.phase;button.classList.toggle('has-update',view.active);
+  const view=updateEntryState(state);button.dataset.phase=view.phase;button.hidden=!view.visible;button.classList.toggle('has-update',view.active);
   button.setAttribute('aria-label',view.label);button.title=view.label;
   button.querySelector('svg').outerHTML=icon(view.icon);
   const progress=button.querySelector('.client-update-progress');progress.hidden=!['downloading','cancelling'].includes(view.phase);progress.textContent=String(view.percent);

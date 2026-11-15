@@ -85,3 +85,5 @@ test('avatar update action distinguishes download, progress, restart and retry',
  for(const phase of ['idle','checking','unsupported'])assert.equal(updateEntryState({phase}).active,false);
  for(const percent of [-9,NaN,Infinity])assert.equal(updateEntryState({phase:'downloading',percent}).percent,percent===Infinity?100:0);
 });
+
+test('update entry is hidden when current and visible for a new release during use',()=>{for(const phase of ['idle','unsupported'])assert.equal(updateEntryState({phase}).visible,false);assert.equal(updateEntryState({phase:'error'}).visible,false);for(const phase of ['available','checking','downloading','downloaded','error'])assert.equal(updateEntryState({phase,version:'1.2.3'}).visible,true);});
