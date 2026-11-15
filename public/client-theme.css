@@ -86,6 +86,11 @@
 .client-theme .repository-link:hover { color: var(--text); background: var(--hover); }
 .client-theme .repository-link:focus-visible { outline: 2px solid var(--diamond-core); outline-offset: 3px; }
 .client-theme .titlebar .repository-link { width: 28px; height: 28px; border-radius: 5px; }
+:root.pixel-theme.client-theme .titlebar :is(.repository-link,.icon-button,.inbox-bell) {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; min-height: 32px; padding: 0;
+}
+.client-theme .titlebar .icon-button > [data-icon] { display: grid; place-items: center; width: 18px; height: 18px; }
+.client-theme .titlebar :is(.repository-link > svg,.icon-button .icon,.inbox-bell > svg) { display: block; width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { .client-theme .repository-link { transition: none; } }
 
 .client-theme[data-desktop-platform] .titlebar { -webkit-app-region: drag; app-region: drag; }
