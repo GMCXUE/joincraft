@@ -179,7 +179,7 @@ test('home launch errors survive late native state events until another user act
  const state={instances:[{id:'one',name:'Pack'}],selectedId:'one',account:{mode:'offline',name:'Builder'},busy:false};
  let delayed=false;
  try{
-  globalThis.location={hash:'#home'};globalThis.document={body:{},activeElement:null,querySelector:()=>({})};
+  globalThis.location={hash:'#home'};globalThis.document={body:{},activeElement:null,querySelector:()=>({setAttribute(){}})};
   globalThis.window={joincraftHome:{state:async()=>{if(delayed)await new Promise(resolve=>release=resolve);return state;},onEvent:fn=>event=fn,start:async()=>{delayed=true;event();throw Error('游戏文件缺失');}}};
   const ui=createAppHome({desktop:true,icon:()=>'',setHTML:()=>{},smallDialog:()=>{},toast:()=>{},renderShell:()=>{}});
   ui.show();await new Promise(resolve=>setImmediate(resolve));await ui.action('home-start',{});
