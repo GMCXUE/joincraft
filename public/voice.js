@@ -56,14 +56,14 @@ export function createVoice({api,getState,changed,toast,RoomClass=Room,mediaDocu
    else {
     // Process before publishing: even the first packets obey the saved input level.
     const tracks=await local.createTracks({audio:micDevice?{deviceId:micDevice}:true,video:false});
-    const track=tracks.find(track=>track.kind===Track.Kind.Audio);let published=false;
+    const track=tracks.find(track=>track.kind===Track.Kind.Audio);let published=false,processor;
     try{
      if(!track)throw Error('没有找到可用的麦克风轨道');
      if(current!==selected)return;
-     const processor=new GainClass(levels.input());await track.setProcessor(processor);
+     processor=new GainClass(levels.input());selected.inputProcessor=processor;await track.setProcessor(processor);
      if(current!==selected)return;
-     await local.publishTrack(track,{source:Track.Source.Microphone});published=true;selected.inputProcessor=processor;
-    }finally{for(const item of tracks)if(item!==track||!published)item.stop();}
+     await local.publishTrack(track,{source:Track.Source.Microphone});published=true;
+    }finally{if(!published&&selected.inputProcessor===processor)selected.inputProcessor=null;for(const item of tracks)if(item!==track||!published)item.stop();}
    }
    if(current!==selected)await selected.room.disconnect();
   }catch(e){if(current===selected)error=micError(e);}
