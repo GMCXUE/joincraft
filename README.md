@@ -77,3 +77,9 @@ Windows 官网提供 EXE 安装程序，自动创建快捷方式；后续通过�
 官网入口为 `/`，Web 联机界面入口为 `/app/`。本地运行后可打开 `http://127.0.0.1:4180/` 查看官网，进入 Web 版后使用已有登录、好友与房间功能。首页背景已本地压缩并自托管，标题字体保留 OFL 许可；`npm run build:home` 可从设计源图重新生成 WebP。
 
 客户端模组管理：参阅 [使用与数据说明](docs/MOD-MANAGEMENT.md)、[0.9.31 验收记录](docs/releases/2026-11-14-mod-management.md) 和 [Windows 实测清单](docs/WINDOWS-TEST.md)。网页不管理本机文件，CurseForge 接入暂缓。
+
+## 故障诊断与存档保护（源码新增）
+
+游戏库新增故障诊断，提供常见原因、建议和本地脱敏报告；存档支持备份、自动保留恢复前世界、失败回滚和 ZIP / 文件夹迁移。成员仅在房主游戏连接就绪时看到加入入口。本轮源码更新尚未发布新版安装包。
+
+[故障诊断](docs/DIAGNOSTICS.md) · [存档备份](docs/WORLD-BACKUPS.md) · [成员加入条件](docs/ROOM-JOINING.md)
