@@ -1,14 +1,18 @@
 import {Room,RoomEvent,Track} from './voice-sdk.js';
-export function createVoice({api,getState,changed,toast}) {
+import {MicrophoneGain} from './voice-gain.js';
+import {createVoiceLevels} from './voice-levels.js';
+export function createVoice({api,getState,changed,toast,RoomClass=Room,mediaDocument=globalThis.document,eventTarget=globalThis.window,storage,GainClass=MicrophoneGain}) {
  let current=null,epoch=0,busy=false,micBusy=false,timer=null,deaf=false,mutedByHost=false,lastHeartbeat=0;
- const audio=new Map(),volumes=new Map();let micDevice='',outputDevice='',status='',error='';
+ const levels=createVoiceLevels({getUserId:()=>getState().profile?.id,storage});
+ const userId=p=>{try{const value=JSON.parse(p.metadata||'{}').userId;return typeof value==='string'?value:'';}catch{return '';}};
+ const audio=new Map();let micDevice='',outputDevice='',status='',error='';
  const emit=()=>changed();
  function detach(track){const element=audio.get(track.sid);if(element){element.remove();audio.delete(track.sid);}track.detach();}
- function attach(track,participant){if(track.kind!==Track.Kind.Audio)return;detach(track);const element=track.attach();element.dataset.peer=participant.identity;element.hidden=true;element.muted=deaf;element.volume=volumes.get(participant.identity)??1;document.body.append(element);audio.set(track.sid,element);element.play().catch(()=>emit());}
+ function attach(track,participant){if(track.kind!==Track.Kind.Audio)return;detach(track);const element=track.attach();element.dataset.peer=participant.identity;element.hidden=true;element.muted=deaf;element.volume=levels.peer(userId(participant));mediaDocument.body.append(element);audio.set(track.sid,element);element.play().catch(()=>emit());}
  const micError=e=>e?.name==='NotAllowedError'?'麦克风权限未开启，请在浏览器或系统设置中允许。':e?.name==='NotFoundError'?'没有找到麦克风，请连接设备后重试。':e?.name==='NotReadableError'?'麦克风被占用或不可用。':e?.message||'麦克风暂不可用';
  async function leave(notify=true){
   ++epoch;const old=current;current=null;clearInterval(timer);timer=null;status='';error='';deaf=false;mutedByHost=false;busy=false;micBusy=false;
-  for(const element of audio.values())element.remove();audio.clear();volumes.clear();
+  for(const element of audio.values())element.remove();audio.clear();
   emit();if(old){await old.room.disconnect();if(notify)api(`/api/voice/${old.identity}/leave`,{}).catch(()=>{});}
  }
  async function join(roomId,groupId){
@@ -17,7 +21,7 @@ export function createVoice({api,getState,changed,toast}) {
   try{
    lease=await api(`/api/rooms/${roomId}/groups/${groupId}/join`,{});
    if(attempt!==epoch){api(`/api/voice/${lease.identity}/leave`,{}).catch(()=>{});return;}
-   room=new Room({adaptiveStream:false,dynacast:false,audioCaptureDefaults:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},publishDefaults:{audioPreset:{maxBitrate:32000},dtx:true,red:true,stopMicTrackOnMute:true}});
+   room=new RoomClass({adaptiveStream:false,dynacast:false,audioCaptureDefaults:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},publishDefaults:{audioPreset:{maxBitrate:32000},dtx:true,red:true,stopMicTrackOnMute:true}});
    current={roomId,groupId,identity:lease.identity,room};mutedByHost=lease.muted;
    const active=()=>current?.room===room&&epoch===attempt;
    room.on(RoomEvent.TrackSubscribed,(t,_p,participant)=>{if(active())attach(t,participant);});
@@ -46,10 +50,24 @@ export function createVoice({api,getState,changed,toast}) {
   micBusy=true;error='';emit();
   try{
    if(deaf){deaf=false;for(const el of audio.values())el.muted=false;await selected.room.startAudio();}
-   await selected.room.localParticipant.setMicrophoneEnabled(!selected.room.localParticipant.isMicrophoneEnabled,micDevice?{deviceId:micDevice}:undefined);
+   const local=selected.room.localParticipant;
+   if(local.isMicrophoneEnabled)await local.setMicrophoneEnabled(false);
+   else if(local.getTrackPublication(Track.Source.Microphone)?.track)await local.setMicrophoneEnabled(true,micDevice?{deviceId:micDevice}:undefined);
+   else {
+    // Process before publishing: even the first packets obey the saved input level.
+    const tracks=await local.createTracks({audio:micDevice?{deviceId:micDevice}:true,video:false});
+    const track=tracks.find(track=>track.kind===Track.Kind.Audio);let published=false;
+    try{
+     if(!track)throw Error('没有找到可用的麦克风轨道');
+     if(current!==selected)return;
+     const processor=new GainClass(levels.input());await track.setProcessor(processor);
+     if(current!==selected)return;
+     await local.publishTrack(track,{source:Track.Source.Microphone});published=true;selected.inputProcessor=processor;
+    }finally{for(const item of tracks)if(item!==track||!published)item.stop();}
+   }
    if(current!==selected)await selected.room.disconnect();
   }catch(e){if(current===selected)error=micError(e);}
-  finally{micBusy=false;emit();}
+  finally{if(current===selected){micBusy=false;emit();}}
  }
  async function deafen(){const selected=current;if(!selected)return;try{
   deaf=!deaf;for(const el of audio.values())el.muted=deaf;
@@ -58,17 +76,18 @@ export function createVoice({api,getState,changed,toast}) {
  }catch(e){error=micError(e);}emit();}
  function snapshot(){
   const r=current?.room;return {roomId:current?.roomId,groupId:current?.groupId,busy,micBusy,status,error,deaf,
-   mic:!!r?.localParticipant.isMicrophoneEnabled,blocked:mutedByHost||r?.localParticipant.permissions?.canPublish===false,
+   micGain:levels.input(),mic:!!r?.localParticipant.isMicrophoneEnabled,blocked:mutedByHost||r?.localParticipant.permissions?.canPublish===false,
    playbackBlocked:r&&!r.canPlaybackAudio,
-   participants:r?[r.localParticipant,...r.remoteParticipants.values()].map(p=>{let userId;try{userId=JSON.parse(p.metadata||'{}').userId;}catch{}return {userId,identity:p.identity,name:p.name,volume:volumes.get(p.identity)??1,muted:!p.isMicrophoneEnabled,speaking:p.isSpeaking};}):[]};
+   participants:r?[r.localParticipant,...r.remoteParticipants.values()].map(p=>{const id=userId(p);return {userId:id,identity:p.identity,name:p.name,volume:levels.peer(id),muted:!p.isMicrophoneEnabled,speaking:p.isSpeaking};}):[]};
  }
- async function devices(){const inputs=await Room.getLocalDevices('audioinput',false),outputs=await Room.getLocalDevices('audiooutput',false);return {inputs,outputs,micDevice,outputDevice,outputSupported:typeof HTMLMediaElement.prototype.setSinkId==='function'};}
+ async function devices(){const inputs=await RoomClass.getLocalDevices('audioinput',false),outputs=await RoomClass.getLocalDevices('audiooutput',false);return {inputs,outputs,micDevice,outputDevice,outputSupported:typeof HTMLMediaElement.prototype.setSinkId==='function'};}
  async function selectDevices(input,output){if(!current)return;
   await current.room.switchActiveDevice('audioinput',input||'default');micDevice=input||'';
   if(output!==undefined){await current.room.switchActiveDevice('audiooutput',output||'default');outputDevice=output||'';}
  }
- function volume(identity,value){volumes.set(identity,value);for(const el of audio.values())if(el.dataset.peer===identity)el.volume=value;}
+ function volume(identity,value){const participant=current?.room.remoteParticipants.get(identity);if(!participant)return false;const level=levels.setPeer(userId(participant),value);for(const el of audio.values())if(el.dataset.peer===identity)el.volume=level;emit();return true;}
+ function microphoneGain(value){const level=levels.setInput(value);current?.inputProcessor?.set(level);emit();return level;}
  function sync(){if(current){const room=getState().rooms.find(r=>r.id===current.roomId&&!r.closed);if(!room||!room.community?.groups.some(g=>g.id===current.groupId))void leave();else mutedByHost=room.community.muted.includes(getState().profile?.id);}}
- window.addEventListener('pagehide',()=>void leave());
- return {join,leave,microphone,deafen,snapshot,devices,selectDevices,volume,sync,resume:async()=>{await current?.room.startAudio();emit();}};
+ eventTarget?.addEventListener('pagehide',()=>void leave());
+ return {join,leave,microphone,microphoneGain,deafen,snapshot,devices,selectDevices,volume,sync,resume:async()=>{await current?.room.startAudio();emit();}};
 }
