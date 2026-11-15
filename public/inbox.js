@@ -34,7 +34,7 @@ export function createInboxUI({getState,api,refresh,toast}){
  const host=document.querySelector('.title-tools');if(!host)return {update(){},close(){}};
  const bell=document.createElement('button');bell.type='button';bell.className='inbox-bell';bell.setAttribute('aria-label','通知');bell.setAttribute('aria-expanded','false');bell.setAttribute('aria-controls','app-inbox');bell.title='通知';bell.innerHTML=inboxBellIcon+'<span class="inbox-badge" hidden></span>';host.append(bell);
  const panel=document.createElement('section');panel.id='app-inbox';panel.className='inbox-panel';panel.setAttribute('role','region');panel.setAttribute('aria-label','通知中心');panel.setAttribute('popover','auto');panel.hidden=true;
- panel.innerHTML=`<header class="inbox-heading"><div><h2>通知</h2><p class="inbox-summary"></p></div><button type="button" class="inbox-close" aria-label="关闭通知">${glyph('close')}</button></header><div class="inbox-toolbar"><div class="inbox-tabs" role="tablist" aria-label="通知分类">${[['all','全部'],['friend','好友消息'],['system','系统消息']].map(([id,label])=>`<button type="button" id="inbox-tab-${id}" role="tab" aria-controls="inbox-results" data-inbox-filter="${id}">${label}<span></span></button>`).join('')}</div><button type="button" class="inbox-read-all">全部已读</button></div><p class="inbox-error" role="alert" hidden></p><div id="inbox-results" role="tabpanel"></div><footer class="inbox-footer"><span>新消息会自动同步</span><button type="button" class="inbox-refresh">刷新</button></footer>`;
+ panel.innerHTML=`<header class="inbox-heading"><div><h2>通知</h2><p class="inbox-summary"></p></div><button type="button" class="inbox-close" aria-label="关闭通知">${glyph('close')}</button></header><div class="inbox-toolbar"><div class="inbox-tabs" role="tablist" aria-label="通知分类">${[['all','全部'],['friend','好友消息'],['system','系统消息']].map(([id,label])=>`<button type="button" id="inbox-tab-${id}" role="tab" aria-controls="inbox-results" data-inbox-filter="${id}">${label}<span></span></button>`).join('')}</div><button type="button" class="inbox-read-all">全部已读</button></div><p class="inbox-error" role="alert" hidden></p><div id="inbox-results" role="tabpanel"></div>`;
  document.body.append(panel);
  let filter='all',busy=false,identity='',previous=null,rendered='',published=-1;
  const nativePopover=typeof panel.showPopover==='function';
@@ -49,7 +49,7 @@ export function createInboxUI({getState,api,refresh,toast}){
   const result=panel.querySelector('#inbox-results');result.setAttribute('aria-labelledby','inbox-tab-'+filter);result.setAttribute('aria-busy',String(busy));
   const items=(snapshot?.items||[]).filter(item=>filter==='all'||item.category===filter);
   const active=document.activeElement,focusKey=active?.dataset?.inboxRead||active?.dataset?.inboxOpen;
-  result.innerHTML=items.length?`<ul class="inbox-list">${inboxRows(items,state)}</ul>${snapshot.hasMore?'<p class="inbox-history-note">显示最近 100 项，聊天记录可在会话中查看。</p>':''}`:`<div class="inbox-empty">${inboxBellIcon}<h3>${!state.profile?'登录后查看通知':!snapshot?'暂时无法读取通知':filter==='friend'?'还没有好友消息':filter==='system'?'还没有系统消息':'暂时没有通知'}</h3><p>${!state.profile?'好友私聊和房间动态会集中显示在这里。':!snapshot?'请检查连接后点击刷新。':'新的消息会出现在这里，已读记录也会保留。'}</p></div>`;
+  result.innerHTML=items.length?`<ul class="inbox-list">${inboxRows(items,state)}</ul>${snapshot.hasMore?'<p class="inbox-history-note">显示最近 100 项，聊天记录可在会话中查看。</p>':''}`:`<div class="inbox-empty">${inboxBellIcon}<h3>${!state.profile?'登录后查看通知':!snapshot?'暂时无法读取通知':filter==='friend'?'还没有好友消息':filter==='system'?'还没有系统消息':'暂时没有通知'}</h3><p>${!state.profile?'好友私聊和房间动态会集中显示在这里。':!snapshot?'请检查网络连接，恢复后会自动同步。':'新的消息会出现在这里，已读记录也会保留。'}</p></div>`;
   if(focusKey){const replacement=[...result.querySelectorAll('[data-inbox-read],[data-inbox-open]')].find(el=>el.dataset.inboxRead===focusKey||el.dataset.inboxOpen===focusKey);(replacement||panel.querySelector('.inbox-tabs [aria-selected=true]')).focus({preventScroll:true});}
  }
  async function mark(item){
@@ -62,7 +62,6 @@ export function createInboxUI({getState,api,refresh,toast}){
  function open(){panel.hidden=false;if(!nativePopover)panel.classList.add('is-fallback-open');if(nativePopover&&!isOpen())panel.showPopover();bell.setAttribute('aria-expanded','true');render(true);panel.querySelector(`[data-inbox-filter="${filter}"]`).focus();}
  bell.onclick=()=>isOpen()?close({focus:true}):open();
  panel.querySelector('.inbox-close').onclick=()=>close({focus:true});panel.querySelector('.inbox-read-all').onclick=()=>void mark();
- panel.querySelector('.inbox-refresh').onclick=async event=>{const button=event.currentTarget;button.disabled=true;error('');try{await refresh();if(!getState().notifications)error('通知服务暂时不可用，请稍后重试');}finally{button.disabled=false;render(true);}};
  panel.addEventListener('click',async event=>{
   const tab=event.target.closest('[data-inbox-filter]');if(tab){filter=tab.dataset.inboxFilter;render(true);return;}
   const trigger=event.target.closest('[data-inbox-read],[data-inbox-open]');if(!trigger)return;
