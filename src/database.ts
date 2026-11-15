@@ -98,6 +98,18 @@ const migrations = [String.raw`
   ALTER TABLE room_packs ADD COLUMN file_hash TEXT REFERENCES pack_files(sha512);
   CREATE TABLE pack_uploads (id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES rooms(id),user_id TEXT NOT NULL REFERENCES users(id),sha512 TEXT NOT NULL,size INTEGER NOT NULL CHECK(size BETWEEN 20 AND 629145600),expected_hash TEXT,state TEXT NOT NULL DEFAULT 'uploading',error TEXT,expires_at INTEGER NOT NULL) STRICT;
   CREATE INDEX pack_uploads_owner ON pack_uploads(user_id,room_id,sha512);
+`, String.raw`
+  CREATE TABLE user_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id),
+    kind TEXT NOT NULL CHECK(kind IN ('friend.request','friend.accepted','room.pack','room.game','room.closed')),
+    peer_id TEXT REFERENCES users(id), room_id TEXT REFERENCES rooms(id),
+    title TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL, read_at INTEGER
+  ) STRICT;
+  CREATE INDEX notifications_user ON user_notifications(user_id,id);
+  INSERT INTO user_notifications(user_id,kind,peer_id,title,content,created_at)
+    SELECT CASE WHEN f.requester=f.low_id THEN f.high_id ELSE f.low_id END,'friend.request',f.requester,
+      '新的好友申请',u.name || ' 想添加你为好友。',f.created_at
+    FROM friendships f JOIN users u ON u.id=f.requester WHERE f.status='pending';
 `];
 
 export class Store {

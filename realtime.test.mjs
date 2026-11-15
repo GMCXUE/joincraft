@@ -153,3 +153,13 @@ test('heartbeat closes peers that do not answer ping frames',{timeout:40000},()=
 test('malformed-frame bursts are bounded before JSON parsing',()=>fixture(async({alice,connect})=>{
  const client=await connect(alice.token);for(let i=0;i<130;i++)client.ws.send('{malformed');assert.equal((await client.closed).code,1006);
 }));
+
+test('inbox patches reach both devices and clearing a snapshot does not read future messages',()=>fixture(async({call,alice,bob,other,connect})=>{
+ const a=await connect(alice.token),b=await connect(bob.token),second=await connect(bob.token),outsider=await connect(other.token);
+ await call('/api/friends/request',{username:bob.username},alice.token);await until(()=>b.state.notifications.unread===1&&second.state.notifications.unread===1);assert.equal(outsider.state.notifications.unread,0);
+ await call(`/api/friends/${alice.id}/accept`,{},bob.token);await until(()=>a.state.notifications.unread===1&&b.state.notifications.unread===0);
+ await a.request('chat.send',{peerId:bob.id,content:'inbox sync',clientId:randomUUID()});await until(()=>b.state.notifications.friend===1);const snapshot=b.state.notifications;
+ await a.request('chat.send',{peerId:bob.id,content:'later message',clientId:randomUUID()});await until(()=>b.state.notifications.friend===2);
+ await call('/api/notifications/read',{throughId:snapshot.throughId,chats:snapshot.chatReads},bob.token);await until(()=>b.state.notifications.friend===1&&second.state.notifications.friend===1);
+ assert.equal(b.state.social.unread,1);assert(b.frames.some(frame=>frame.patch?.notifications));
+}));

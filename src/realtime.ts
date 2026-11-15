@@ -102,6 +102,7 @@ export class Realtime {
      const patch:Record<string,unknown>={revision:state.revision};
      if(JSON.stringify(previous.profile)!==JSON.stringify(state.profile))patch.profile=state.profile;
      if(JSON.stringify(previous.social)!==JSON.stringify(state.social))patch.social=state.social;
+     if(JSON.stringify(previous.notifications)!==JSON.stringify(state.notifications))patch.notifications=state.notifications;
      const old=new Map(previous.rooms.map(room=>[room.id,JSON.stringify(room)]));
      const ids=new Set(state.rooms.map(room=>room.id));
      const upsert=state.rooms.filter(room=>old.get(room.id)!==JSON.stringify(room)),remove=previous.rooms.filter(room=>!ids.has(room.id)).map(room=>room.id);

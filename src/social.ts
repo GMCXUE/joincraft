@@ -30,7 +30,7 @@ export class SocialService {
       const last = this.store.get<Message>('SELECT * FROM messages WHERE low_id=? AND high_id=? ORDER BY id DESC LIMIT 1', link.low_id, link.high_id);
       const cursor = this.store.get<{last_id: number}>('SELECT last_id FROM read_cursors WHERE user_id=? AND peer_id=?', actor.id, id);
       const unread = this.store.get<{n: number}>('SELECT count(*) AS n FROM messages WHERE low_id=? AND high_id=? AND recipient_id=? AND id>?', link.low_id, link.high_id, actor.id, cursor?.last_id ?? 0)!.n;
-      if (last || cursor) conversations.push({ ...peer, preview: last?.content.slice(0, 80) || '', at: last?.created_at || 0, unread });
+      if (last || cursor) conversations.push({ ...peer, preview: last?.content.slice(0, 80) || '', at: last?.created_at || 0, lastId:last?.id||0, unread });
       totalUnread += unread;
     }
     friends.sort((a,b) => a.name.localeCompare(b.name));
@@ -50,6 +50,7 @@ export class SocialService {
       if (existing) fail(existing.requester === actor.id ? '好友申请已发送，请等待对方处理' : '对方已向你发送申请，请在好友申请中接受', 409);
       for (const id of [actor.id, target.user_id]) if (this.store.get<{n:number}>('SELECT count(*) AS n FROM friendships WHERE low_id=? OR high_id=?', id,id)!.n >= 200) fail('好友及申请数量已达到上限');
       this.store.run('INSERT INTO friendships VALUES (?,?,?,?,?)', ...this.pair(actor.id,target.user_id),actor.id,'pending',this.rooms.now());
+      this.rooms.notifications.add(target.user_id,'friend.request','新的好友申请',`${actor.name} 想添加你为好友。`,{peerId:actor.id});
       this.store.bump();
     });
     this.notify([actor.id,target.user_id]);return {ok:true};
@@ -62,6 +63,8 @@ export class SocialService {
       if (action === 'cancel' ? link.requester !== actor.id : link.requester === actor.id) fail('你不能执行这个操作',403);
       if (action === 'accept') this.store.run("UPDATE friendships SET status='accepted' WHERE low_id=? AND high_id=?",link.low_id,link.high_id);
       else this.store.run('DELETE FROM friendships WHERE low_id=? AND high_id=?',link.low_id,link.high_id);
+      this.rooms.notifications.resolveRequest(link.requester===actor.id?peer:actor.id,link.requester);
+      if(action==='accept')this.rooms.notifications.add(peer,'friend.accepted','好友申请已通过',`${actor.name} 通过了你的好友申请，可以开始聊天了。`,{peerId:actor.id});
       this.store.bump();
     });
     this.notify([actor.id,peer]);return {ok:true};

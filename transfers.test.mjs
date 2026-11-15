@@ -80,10 +80,10 @@ test('stale room versions cannot be overwritten by a completed upload',async t=>
 test('existing schema 6 SQLite archives migrate without changing room metadata or access',async t=>{
   const dir=await temporary(t),file=path.join(dir,'old.sqlite'),f=await fixtureFile(dir,{size:1024}),store=new Store(file),service=new RoomService(store),session=service.createSession({name:'旧房主'},'127.0.0.1'),actor=service.authenticate(session.id),room=await service.createRoom(actor,{name:'旧房间'});
   store.run('INSERT INTO room_packs(room_id,summary,archive,updated_at) VALUES (?,?,?,?)',room.id,JSON.stringify(f.pack),await readFile(f.file),1);
-  store.db.exec("ALTER TABLE room_packs RENAME TO room_packs_new;CREATE TABLE room_packs(room_id TEXT PRIMARY KEY REFERENCES rooms(id),summary TEXT NOT NULL,archive BLOB NOT NULL CHECK(length(archive)<=16777216),updated_at INTEGER NOT NULL) STRICT;INSERT INTO room_packs SELECT room_id,summary,archive,updated_at FROM room_packs_new;DROP TABLE room_packs_new;DROP TABLE pack_uploads;DROP TABLE pack_files;PRAGMA user_version=6;");store.close();
+  store.db.exec("ALTER TABLE room_packs RENAME TO room_packs_new;CREATE TABLE room_packs(room_id TEXT PRIMARY KEY REFERENCES rooms(id),summary TEXT NOT NULL,archive BLOB NOT NULL CHECK(length(archive)<=16777216),updated_at INTEGER NOT NULL) STRICT;INSERT INTO room_packs SELECT room_id,summary,archive,updated_at FROM room_packs_new;DROP TABLE room_packs_new;DROP TABLE user_notifications;DROP TABLE pack_uploads;DROP TABLE pack_files;PRAGMA user_version=6;");store.close();
   const app=await createApp({port:0,dbPath:file});t.after(()=>app.close());const response=await fetch(app.url+'/api/state',{headers:{'X-Session':session.id}}),state=await response.json();assert.equal(state.rooms[0].pack.sha512,f.pack.sha512);assert.equal(state.rooms[0].name,'旧房间');
   assert.equal(sha(await readFile(path.join(dir,'packs','files',f.pack.sha512+'.mrpack'))),f.pack.sha512);
-  const migrated=new Store(file);assert.equal(migrated.get('SELECT length(archive) AS n FROM room_packs').n,0);assert.equal(migrated.get('PRAGMA user_version').user_version,7);migrated.close();
+  const migrated=new Store(file);assert.equal(migrated.get('SELECT length(archive) AS n FROM room_packs').n,0);assert.equal(migrated.get('PRAGMA user_version').user_version,8);migrated.close();
 });
 
 test('database backups include file-backed packs and can restore a room without the original storage',async t=>{

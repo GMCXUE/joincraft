@@ -57,6 +57,10 @@ export class RoomPacks {
     this.service.store.run('UPDATE rooms SET version=?,loader=? WHERE id=?',summary.minecraft,summary.loader,id);
     this.service.store.run('INSERT INTO events(room_id,at,message) VALUES (?,?,?)',id,this.service.now(),'房主设置了整合包：'+summary.name+' · '+summary.versionId);
     this.service.store.run('DELETE FROM events WHERE room_id=? AND seq NOT IN (SELECT seq FROM events WHERE room_id=? ORDER BY seq DESC LIMIT 100)',id,id);
+    if(previous?.sha512!==summary.sha512){
+      const room=this.host(actor,id);
+      for(const user of this.service.members(id))if(user!==actor.id)this.service.notifications.add(user,'room.pack','房间整合包已更新',`${room.name}：${summary.name} · ${summary.versionId}`,{roomId:id});
+    }
     if(previous?.sha512!==summary.sha512)this.markReleased(previous?.sha512);this.service.store.bump();
   }
   private markReleased(hash?:string){if(hash)this.service.store.run('UPDATE pack_files SET released_at=COALESCE(released_at,?) WHERE sha512=? AND NOT EXISTS(SELECT 1 FROM room_packs WHERE file_hash=?)',this.service.now(),hash,hash);}

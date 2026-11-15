@@ -44,6 +44,7 @@ export function applyStatePatch(state,patch){
  const next={...state,revision:patch.revision};
  if(patch.profile)next.profile=patch.profile;
  if(patch.social)next.social=patch.social;
+ if(patch.notifications)next.notifications=patch.notifications;
  if(patch.rooms){
   const rooms=new Map(state.rooms.map(room=>[room.id,room]));
   for(const id of patch.rooms.remove)rooms.delete(id);

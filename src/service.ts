@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import type {PackSummary} from '../shared/pack-format.mjs';
 import { Store } from './database.js';
+import {Notifications} from './notifications.js';
 import {avatarFor,avatarIds} from './avatars.js';
 import { fail, text, roomFields, gameFields, hashPassword, verifyPassword } from './validation.js';
 
@@ -20,7 +21,8 @@ export class RoomService {
   communityState: (id: string, actor: Principal) => unknown = () => ({});
   onChange: (users: string[], change?:RealtimeChange) => void = () => {};
   onRevoke: (hashes: string[]) => void = () => {};
-  constructor(readonly store: Store, readonly now = Date.now) {}
+  readonly notifications:Notifications;
+  constructor(readonly store: Store, readonly now = Date.now) {this.notifications=new Notifications(store,now);}
   consume(key: string, limit: number, windowMs: number) {
     const now = this.now();
     const row = this.store.get<{ count: number; reset_at: number }>('SELECT count, reset_at FROM rate_limits WHERE key=?', key);
@@ -190,9 +192,11 @@ export class RoomService {
       } else if (action === 'close') {
         this.store.run('UPDATE rooms SET closed=1 WHERE id=?', id);
         this.record(id, `${actor.name} 关闭了房间`);
+        for(const user of this.members(id))if(user!==actor.id)this.notifications.add(user,'room.closed','房间已关闭',`${room.name} 已被房主关闭。`,{roomId:id});
       } else if (game) {
         this.store.run('UPDATE rooms SET version=?, loader=?, port=? WHERE id=?', game.version, game.loader, game.port, id);
         this.record(id, '房主更新了游戏环境');
+        for(const user of this.members(id))if(user!==actor.id)this.notifications.add(user,'room.game','游戏环境已更新',`${room.name}：Minecraft ${game.version||'未指定'} · ${game.loader}`,{roomId:id});
       } else if (fields) {
         if (fields.capacity < this.count('SELECT count(*) AS n FROM members WHERE room_id=?', id)) fail('人数上限不能少于当前成员数');
         const password = mode === 'keep' ? room.password : mode === 'set' ? changedPassword : null;

@@ -73,7 +73,7 @@ export async function createApp(options: AppOptions = {}) {
   const realtime=new Realtime({server:app.server,origins:()=>origins,now:()=>service.now(),valid:hash=>service.sessionValid(hash),
     countLegacy:user=>[...streams].filter(stream=>!user||stream.actor.id===user).length,
     consume:(key,max,window)=>service.consume(key,max,window),presence:presenceChanged,
-    snapshot:principal=>({...service.state(principal),social:social.summary(principal)}),
+    snapshot:principal=>{const summary=social.summary(principal);return {...service.state(principal),social:summary,notifications:service.notifications.snapshot(principal,summary)};},
     command:(principal,type,body)=>{
       if(type==='chat.send'){const peer=String(body.peerId||'');return social.send(principal,peer,body);}
       if(type==='room.send'){const id=String(body.roomId||''),result=community.send(principal,id,body);return community.message(principal,id,result.id);}
@@ -144,8 +144,11 @@ export async function createApp(options: AppOptions = {}) {
   // Read responses must not restore a previous cookie after another login completes.
   // Persistent cookies retain the 30-day expiry set when the session is issued.
   app.get('/api/state', async request => {
-    return { ...service.state(actor(request)), social: social.summary(actor(request)) };
+    const principal=actor(request),summary=social.summary(principal);
+    return {...service.state(principal),social:summary,notifications:service.notifications.snapshot(principal,summary)};
   });
+  app.get('/api/notifications',async request=>service.notifications.snapshot(actor(request),social.summary(actor(request))));
+  app.post('/api/notifications/read',async request=>{const principal=actor(request),result=service.notifications.read(principal,object(request.body));service.onChange([principal.id]);return result;});
   app.post('/api/auth/register', async (request, reply) => {
     const result = await accounts.register(object(request.body), request.ip, actors.get(request));
     return reply.code(201).header('Set-Cookie', cookie(result.token)).send({ ok: true, expiresAt: result.expiresAt });
