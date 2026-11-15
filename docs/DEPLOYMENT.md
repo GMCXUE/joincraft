@@ -283,3 +283,15 @@ SQLite 从 schema 7 添加到 8。发布前一致性备份为 `/opt/joincraft/ba
 Windows 安装程序 `joincraft-0.9.32-win-x64-setup.exe` 为 130503014 字节，SHA-256 `74db667d5457abcb8da990d90092adce08003b645be52b84658c691df8b19727`；更新 ZIP `joincraft-0.9.32-win-x64.zip` 为 167176546 字节，SHA-256 `f8fadf986ea54d2811954959f21f903b44a8401e93fecb6c9ad2dc8b6cf43510`。两份清单仍使用既有 Ed25519 公钥，VPS 完整验证后才切换稳定安装 / ZIP 别名及签名清单；前版清单分别备份为 `windows-x64-before-0.9.32.json` 和 `windows-x64-setup-before-0.9.32.json`。旧 NSIS 通道保留，Authenticode 未配置。
 
 最终验证：381 项完整回归、实际 app.asar 的 140 项测试、Go 助手对真实 ZIP 的签名 / 摘要 / 提取及 Windows 交叉 vet、NSIS 完整性检查通过。网页和原生通知的空态、实时到达、分类、单条 / 全部已读和会话跳转通过，390px 无横向溢出；更新按钮四种状态与头像上方 44px 布局通过。公网关键静态资源逐字节匹配源码，通知接口未登录返回 401，完整官网 EXE 和稳定 ZIP 摘要、清单签名及 Range 206 验证通过。未运行真实 MC，Windows 实际更新重启、游戏和多人联机留待用户实测。
+
+## 2026-11-15 · 0.9.33 语音音量与界面分层
+
+源码发布检查点 `f5e8a5e`；网站与后端切换至 `/opt/joincraft/releases/0.9.33-20261115-voice-ui`。本轮包含麦克风输入音量、持久保存的成员收听音量、成员资料卡与悬停反馈、通知底栏精简，以及深浅炭灰分区和柔和圆角。右上角 GitHub、帮助和通知统一为 32px 点击区域 / 18px 图标，未读角标缩至 14px；实际页面及 390px 窄屏验证对齐且无溢出。
+
+154 个部署文件逐项 SHA-256 校验，生产依赖按锁文件重新安装。发布前一致性数据库及整合包备份为 `/opt/joincraft/backups/before-0.9.33-20261115.sqlite` 与 `.packs`，数据库备份权限 0600。新版本在备份副本上通过健康、资源、通知接口和旧版兼容预检，再原子切换服务。SQLite schema 8 未变、完整性检查通过，用户、账号、房间、成员、私聊、房间聊天和整合包记录数量未减少。前后记录保存在 `/opt/joincraft/backups/0.9.33-before-state.json` 与 `0.9.33-after-state.json`。回滚目录为 `/opt/joincraft/releases/0.9.32-20261115-notifications`，无需恢复旧数据库；既有反代、缓存、端口、语音和中继配置未改动。
+
+Windows 安装程序 `joincraft-0.9.33-win-x64-setup.exe` 为 130504739 字节，SHA-256 `7174e462699aa41d76baad7672a7720fca78c1844677ed35dafb53b6a7188f72`；更新 ZIP `joincraft-0.9.33-win-x64.zip` 为 167178386 字节，SHA-256 `0e55d6bdd2f387ab3e2cfd8067e72d9e9357b523799d082a7af8eb4ce7b1c0e9`。两类发行包使用同一应用载荷，Electron 45.3.1 Windows 缓存与官方 SHASUMS256 清单匹配后用于构建。VPS 完整验证既有 Ed25519 签名、大小和 SHA-512 后，切换稳定 EXE / ZIP 别名及两份清单。前版清单备份为 `windows-x64-before-0.9.33.json` 和 `windows-x64-setup-before-0.9.33.json`；旧 NSIS 通道保持不变，未新增 Authenticode 配置。
+
+验证：源码构建与 392 项完整回归、最终 app.asar 的 140 项测试、打包主题与三个本地页面的源码比对、Forge 辅助组件校验和 7 个模拟场景、真实 Forge 独立发现、Go 更新助手的真实 ZIP 验签 / 解包与 Windows vet、NSIS 完整性检查均通过。VPS 经公开 HTTPS 域名验证关键资源字节、健康响应、通知鉴权 401、两份签名清单、完整官网 EXE / 稳定 ZIP 下载摘要及 Range 206。客户端实际更新代码确认 0.9.32 可发现 0.9.33，0.9.33 返回已是最新版本。
+
+本机命令行 HTTPS 复测遇到证书 / 握手故障，公网检查改由 VPS 执行，未降低 TLS 校验。Windows 真实麦克风、更新重启、游戏和多人联机仍需用户实机验证；未发布 macOS DMG。
