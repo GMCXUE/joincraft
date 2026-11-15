@@ -1,21 +1,15 @@
-/* Client shell only: no elements exist without the desktop bridge. */
-.desktop-notification-bell{position:relative;display:grid;place-items:center;flex:none;width:40px;height:40px;min-height:40px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted,#a0a5aa);cursor:pointer;-webkit-app-region:no-drag;}
-.desktop-notification-bell:hover{color:var(--text,#e3e6e9);background:#ffffff0a;}
-.desktop-notification-bell:focus-visible,.desktop-update-notice button:focus-visible{outline:2px solid #abc982;outline-offset:2px;}
-.desktop-notification-bell svg{width:19px;height:19px;}
-.desktop-notification-dot{position:absolute;right:8px;top:7px;width:6px;height:6px;border-radius:50%;background:#abc982;}
-.desktop-update-notice{position:fixed;z-index:10000;right:20px;top:60px;width:320px;max-width:calc(100vw - 32px);padding:16px;background:#2b2e30;border:1px solid #ffffff14;border-radius:10px;color:#e3e6e9;box-shadow:0 8px 24px #0003;font-family:inherit;}
-.desktop-notice-copy{display:flex;flex-direction:column;gap:6px;}
-.desktop-notice-copy small{font-size:12px;color:#a0a5aa;}
-.desktop-notice-copy strong{font-size:14px;font-weight:500;overflow-wrap:anywhere;}
-.desktop-notice-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;}
-.desktop-update-notice button{font:inherit;font-size:12px;font-weight:500;min-height:36px;border:0;border-radius:6px;padding:0 12px;cursor:pointer;}
-.desktop-notice-later{background:transparent;color:#a0a5aa;}.desktop-notice-later:hover{background:#ffffff08;color:#e3e6e9;}
-.desktop-notice-view{background:#abc982;color:#20291a;}.desktop-notice-view:hover{background:#bdd49e;}
-.desktop-update-notice[hidden],.desktop-notification-dot[hidden]{display:none!important;}
-@media(max-width:600px){.desktop-update-notice{right:16px;}}
-
-.desktop-notification-bell{transition:background-color 140ms ease,color 140ms ease;}
-.desktop-update-notice:not([hidden]){animation:notice-enter 180ms cubic-bezier(.23,1,.32,1);}
-@keyframes notice-enter{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
-@media(prefers-reduced-motion:reduce){.desktop-update-notice,.desktop-notification-bell{animation:none!important;transition:none!important;}}
+/* Client updates sit with the avatar; the titlebar bell belongs to the inbox. */
+.has-client-update{position:relative}
+:root.pixel-theme.client-theme body .client-update-entry{display:grid;place-items:center;position:absolute;z-index:2;right:0;bottom:32px;width:26px;height:26px;min-height:26px;padding:0;border:2px solid var(--outer,#191b20);border-radius:8px;background:var(--selected,#343943);color:var(--secondary,#bbc2cd);cursor:pointer;-webkit-app-region:no-drag;box-shadow:none;font:600 10px/1 var(--ui-font,system-ui);transition:background-color 140ms ease,color 140ms ease}
+.client-update-entry svg{width:15px;height:15px}
+:root.pixel-theme.client-theme body .client-update-entry.has-update{background:var(--diamond-core,#58c7cf);color:#10282d}
+:root.pixel-theme.client-theme body .client-update-entry:hover{background:#46515e;color:var(--text,#e9edf3)}
+:root.pixel-theme.client-theme body .client-update-entry.has-update:hover{background:var(--diamond-hover,#73d6dc);color:#10282d}
+.client-update-entry:focus-visible{outline:2px solid var(--diamond-core,#58c7cf);outline-offset:2px}
+.client-update-entry[data-phase=downloading] svg,.client-update-entry[data-phase=cancelling] svg{display:none}
+.client-update-entry .client-update-label,.client-update-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+:root.pixel-theme.client-theme body .client-update-entry.client-update-inline{position:static;display:flex;gap:10px;width:100%;height:auto;min-height:40px;padding:8px 12px;border:0;background:transparent;color:var(--secondary);font:13px/1.5 var(--ui-font,system-ui);text-align:left;justify-content:flex-start}
+.client-update-inline .client-update-label{position:static;clip-path:none;width:auto;height:auto;white-space:normal}
+.client-update-inline .client-update-progress{margin-left:auto;font-variant-numeric:tabular-nums}
+.client-update-entry[hidden],.client-update-progress[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){.client-update-entry{transition:none!important}}

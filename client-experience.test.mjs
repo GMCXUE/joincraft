@@ -75,3 +75,13 @@ test('installation remains busy until cancellation is terminal even if the origi
  await Promise.resolve();const pending=f.controls.get('#import-pack').onclick();emit({type:'pack-install',state:'cancelling'});finish();await pending;assert.equal(f.busy.at(-1),true);
  emit({type:'pack-install',state:'cancelled'});assert.equal(f.busy.at(-1),false);
 });
+
+import {updateEntryState} from './public/desktop-notifications.js';
+test('avatar update action distinguishes download, progress, restart and retry',()=>{
+ assert.match(updateEntryState({phase:'available',version:'1.2.3'}).label,/下载.*1\.2\.3/);
+ const busy=updateEntryState({phase:'downloading',percent:42.9});assert.equal(busy.percent,42);assert.equal(busy.busy,true);assert.match(busy.label,/42%/);
+ assert.equal(updateEntryState({phase:'downloaded',version:'1.2.3'}).icon,'restart');
+ assert.match(updateEntryState({phase:'error'}).label,/重试/);
+ for(const phase of ['idle','checking','unsupported'])assert.equal(updateEntryState({phase}).active,false);
+ for(const percent of [-9,NaN,Infinity])assert.equal(updateEntryState({phase:'downloading',percent}).percent,percent===Infinity?100:0);
+});

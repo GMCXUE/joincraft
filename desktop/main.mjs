@@ -187,7 +187,7 @@ else {
   ipcMain.handle('updates:confirm-install',async(event,accepted)=>{try{notificationSender(event);const decide=installationConfirmation;installationConfirmation=null;decide?.(accepted===true&&surfaces.modal);return {ok:true};}catch(error){return {ok:false,error:error.message};}});
   for(const action of ['state','claim','open'])ipcMain.handle('notifications:'+action,async event=>{
     try{const win=shellSender(event);const state=clientUpdater.state();
-      if(action==='state')return {ok:true,value:{phase:state.phase,version:state.version}};
+      if(action==='state')return {ok:true,value:{phase:state.phase,version:state.version,percent:state.percent}};
       if(action==='claim')return {ok:true,value:await updateNotifications.claim(state,()=>surfaces.canNotify(win))};
       await openNotifications();return {ok:true,value:null};
     }catch(error){return {ok:false,error:error.message||'操作失败'};}

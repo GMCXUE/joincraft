@@ -5,7 +5,7 @@ import {bindForm,mountDialogs,normalizeRoomCode,showControlFeedback} from './int
 mountDialogs();
 import {loginPagePath,useLoginPage} from './auth/session.js';
 import {mountDesktopLogin,loadDesktopAccount} from './desktop-login.js';
-import {mountDesktopNotifications} from './desktop-notifications.js';
+import {mountDesktopUpdates} from './desktop-notifications.js';
 import './ui.js';
 import {parseInstances} from './instances.js';
 import {createRealtime,applyStatePatch} from './realtime.js';
@@ -15,7 +15,7 @@ import {avatarHTML} from './avatars.js';
 import {createCommunityUI} from './community.js';
 import {createRoomPacksUI} from './room-packs.js';
 import {createPlayUI,isDesktopClient} from './play.js';
-mountDesktopNotifications();
+mountDesktopUpdates();
 const desktop=isDesktopClient();
 document.documentElement.dataset.client=desktop?'desktop':'web';
 document.getElementById('web-client-download').hidden=desktop;
