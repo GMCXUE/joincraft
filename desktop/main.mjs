@@ -25,6 +25,8 @@ import {inspectMrpack,packSummary,MAX_PACK_BYTES,LEGACY_PACK_BYTES} from '../sha
 import {createHash} from 'node:crypto';
 import {stat} from 'node:fs/promises';
 import {ManagedWorlds} from '../launcher/worlds.mjs';
+import {WorldBackups} from '../launcher/world-backups.mjs';
+import {importWorld,exportWorld} from '../launcher/world-archives.mjs';
 import {HostHelper} from '../launcher/host-helper.mjs';
 import {GamePlay} from './game-play.mjs';
 import {ElectronP2P} from './p2p-runtime.mjs';
@@ -51,14 +53,14 @@ let installationConfirmation=null,inboxUnread=0;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
-let modExports,modUpdates,modDownloads,mods, worlds, gamePlay, p2pRuntime, launcherHome, playToken=null;
+let modExports,modUpdates,modDownloads,mods, worlds, worldBackups,gamePlay, p2pRuntime, launcherHome, playToken=null;
 let managedPacks, packTransfer, managedSelection=null,lastPackInput=null;
 async function reloadLibrary(){library.clear();for(const item of await managedPacks.list())library.set(item.id,item);emit({type:'library',instances:[...library.values()],root:managedPacks.root,managedRoot:managedPacks.root});}
-const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy||mods?.busy);
+const anyPackBusy=()=>!!(managedPacks?.busy||packTransfer?.busy||mods?.busy||worldBackups?.busy);
 const packState=()=>{if(managedPacks.busy)return managedPacks.state();if((packTransfer?.progress.started||0)>(managedPacks.progress.started||0))return packTransfer.state();return managedPacks.state();};
 const anyGameBusy=()=>launcher.states().some(run=>['checking','starting','running'].includes(run.state));
 async function pickMrpack(){const result=await dialog.showOpenDialog(roomWindow,{title:'导入整合包',properties:['openFile'],filters:[{name:'整合包文件（Modrinth）',extensions:['mrpack','zip']}]});if(result.canceled)return null;const file=result.filePaths[0];if((await stat(file)).size>MAX_PACK_BYTES)throw Error('整合包文件最大支持 600 MB');return file;}
-async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');if(packTransfer?.busy||mods?.busy)throw Error('请先完成当前传输或模组任务');lastPackInput={buffer,sha512:hash||null};let instance;try{instance=await managedPacks.install(buffer,hash);lastPackInput.sha512=instance.pack.sha512;}catch(error){lastPackInput.sha512 ||= managedPacks.progress.sha512;throw error;}managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
+async function installPack(buffer,hash){clientUpdater.assertCanLaunch();if(anyGameBusy())throw Error('请先退出游戏，再安装整合包');if(packTransfer?.busy||mods?.busy||worldBackups?.busy)throw Error('请先完成当前传输、模组或存档任务');lastPackInput={buffer,sha512:hash||null};let instance;try{instance=await managedPacks.install(buffer,hash);lastPackInput.sha512=instance.pack.sha512;}catch(error){lastPackInput.sha512 ||= managedPacks.progress.sha512;throw error;}managedSelection=instance.id;launcher.javaPath=instance.javaPath;prefs.javaPath=instance.javaPath;await save();await reloadLibrary();emit({type:'pack-selected',id:instance.id});return instance;}
 async function choosePack(input){if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或当前任务');let file;if(input?.id){const instance=(await managedPacks.list()).find(i=>i.id===input.id);if(!instance)throw Error('未找到本地整合包');if(instance.editable&&input?.revisionPreview!==true)throw Error('房间页面需要更新后才能发布编辑副本，请稍后刷新页面');if(instance.editable)return {revision:await modExports.preview({id:instance.id}),pack:instance.pack};file=instanceArchive(instance);}else file=await pickMrpack();return file?packTransfer.inspect(file):null;}
 
 let javaInstallations=[], javaScan=null;
@@ -150,7 +152,7 @@ else {
   const clientId = process.env.BLOCKROOM_MICROSOFT_CLIENT_ID || '';
   const client = clientId ? new PublicClientApplication({ auth: { clientId, authority: 'https://login.microsoftonline.com/consumers' }, system: { loggerOptions: { piiLoggingEnabled: false, loggerCallback: () => {} } } }) : null;
   account = new MicrosoftAccount({ clientId, client, notify: emit });
-  launcher = new GameLauncher({ library, account,beforePlan:async(input,instance)=>{if(instance.managed){if(anyPackBusy())throw Error('请先完成模组或整合包任务');await mods?.prepareLaunch(input.id);}}, cacheDir: app.getPath('userData'), notify: emit });
+  launcher = new GameLauncher({ library, account,beforePlan:async(input,instance)=>{if(instance.managed){if(anyPackBusy())throw Error('请先完成模组、整合包或存档任务');if(launcher.states().some(r=>['running','starting'].includes(r.state)))throw Error('请先退出当前游戏');await mods?.prepareLaunch(input.id);await worldBackups?.recover(input.id);}}, cacheDir: app.getPath('userData'), notify: emit });
   launcher.javaPath = prefs.javaPath || null;
   managedPacks=new ManagedPacks({gatewayOrigin:new URL(serverURL()).origin,fetchImpl:createDownloadFetch({origin:new URL(serverURL()).origin}),root:prefs.managedRoot||path.join(app.getPath('documents'),'Joincraft'),roots:prefs.managedRoots||[],notify:emit,javaCandidates:async()=>{const candidates=await discoverJava({root:managedPacks.root,savedPath:launcher.javaPath,externalRuntimes:false});if(launcher.javaPath&&!candidates.some(java=>java.path===launcher.javaPath))try{candidates.unshift(await probeJava(launcher.javaPath));}catch{}return candidates;}});
   packTransfer=new PackTransfer({serverURL:serverURL(),getDirectory:()=>managedPacks.root,notify:emit,getHeaders:async token=>{
@@ -159,6 +161,7 @@ else {
     return {...(allowed.length?{Cookie:allowed.map(cookie=>cookie.name+'='+cookie.value).join('; ')}:{}),...(token?{Authorization:'Bearer '+token}:{})};
   }});
   worlds=new ManagedWorlds({getInstance:id=>library.get(id)});
+  worldBackups=new WorldBackups({worlds,notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||anyPackBusy()||gamePlay?.active)throw Error('请先退出游戏并结束当前任务，再操作存档');}});
   p2pRuntime=new ElectronP2P({createView:options=>new WebContentsView(options),ipcMain});
   gamePlay=new GamePlay({server:new URL(serverURL()).origin,api:createPlayAPI({serverURL:serverURL(),getHeaders:()=>packTransfer.getHeaders(playToken)}),worlds,
     helper:new HostHelper({resources:app.isPackaged?path.join(process.resourcesPath,'host-helper'):path.join(here,'../build-resources/generated/host-helper')}),
@@ -209,7 +212,7 @@ else {
   handle('retry-pack',()=>{if(!lastPackInput)throw Error('请重新导入整合包');return installPack(lastPackInput.buffer,lastPackInput.sha512);});
   handle('pick-install-root',async()=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束游戏或整合包任务');const selected=await dialog.showOpenDialog(roomWindow,{title:'选择 Joincraft 安装目录',properties:['openDirectory','createDirectory']});if(selected.canceled)return null;managedPacks.root=selected.filePaths[0];managedPacks.roots=[...new Set([...managedPacks.roots,managedPacks.root])];prefs.managedRoot=managedPacks.root;prefs.managedRoots=managedPacks.roots;await save();await reloadLibrary();return managedPacks.root;});
   handle('memory',()=>readSystemMemory());
-  mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
+  mods=new ManagedMods({getInstance:id=>library.get(id),notify:emit,assertIdle:()=>{clientUpdater.assertCanLaunch();if(anyGameBusy()||managedPacks.busy||packTransfer.busy||worldBackups.busy||gamePlay.active)throw Error('请先退出游戏或结束当前任务');},changed:async id=>{managedSelection=id;await reloadLibrary();emit({type:'pack-selected',id});}});
   modDownloads=new ModDownloads({mods,gatewayOrigin:new URL(serverURL()).origin});
   modUpdates=new ModUpdates({mods,downloads:modDownloads});
   modExports=new ModExports({mods,packTransfer,changed:async id=>{await reloadLibrary();emit({type:'pack-selected',id});}});mods.getInstances=()=>managedPacks.list();
@@ -228,7 +231,14 @@ else {
   handle('mods-import',async input=>{if(anyGameBusy()||anyPackBusy())throw Error('请先结束当前任务');const chosen=await dialog.showOpenDialog(roomWindow,{title:'导入模组',properties:['openFile','multiSelections'],filters:[{name:'Minecraft 模组',extensions:['jar']}]});return chosen.canceled?null:mods.apply({id:input?.id,action:'import',imports:chosen.filePaths});});
   handle('mods-fork',input=>mods.fork(input));
   handle('mods-list',input=>mods.list(input));
-  handle('worlds',input=>worlds.list(input?.id));
+  handle('worlds',input=>worldBackups.listWorlds(input?.id));
+  handle('world-backups',input=>worldBackups.list({id:input?.id,worldId:input?.worldId}));
+  handle('world-backup',input=>worldBackups.backup({id:input?.id,worldId:input?.worldId}));
+  handle('world-restore',input=>worldBackups.restore({id:input?.id,worldId:input?.worldId,backupId:input?.backupId}));
+  handle('world-backup-state',()=>worldBackups.state());
+  handle('world-cancel',()=>worldBackups.cancel());
+  handle('world-import',async input=>{await worldBackups.worlds.instance(input?.id);if(!['zip','folder'].includes(input?.kind))throw Error('请选择 ZIP 或世界文件夹');if(anyGameBusy()||anyPackBusy())throw Error('请先退出游戏并结束当前任务');const selected=await dialog.showOpenDialog(roomWindow,{title:input.kind==='zip'?'导入世界 ZIP':'选择包含 level.dat 的世界文件夹',properties:[input.kind==='zip'?'openFile':'openDirectory'],...(input.kind==='zip'?{filters:[{name:'世界存档 ZIP',extensions:['zip']}]}:{})});return selected.canceled?null:importWorld(worldBackups,{id:input.id,source:selected.filePaths[0]});});
+  handle('world-export',async input=>{await worlds.folder(input?.id,input?.worldId);if(anyGameBusy()||anyPackBusy())throw Error('请先退出游戏并结束当前任务');const selected=await dialog.showSaveDialog(roomWindow,{title:'导出世界 ZIP',defaultPath:'joincraft-world.zip',filters:[{name:'世界存档 ZIP',extensions:['zip']}]});return selected.canceled||!selected.filePath?null:exportWorld(worldBackups,{id:input.id,worldId:input.worldId,destination:selected.filePath});});
   handle('diagnostics',input=>launcher.diagnostics.read({id:input?.id}));
   handle('export-diagnostics',async input=>{
     const report=await launcher.diagnostics.read({id:input?.id});

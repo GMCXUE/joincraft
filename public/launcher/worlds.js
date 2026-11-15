@@ -1,4 +1,5 @@
 import {clientIcon,revealClientPanel} from './experience.js';
+import {mountWorldBackups} from './world-backups.js';
 export const canUseWorld=world=>Boolean(world?.readable&&!world.snapshot&&Number.isInteger(world.dataVersion)&&world.dataVersion<=3465);
 export function createWorldSelection({read,onChange=()=>{},onError=()=>{}}){
  let state={id:null,worlds:[],selected:null,loading:false,locked:false},sequence=0;
@@ -21,10 +22,11 @@ export function createWorldSelection({read,onChange=()=>{},onError=()=>{}}){
  }
  return {load,select,setLocked(value){if(state.locked!==value){state.locked=value;notify();}},get state(){return state;}};
 }
-export function mountWorlds({api,onChange=()=>{},onError=()=>{}}){
+export function mountWorlds({api,onChange=()=>{},onError=()=>{},onBusy=()=>{}}){
  const $=s=>document.querySelector(s);let tab='settings',listId=null;
  const mode=world=>world.hardcore?'极限模式':['生存','创造','冒险','旁观'][world.gameMode]||'未知模式';
  const model=createWorldSelection({read:api?input=>api.worlds(input):null,onChange:render,onError});
+ const backups=mountWorldBackups({api,onError,onBusy,onChanged:async id=>{if(model.state.id===id)await model.load({id},{force:true});}});
  function setTab(value){if(!['settings','worlds','mods','diagnostics'].includes(value)||tab===value)return;const direction=value==='worlds'?1:-1;tab=value;$('#launch-settings').hidden=value!=='settings';$('#worlds-panel').hidden=value!=='worlds';$('#mods-panel').hidden=value!=='mods';$('#diagnostics-panel').hidden=value!=='diagnostics';document.body.classList.toggle('diagnostics-page',value==='diagnostics');for(const name of ['settings','worlds','mods','diagnostics'])$('#'+name+'-tab').setAttribute('aria-pressed',String(name===value));revealClientPanel($('#instance-content'),{direction});onChange();}
  function render(state){
   const {worlds,loading,locked,selected}=state;
@@ -34,20 +36,21 @@ export function mountWorlds({api,onChange=()=>{},onError=()=>{}}){
   const list=$('#world-list'),existing=new Map([...list.children].map(button=>[button.dataset.worldId,button])),keep=new Set();
   list.setAttribute('aria-busy',String(loading));
   worlds.forEach((world,index)=>{
-   let button=existing.get(world.id);
+   let row=existing.get(world.id),button=row?.querySelector('.world-row');
    const metadata=JSON.stringify([world.name,world.version,world.gameMode,world.hardcore,world.warning,world.icon,world.lastPlayed,canUseWorld(world)]);
-   if(!button){button=document.createElement('button');button.type='button';button.className='world-row';button.dataset.worldId=world.id;}
+   if(!button){row=document.createElement('div');row.className='world-item';row.dataset.worldId=world.id;button=document.createElement('button');button.type='button';button.className='world-row';const manage=document.createElement('button');manage.type='button';manage.className='world-manage';manage.textContent='备份与恢复';manage.setAttribute('aria-label','管理“'+world.name+'”的备份');manage.onclick=()=>{backups.select(world.id,model.state);$('#world-backup-panel').scrollIntoView({block:'nearest',behavior:'smooth'});};row.append(button,manage);}
    if(button.dataset.metadata!==metadata){
     const icon=document.createElement(world.icon?'img':'span');icon.className='world-icon';if(world.icon){icon.src=world.icon;icon.alt='';}else{icon.innerHTML=clientIcon('cube');icon.setAttribute('aria-hidden','true');}
     const content=document.createElement('span');content.className='world-copy';const title=document.createElement('strong');title.textContent=world.name;const meta=document.createElement('small');meta.textContent=[world.version||'未知版本',mode(world),world.warning||(!canUseWorld(world)?'需从游戏菜单检查':'')].filter(Boolean).join(' · ');content.append(title,meta);
     const time=document.createElement('span');time.className='world-last-played';time.textContent=Number.isFinite(world.lastPlayed)&&world.lastPlayed>0?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(new Date(world.lastPlayed)):'未记录游玩时间';
     const check=document.createElement('span');check.className='world-selected';check.innerHTML=clientIcon('check');check.setAttribute('aria-hidden','true');button.replaceChildren(icon,content,time,check);button.dataset.metadata=metadata;
    }
-   button.setAttribute('aria-pressed',String(world.id===selected));button.disabled=!canUseWorld(world)||loading||locked;button.onclick=()=>model.select(world.id);
-   if(list.children[index]!==button)list.insertBefore(button,list.children[index]||null);keep.add(button);
+   button.setAttribute('aria-pressed',String(world.id===selected));button.disabled=!canUseWorld(world)||loading||locked;button.onclick=()=>{model.select(world.id);backups.select(world.id,model.state);};
+   if(list.children[index]!==row)list.insertBefore(row,list.children[index]||null);keep.add(row);
   });
   for(const button of [...list.children])if(!keep.has(button))button.remove();
   if(listId!==state.id&&!loading&&worlds.length){listId=state.id;revealClientPanel(list);}
+  backups.sync(state);
   onChange();
  }
  $('#diagnostics-tab').onclick=()=>setTab('diagnostics');$('#mods-tab').onclick=()=>setTab('mods');$('#settings-tab').onclick=()=>setTab('settings');$('#worlds-tab').onclick=()=>setTab('worlds');$('#refresh-worlds').onclick=()=>model.load({id:model.state.id},{force:true});

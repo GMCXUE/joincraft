@@ -10,6 +10,11 @@
  const run=(id,state,message)=>{const value={id,state,memoryMB:8192,message};runs=[...runs.filter(r=>r.id!==id),value];emit({type:'run',...value});};
  const memory=()=>({totalMB:16384,availableMB:8192,usedMB:8192,recommendedMB:8192,maxMB:16384,lowMemory:false,sampledAt:Date.now()});
  window.blockroomLauncher={
+  worldBackupState:async()=>({state:'idle'}),worldCancel:async()=>{},
+  worldBackups:async()=>[{id:'preview-world-backup',at:now-3600000,label:'手动备份',bytes:148897792,fileCount:247}],
+  worldBackup:async({id,worldId})=>{for(let i=0;i<=3;i++){emit({type:'world-backup',id,state:'working',phase:'copy',file:'region/r.0.0.mca',percent:i*33,message:'模拟：正在备份世界'});await delay(160);}emit({type:'world-backup',id,state:'done',message:'模拟备份完成，未写入真实存档'});return {worldId};},
+  worldRestore:async({id,worldId})=>{emit({type:'world-backup',id,state:'working',phase:'committing',message:'模拟：已备份当前世界，正在恢复'});await delay(400);emit({type:'world-backup',id,state:'done',message:'模拟恢复完成，未改动真实存档'});return {worldId};},
+  worldImport:async()=>null,worldExport:async()=>({saved:true}),
   diagnostics:async()=>({summary:'发现 1 项可能的问题（模拟）',findings:[{id:'memory',title:'游戏或系统内存不足',suggestion:'关闭占用内存较多的程序，并在启动设置中调整内存。',evidence:'java.lang.OutOfMemoryError: Java heap space',source:'本次启动输出'}],sources:[{name:'logs/latest.log',text:'[模拟日志] java.lang.OutOfMemoryError: Java heap space'}],warnings:[]}),exportDiagnostics:async()=>({saved:true}),
   setConnectionMode:async value=>value,
   state:async()=>({gameIdentity:{accountMode:'offline',name:'Builder'},root,managedRoot:root,selectedInstance:id,instances:scenario==='empty'?[]:instances,javaPath:java.path,javaInstallations:[java],arch:'x64',account:{configured:false},runs,memory:memory(),play}),

@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('blockroomLauncher', {
   saveLaunchSettings:call('save-launch-settings'),state: call('state'),setConnectionMode:call('connection-mode'), memory:call('memory'), pickJava: call('pick-java'),
   scanJava:call('scan-java'), selectJava:call('select-java'),
   modsUpdates:call('mods-updates'),modsPin:call('mods-pin'),modsPreview:call('mods-preview'),modsInstall:call('mods-install'),modsDownloadState:call('mods-download-state'),modSearch:call('mod-search'),modProject:call('mod-project'),modVersions:call('mod-versions'),modsApply:call('mods-apply'),modsImport:call('mods-import'),modsHistory:call('mods-history'),modsRestore:call('mods-restore'),modsCancel:call('mods-cancel'),modsList:call('mods-list'),modsFork:call('mods-fork'),
-  worlds:call('worlds'),diagnostics:call('diagnostics'),exportDiagnostics:call('export-diagnostics'),stopPlay:call('play-stop'),clearPlay:call('play-clear'),
+  worlds:call('worlds'),worldBackups:call('world-backups'),worldBackup:call('world-backup'),worldRestore:call('world-restore'),worldBackupState:call('world-backup-state'),worldCancel:call('world-cancel'),worldImport:call('world-import'),worldExport:call('world-export'),diagnostics:call('diagnostics'),exportDiagnostics:call('export-diagnostics'),stopPlay:call('play-stop'),clearPlay:call('play-clear'),
   check: call('check'), start: call('start'), login: call('login'), logout: call('logout'),
   openInbox:call('open-inbox'),inboxState:call('inbox-state'),microsoftPage: call('microsoft-page'), rooms: call('rooms'),returnHome:call('return-home'),
   onEvent: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('launcher:event', listener); return () => ipcRenderer.removeListener('launcher:event', listener); }

@@ -1,0 +1,23 @@
+.world-header-actions,.world-backup-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.worlds-panel>header{flex-wrap:wrap;gap:12px}
+.world-item{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line,#3f4651)}
+.world-item>.world-row{flex:1;min-width:0;border-bottom:0}
+.world-item>.world-manage{flex:none;padding:7px 10px;font-size:12px}
+.world-backup-panel{margin:28px 0 8px;padding:20px;background:var(--surface-inset,#1f242c);border-radius:14px}
+.world-backup-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.world-backup-heading h3{font:600 15px/1.6 var(--ui-font,system-ui,sans-serif);margin:0;overflow-wrap:anywhere;min-width:0}
+.world-backup-note,.world-backup-empty{font-size:12px;line-height:1.8;color:var(--text-muted,#a6afbd);margin:12px 0 0}
+.world-backup-row{display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px solid var(--line,#3f4651)}
+.world-backup-row>div{flex:1;min-width:0}.world-backup-row strong{font-size:13px;font-weight:500;overflow-wrap:anywhere}
+.world-backup-row p{font-size:12px;color:var(--text-muted,#a6afbd);margin:6px 0 0;overflow-wrap:anywhere}
+.world-backup-row button{flex:none;font-size:12px}
+.world-operation-progress{margin:0 0 16px;padding:14px 18px;background:var(--surface-inset,#1f242c);border-radius:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;font:13px/1.6 var(--ui-font,system-ui,sans-serif)}
+.world-operation-progress p{margin:0}.world-operation-progress code{color:var(--text-muted,#a6afbd);font-size:12px;overflow-wrap:anywhere;grid-column:1/-1;max-height:42px;overflow:hidden}
+.world-operation-progress progress{width:100%;height:5px;accent-color:var(--accent,#54c5ce);grid-column:1/-1}
+.world-operation-progress[data-state=failed]{color:#f5a1a7}
+.world-restore-dialog{width:min(440px,calc(100vw - 48px));padding:24px;color:var(--text,#e9edf3);background:var(--surface-float,#333b46);border:0;border-radius:16px;box-shadow:0 16px 48px #0006}
+.world-restore-dialog::backdrop{background:#090c125c}
+.world-restore-dialog h2{font:600 20px/1.5 var(--ui-font,system-ui,sans-serif);margin:0 0 12px}
+.world-restore-dialog p{font:14px/1.8 var(--ui-font,system-ui,sans-serif);color:var(--text-secondary,#c0c8d3);overflow-wrap:anywhere;margin:0}
+.world-restore-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+@media(max-width:900px){.world-item{gap:6px}.world-row .world-last-played{display:none}.world-backup-panel{padding:16px}.world-backup-actions{width:100%}.world-backup-actions button{flex:1}.world-header-actions{gap:6px}.world-header-actions button{font-size:12px;padding:7px 9px}}

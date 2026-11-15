@@ -68,7 +68,7 @@ function setJava(java){
 }
 function controls() {
   const selected = item();
-  const running = state.installBusy || state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
+  const running = state.installBusy || state.worldBusy || state.runs.some(r => ['checking', 'starting', 'running'].includes(r.state));
   if(worldUI?.tab==='diagnostics')void diagnosticsUI?.load(selected);
   $('#open-diagnostics').hidden=!(state.runs.find(r=>r.id===state.selected)?.state==='failed'||state.play?.context?.instanceId===state.selected&&state.play?.progress?.phase==='failed');
   for (const id of ['#import-pack','#empty-install','#pick-install-root', '#pick-java', '#scan-java', '#java-select']) $(id).disabled = !api || state.busy || running;
@@ -129,7 +129,7 @@ function render() {
   diagnosticsUI?.reset(selected);renderJava();renderAccount();void worldUI?.load(selected);
 }
 modsUI=mountMods({api,onError:message});
-worldUI=mountWorlds({api,onChange:controls,onError:message});
+worldUI=mountWorlds({api,onChange:controls,onError:message,onBusy:value=>{state.worldBusy=value;controls();}});
 diagnosticsUI=mountDiagnostics({api,onError:message});
 $('#open-diagnostics').onclick=()=>worldUI.setTab('diagnostics');
 $('#stop-play').onclick=()=>action(()=>api.stopPlay());
