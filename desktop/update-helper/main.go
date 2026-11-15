@@ -274,6 +274,24 @@ func renameRetry(from, to string) error {
 	return e
 }
 
+func clientCommand(dir, token, userData string) *exec.Cmd {
+	cmd := exec.Command(filepath.Join(dir, "joincraft.exe"), "--joincraft-update="+token)
+	cmd.Dir = dir
+	// Electron's runtime switches must not turn the new GUI into a Node process
+	// or reuse an IPC channel belonging to the exited application.
+	for _, entry := range os.Environ() {
+		key := strings.ToUpper(strings.SplitN(entry, "=", 2)[0])
+		switch key {
+		case "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ASAR", "NODE_OPTIONS", "NODE_CHANNEL_FD", "NODE_CHANNEL_SERIALIZATION_MODE", "BLOCKROOM_DESKTOP_DATA_DIR":
+			continue
+		}
+		cmd.Env = append(cmd.Env, entry)
+	}
+	cmd.Env = append(cmd.Env, "BLOCKROOM_DESKTOP_DATA_DIR="+userData)
+	detach(cmd)
+	return cmd
+}
+
 // Each transition leaves either the original directory or its complete backup intact.
 func activate(root, stage, backup string, start func(string) error, health func() string) (string, error) {
 	if e := renameRetry(root, backup); e != nil {
@@ -373,9 +391,7 @@ func run(folder string) error {
 	}
 	var exited chan error
 	start := func(dir string) error {
-		cmd := exec.Command(filepath.Join(dir, "joincraft.exe"), "--joincraft-update="+job.Token)
-		cmd.Dir = dir
-		detach(cmd)
+		cmd := clientCommand(dir, job.Token, job.UserData)
 		if e := cmd.Start(); e != nil {
 			return e
 		}

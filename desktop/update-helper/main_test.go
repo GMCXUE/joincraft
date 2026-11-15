@@ -12,8 +12,38 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestClientCommandRestoresGUIAndProfile(t *testing.T) {
+	t.Setenv("ELECTRON_RUN_AS_NODE", "1")
+	t.Setenv("ELECTRON_NO_ASAR", "1")
+	t.Setenv("NODE_OPTIONS", "--inspect=9229")
+	t.Setenv("NODE_CHANNEL_FD", "3")
+	t.Setenv("BLOCKROOM_DESKTOP_DATA_DIR", "stale-profile")
+	t.Setenv("JOINCRAFT_RESTART_TEST", "preserved")
+	dir, profile := t.TempDir(), t.TempDir()
+	cmd := clientCommand(dir, "test-token", profile)
+	if cmd.Path != filepath.Join(dir, "joincraft.exe") || cmd.Dir != dir || len(cmd.Args) != 2 || cmd.Args[1] != "--joincraft-update=test-token" {
+		t.Fatal("incorrect restart target or arguments")
+	}
+	env := map[string]string{}
+	for _, entry := range cmd.Env {
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) == 2 {
+			env[strings.ToUpper(parts[0])] = parts[1]
+		}
+	}
+	for _, key := range []string{"ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ASAR", "NODE_OPTIONS", "NODE_CHANNEL_FD"} {
+		if _, ok := env[key]; ok {
+			t.Fatal("inherited runtime switch", key)
+		}
+	}
+	if env["BLOCKROOM_DESKTOP_DATA_DIR"] != profile || env["JOINCRAFT_RESTART_TEST"] != "preserved" {
+		t.Fatal("profile or normal environment lost")
+	}
+}
 
 func TestManifestAuthenticity(t *testing.T) {
 	pub, key, _ := ed25519.GenerateKey(rand.Reader)

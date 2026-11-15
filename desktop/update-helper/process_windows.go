@@ -35,5 +35,7 @@ func parentHandle(pid int, expected string) (func() error, func(), error) {
 	}, cleanup, nil
 }
 func detach(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000200 | 0x00000008, HideWindow: true}
+	// The helper is a GUI executable, so detaching creates no console. SW_HIDE
+	// would also hide the restarted Electron application on Windows.
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000200 | 0x00000008}
 }

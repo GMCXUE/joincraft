@@ -122,6 +122,10 @@ function openRooms() {
   if(alive(roomWindow)){surfaces.showRooms();return;}
   roomWindow=new BrowserWindow({...windowChromeOptions(),title:'joincraft',icon:path.join(here,'../public/brand/app-512.png'),width:1180,height:800,minWidth:850,minHeight:600,backgroundColor:TITLEBAR_COLOR,webPreferences:{preload:path.join(here,'rooms-preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
   roomWindow.setMenuBarVisibility(false);protect(roomWindow,target.href);
+  // Register before loadURL: a fast cached page must still acknowledge startup.
+  if(process.platform==='win32')roomWindow.webContents.once('did-finish-load',()=>{
+    roomWindow.show();roomWindow.focus();void acknowledgeBundle(app,app.getVersion());
+  });
   surfaces=new DesktopSurfaces({main:roomWindow,urls:{library:libraryURL,notifications:notificationsURL},prepare:protect,onModalClosed:cancelInstallation,createView:name=>{
     const view=new WebContentsView({webPreferences:{preload:path.join(here,name==='library'?'preload.cjs':'notifications-preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false}});
     view.setBackgroundColor(name==='notifications'?'#00000000':TITLEBAR_COLOR);return view;
@@ -322,7 +326,6 @@ else {
   });
   app.once('before-quit',()=>{void browserLogin.cancel();});
   if(process.platform==='win32'){
-    roomWindow.webContents.once('did-finish-load',()=>void acknowledgeBundle(app,app.getVersion()));
     const message=await previousBundleResult(app);if(message)clientUpdater.set({message});
   }
   await reloadLibrary();
