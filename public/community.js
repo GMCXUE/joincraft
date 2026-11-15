@@ -1,12 +1,14 @@
 import {avatarHTML} from './avatars.js';
 import {createVoice} from './voice.js';
+import {createVoicePopovers,voicePeerFor} from './voice-popovers.js';
 import {createScrollAnchor,renderMessageList} from './interaction.js';
 import {animateMessageArrival} from './motion.js';
-export function createCommunityUI({api,realtime,getState,getVersion,escape,initials,icon,setHTML,toast,smallDialog,formHandler,refresh}){
+export function createCommunityUI({api,realtime,getState,getVersion,escape,initials,icon,setHTML,toast,smallDialog,formHandler,refresh,voiceFactory=createVoice}){
  const $=s=>document.querySelector(s),drafts=new Map(),cache=new Map(),reads=new Map(),attempts=new Map();
- let currentId='',identity=-1,load=0,sending=false,showMembers=false,reading=null;
+ let currentId='',identity=-1,load=0,sending=false,showMembers=false,reading=null,voicePopovers=null,voiceMarkup='';
  const selected=()=>{const p=location.hash.slice(1).split('/');return p[0]==='room'?getState().rooms.find(r=>r.id===p[1]&&!r.closed):null;};
- const voice=createVoice({api,getState,toast,changed:()=>{drawVoice();const room=selected();if(room){sidebar(room);drawMembers(room);}}});
+ const voice=voiceFactory({api,getState,toast,changed:()=>{drawVoice();const room=selected();if(room){sidebar(room);drawMembers(room);}}});
+ voicePopovers=createVoicePopovers({voice,getState,getVersion,api});
  const avatar=m=>avatarHTML(m,{link:true});
  const vi=(name)=>icon(name);
  const button=(action,label,symbol,extra='')=>`<button class="icon-button" data-action="community-${action}" aria-label="${escape(label)}" title="${escape(label)}" ${extra}>${vi(symbol)}</button>`;
@@ -18,23 +20,25 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
   const c=room.community||{},v=voice.snapshot();
   setHTML($('#sidebar-info'),`<div class="sidebar-section-label"><span>语音分组</span>${room.isHost?button('create-group','创建语音分组','plus'):''}</div><div class="voice-groups">${(c.groups||[]).map(g=>{
    const people=(v.roomId===room.id&&v.groupId===g.id?v.participants:c.participants?.filter(p=>p.groupId===g.id))||[];
-   return `<div class="voice-group"><div class="voice-group-heading"><button class="channel voice-channel ${v.roomId===room.id&&v.groupId===g.id?'active':''}" data-action="community-join" data-group="${g.id}" ${v.busy?'disabled':''} aria-label="加入${escape(g.name)}语音">${vi('volume')}<span>${escape(g.name)}</span><small>${people.length||''}</small></button>${room.isHost?button('edit-group',`管理${g.name}分组`,'more',`data-group="${g.id}"`):''}</div>${people.map(p=>{const m=room.members.find(m=>m.id===p.userId)||{id:p.userId,name:p.name||'成员'};return `<div class="voice-person ${p.speaking?'speaking':''}">${avatar(m)}<span>${escape(m.name)}</span>${p.muted?vi('micOff'):''}</div>`;}).join('')}</div>`;
+   return `<div class="voice-group"><div class="voice-group-heading"><button class="channel voice-channel ${v.roomId===room.id&&v.groupId===g.id?'active':''}" data-action="community-join" data-group="${g.id}" ${v.busy?'disabled':''} aria-label="加入${escape(g.name)}语音">${vi('volume')}<span>${escape(g.name)}</span><small>${people.length||''}</small></button>${room.isHost?button('edit-group',`管理${g.name}分组`,'more',`data-group="${g.id}"`):''}</div>${people.map(p=>{const m=room.members.find(m=>m.id===p.userId)||{id:p.userId,name:p.name||'成员'},eligible=v.groupId===g.id&&voicePeerFor(getState(),v,m.id,room.id);return `<div class="voice-person ${p.speaking?'speaking':''}" ${eligible?`data-voice-user="${escape(m.id)}" data-voice-room="${escape(room.id)}" tabindex="0" aria-label="${escape(m.name)}，右键或按 Shift 加 F10 查看语音资料"`:''}>${avatar(m)}<span>${escape(m.name)}</span>${p.muted?vi('micOff'):''}${eligible?`<button type="button" class="voice-person-menu" data-action="community-person" data-user="${escape(m.id)}" data-room="${escape(room.id)}" aria-label="查看${escape(m.name)}的语音资料">${vi('more')}</button>`:''}</div>`;}).join('')}</div>`;
   }).join('')}</div>`);
  }
  function drawVoice(){
-  let bar=$('#voice-bar');if(!bar){bar=document.createElement('div');bar.id='voice-bar';bar.className='voice-bar';$('.sidebar-bottom').prepend(bar);}
+  let bar=$('#voice-bar');if(!bar){bar=document.createElement('div');bar.id='voice-bar';bar.className='voice-bar';$('.sidebar-bottom').prepend(bar);voiceMarkup='';}
   const v=voice.snapshot(),room=getState().rooms.find(r=>r.id===v.roomId),group=room?.community?.groups.find(g=>g.id===v.groupId);
   bar.hidden=!v.roomId&&!v.busy&&!v.error;$('.sidebar-bottom').classList.toggle('has-voice',!bar.hidden);
   bar.dataset.connection=v.status==='语音已连接'?'connected':v.busy?'connecting':v.error&&!v.roomId?'error':'idle';
   const mutedLabel=v.blocked?'房主已静音':v.mic?'关闭麦克风':'打开麦克风';
-  setHTML(bar,`<div class="voice-status"><span class="status-dot ${v.status==='语音已连接'?'connected':''}"></span><div><strong>${escape(v.status||'语音未连接')}</strong>${room?`<a href="#room/${room.id}/chat">${escape(group?.name||'语音')} / ${escape(room.name)}</a>`:''}</div></div>${v.roomId?`<div class="voice-controls">${button('mic',mutedLabel,v.mic?'mic':'micOff',`aria-pressed="${v.mic}" ${v.blocked||v.micBusy||v.busy?'disabled':''} data-state="${v.mic?'on':'off'}"`)}${button('deaf',v.deaf?'恢复收听':'关闭收听',v.deaf?'headphonesOff':'headphones',`aria-pressed="${v.deaf}" data-state="${v.deaf?'off':'on'}"`)}${button('devices','语音设置','settings')}${button('leave','断开语音','hangup')}</div>`:''}${v.playbackBlocked?'<button class="text-link" data-action="community-resume">点击恢复声音</button>':''}${v.error?`<p class="voice-error" role="alert">${escape(v.error)}</p>`:''}`);
+  const markup=`<div class="voice-status"><span class="status-dot ${v.status==='语音已连接'?'connected':''}"></span><div><strong>${escape(v.status||'语音未连接')}</strong>${room?`<a href="#room/${room.id}/chat">${escape(group?.name||'语音')} / ${escape(room.name)}</a>`:''}</div></div>${v.roomId?`<div class="voice-controls">${button('mic',mutedLabel,v.mic?'mic':'micOff',`aria-pressed="${v.mic}" ${v.blocked||v.micBusy||v.busy?'disabled':''} data-state="${v.mic?'on':'off'}"`)}${button('deaf',v.deaf?'恢复收听':'关闭收听',v.deaf?'headphonesOff':'headphones',`aria-pressed="${v.deaf}" data-state="${v.deaf?'off':'on'}"`)}${button('devices','语音设置','settings')}${button('leave','断开语音','hangup')}</div>`:''}${v.playbackBlocked?'<button class="text-link" data-action="community-resume">点击恢复声音</button>':''}${v.error?`<p class="voice-error" role="alert">${escape(v.error)}</p>`:''}`;
+  if(voiceMarkup!==markup){setHTML(bar,markup);voiceMarkup=markup;}
+  voicePopovers?.sync();
  }
  function drawMembers(room){
   const el=$('#room-chat-members');if(!el||currentId!==room.id)return;
   const c=room.community||{},v=voice.snapshot(),online=new Set(c.online||[]),peers=new Map((c.participants||[]).map(p=>[p.userId,p]));
   if(v.roomId===room.id)for(const p of v.participants)peers.set(p.userId,{...p,groupId:v.groupId});
   const members=[...room.members].sort((a,b)=>Number(online.has(b.id))-Number(online.has(a.id)));
-  setHTML(el,`<div class="room-members-heading"><span>成员 · ${members.length}</span><small>在线 ${online.size}</small></div>${members.map(m=>{const peer=peers.get(m.id),group=c.groups?.find(g=>g.id===peer?.groupId);return `<div class="room-chat-member ${peer?.speaking?'speaking':''}"><div class="presence-avatar ${online.has(m.id)||peer?'online':''}">${avatar(m)}</div><div class="room-member-name"><strong>${escape(m.name)}${m.self?' <small>我</small>':''}</strong><small>${peer?escape(group?.name||'语音')+(peer.muted?' · 静音':''):m.host?'房主':online.has(m.id)?'在线':'离线'}</small></div>${room.isHost&&!m.self?button('moderate',`管理${m.name}的语音`,'more',`data-user="${m.id}"`):''}</div>`;}).join('')}`);
+  setHTML(el,`<div class="room-members-heading"><span>成员 · ${members.length}</span><small>在线 ${online.size}</small></div>${members.map(m=>{const peer=peers.get(m.id),group=c.groups?.find(g=>g.id===peer?.groupId),eligible=voicePeerFor(getState(),v,m.id,room.id);return `<div class="room-chat-member ${peer?.speaking?'speaking':''}" ${eligible?`data-voice-user="${escape(m.id)}" data-voice-room="${escape(room.id)}" tabindex="0" aria-label="${escape(m.name)}，右键或按 Shift 加 F10 查看语音资料"`:''}><div class="presence-avatar ${online.has(m.id)||peer?'online':''}">${avatar(m)}</div><div class="room-member-name"><strong>${escape(m.name)}${m.self?' <small>我</small>':''}</strong><small>${peer?escape(group?.name||'语音')+(peer.muted?' · 静音':''):m.host?'房主':online.has(m.id)?'在线':'离线'}</small></div>${eligible?button('person',`查看${m.name}的语音资料`,'more',`data-user="${escape(m.id)}" data-room="${escape(room.id)}"`):room.isHost&&!m.self?button('moderate',`管理${m.name}的语音`,'more',`data-user="${m.id}"`):''}</div>`;}).join('')}`);
  }
  const atBottom=()=>reading?.atBottom()||false;
  function error(message,kind='send'){const el=$('#room-chat-error');if(el){el.dataset.kind=kind;el.innerHTML=escape(message)+(message&&kind==='load'?' <button class="text-button" type="button" data-action="community-retry">重试</button>':'');el.hidden=!message;}}
@@ -98,6 +102,7 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
   if(action==='community-join'){await voice.join(room.id,target.dataset.group);return;}
   if(action==='community-leave'){await voice.leave();return;}
   if(action==='community-mic'){await voice.microphone();return;}
+  if(action==='community-person'){voicePopovers.openUser(target.dataset.user,target.dataset.room,target.getBoundingClientRect(),target);return;}
   if(action==='community-deaf'){await voice.deafen();return;}
   if(action==='community-resume'){await voice.resume();return;}
   if(action==='community-members'){showMembers=!showMembers;$('.room-chat-layout')?.classList.toggle('show-members',showMembers);target.setAttribute('aria-expanded',String(showMembers));return;}
@@ -111,15 +116,15 @@ export function createCommunityUI({api,realtime,getState,getVersion,escape,initi
   }
   if(action==='community-confirm-delete'){target.disabled=true;await api(`/api/rooms/${room.id}/groups/${target.dataset.group}/delete`,{});$('#small-dialog').close();await refresh(true);return;}
   if(action==='community-moderate'){
-   const m=room.members.find(m=>m.id===target.dataset.user),muted=room.community.muted.includes(m.id);
-   smallDialog(`${m.name} · 语音管理`,`<div class="voice-moderation"><button class="button" data-action="community-rule" data-user="${m.id}" data-rule="${muted?'allow':'mute'}">${muted?'允许使用麦克风':'限制麦克风'}</button><button class="button danger" data-action="community-rule" data-user="${m.id}" data-rule="remove">移出语音 · 60 秒内不可重进</button></div>`);return;
+   const voiceRoom=getState().rooms.find(item=>item.id===(target.dataset.room||room?.id));if(!voiceRoom?.isHost)return;const m=voiceRoom.members.find(m=>m.id===target.dataset.user);if(!m)return;const muted=voiceRoom.community.muted.includes(m.id);
+   smallDialog(`${m.name} · 语音管理`,`<div class="voice-moderation"><button class="button" data-action="community-rule" data-room="${voiceRoom.id}" data-user="${m.id}" data-rule="${muted?'allow':'mute'}">${muted?'允许使用麦克风':'限制麦克风'}</button><button class="button danger" data-action="community-rule" data-room="${voiceRoom.id}" data-user="${m.id}" data-rule="remove">移出语音 · 60 秒内不可重进</button></div>`);return;
   }
-  if(action==='community-rule'){target.disabled=true;await api(`/api/rooms/${room.id}/voice/${target.dataset.user}/${target.dataset.rule}`,{});$('#small-dialog').close();await refresh();return;}
+  if(action==='community-rule'){target.disabled=true;await api(`/api/rooms/${target.dataset.room||room.id}/voice/${target.dataset.user}/${target.dataset.rule}`,{});$('#small-dialog').close();await refresh();return;}
   if(action==='community-devices'){
-   const d=await voice.devices();
+   voicePopovers.close();const d=await voice.devices();
    const options=(items,current)=>items.filter(d=>d.deviceId!=='default').map((device,i)=>`<option value="${escape(device.deviceId)}" ${device.deviceId===current?'selected':''}>${escape(device.label||'设备 '+(i+1))}</option>`).join('');
-   smallDialog('语音设置',`<form id="voice-devices-form"><div class="field"><label for="voice-input">麦克风</label><select id="voice-input" name="input"><option value="">系统默认</option>${options(d.inputs,d.micDevice)}</select></div>${d.outputSupported?`<div class="field"><label for="voice-output">扬声器</label><select id="voice-output" name="output"><option value="">系统默认</option>${options(d.outputs,d.outputDevice)}</select></div>`:'<p class="dialog-description">扬声器使用系统当前输出设备。</p>'}${!d.inputs.some(d=>d.label)?'<p class="dialog-description">打开麦克风并授权后，可查看设备名称。</p>':''}<p id="voice-devices-error" class="form-error" role="alert" hidden></p><button class="button primary" type="submit">保存</button></form>${v.participants.filter(p=>p.userId!==getState().profile?.id).map(p=>`<label class="voice-volume"><span>${escape(p.name)}</span><input type="range" min="0" max="100" value="${Math.round(p.volume*100)}" data-peer="${p.identity}" aria-label="${escape(p.name)}的音量"></label>`).join('')}`);
-   formHandler($('#voice-devices-form'),'#voice-devices-error',async body=>{await voice.selectDevices(body.input,body.output);$('#small-dialog').close();});document.querySelectorAll('.voice-volume input').forEach(el=>el.addEventListener('input',()=>voice.volume(el.dataset.peer,Number(el.value)/100)));return;
+   smallDialog('语音设置',`<form id="voice-devices-form"><div class="field"><label for="voice-input">麦克风</label><select id="voice-input" name="input"><option value="">系统默认</option>${options(d.inputs,d.micDevice)}</select></div>${d.outputSupported?`<div class="field"><label for="voice-output">扬声器</label><select id="voice-output" name="output"><option value="">系统默认</option>${options(d.outputs,d.outputDevice)}</select></div>`:'<p class="dialog-description">扬声器使用系统当前输出设备。</p>'}<div class="voice-settings-gain"><div><label for="voice-settings-gain">麦克风输入音量</label><output for="voice-settings-gain">${Math.round(voice.snapshot().micGain*100)}%</output></div><input id="voice-settings-gain" type="range" min="0" max="100" value="${Math.round(voice.snapshot().micGain*100)}"><small>调整不会自动开麦；100% 为原始输入音量。</small></div>${!d.inputs.some(d=>d.label)?'<p class="dialog-description">打开麦克风并授权后，可查看设备名称。</p>':''}<p id="voice-devices-error" class="form-error" role="alert" hidden></p><button class="button primary" type="submit">保存</button></form>${v.participants.filter(p=>p.userId!==getState().profile?.id).map(p=>`<label class="voice-volume"><span>${escape(p.name)}</span><input type="range" min="0" max="100" value="${Math.round(p.volume*100)}" data-peer="${p.identity}" aria-label="${escape(p.name)}的音量"></label>`).join('')}`);
+   formHandler($('#voice-devices-form'),'#voice-devices-error',async body=>{await voice.selectDevices(body.input,body.output);$('#small-dialog').close();});$('#voice-settings-gain').addEventListener('input',event=>{voice.microphoneGain(Number(event.target.value)/100);$('#voice-devices-form output').textContent=event.target.value+'%';});document.querySelectorAll('.voice-volume input').forEach(el=>el.addEventListener('input',()=>voice.volume(el.dataset.peer,Number(el.value)/100)));return;
   }
  }catch(e){target.disabled=false;toast(e.message);}}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentId)void resync();});

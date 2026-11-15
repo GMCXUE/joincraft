@@ -238,6 +238,7 @@ export async function createApp(options: AppOptions = {}) {
     '/motion.js':['motion.js','text/javascript'], '/motion.css':['motion.css','text/css'], '/mining.js':['mining.js','text/javascript'],
     '/community.js': ['community.js','text/javascript'], '/voice.js':['voice.js','text/javascript'], '/voice-sdk.js':['voice-sdk.js','text/javascript'], '/community.css':['community.css','text/css'],
     '/voice-levels.js':['voice-levels.js','text/javascript'],'/voice-gain.js':['voice-gain.js','text/javascript'],
+    '/voice-popovers.js':['voice-popovers.js','text/javascript'],'/voice-popovers.css':['voice-popovers.css','text/css'],
     '/type.css': ['type.css', 'text/css'],
     '/pixel-theme.css':['pixel-theme.css','text/css'],
     '/focus.js':['focus.js','text/javascript'],
