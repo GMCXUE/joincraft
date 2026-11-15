@@ -19,7 +19,7 @@ export class Notifications {
   const notices=rows.map(row=>({id:'notice:'+row.id,kind:row.kind,category:row.kind.startsWith('friend.')?'friend':'system',title:row.title,
    body:row.content,at:row.created_at,unread:row.read_at===null?1:0,peerId:row.peer_id,roomId:row.room_id,
    pending:row.kind==='friend.request'&&pending.has(row.peer_id||'')}));
-  const chats=social.conversations.map(peer=>({id:`chat:${peer.id}:${peer.lastId}`,kind:'chat.message',category:'friend',title:peer.name,
+  const chats=social.conversations.filter(peer=>peer.lastId>0).map(peer=>({id:`chat:${peer.id}:${peer.lastId}`,kind:'chat.message',category:'friend',title:peer.name,
    body:peer.preview,at:peer.at,unread:peer.unread,peerId:peer.id,roomId:null,avatarId:peer.avatarId,pending:false}));
   const all=[...notices,...chats].sort((a,b)=>b.at-a.at||b.id.localeCompare(a.id));
   const friend=all.filter(item=>item.category==='friend').reduce((sum,item)=>sum+item.unread,0),system=notices.filter(item=>item.category==='system').reduce((sum,item)=>sum+item.unread,0);

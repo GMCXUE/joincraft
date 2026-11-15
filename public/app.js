@@ -7,6 +7,7 @@ import {loginPagePath,useLoginPage} from './auth/session.js';
 import {mountDesktopLogin,loadDesktopAccount} from './desktop-login.js';
 import {mountDesktopUpdates} from './desktop-notifications.js';
 import './ui.js';
+import {createInboxUI} from './inbox.js';
 import {parseInstances} from './instances.js';
 import {createRealtime,applyStatePatch} from './realtime.js';
 import {createSocialUI} from './social.js';
@@ -44,6 +45,7 @@ async function api(path,body,token=session){
  catch(error){if(error.name==='TimeoutError')throw new Error('连接超时，请重试');if(error instanceof TypeError)throw new Error('无法连接服务器，请检查网络后重试');throw error;}
 }
 const realtimeRequest=(type,body)=>realtime?realtime.request(type,body):Promise.reject(new Error('实时连接正在建立，请稍后重试'));
+const inboxUI=createInboxUI({getState:()=>state,api,refresh,toast});
 const socialUI=createSocialUI({api,realtime:realtimeRequest,getState:()=>state,getVersion:()=>authVersion,icon,escape,initials,setHTML,toast,openAuth,smallDialog,formHandler,refresh});
 const roomPacksUI=createRoomPacksUI({api,escape,icon,smallDialog,refresh,toast,getRoom:()=>route().room,getSession:()=>session});
 const playUI=createPlayUI({getSession:()=>session,api,escape,icon,smallDialog,formHandler,refresh,toast,getVersion:()=>authVersion});
@@ -51,7 +53,7 @@ const communityUI=createCommunityUI({api,realtime:realtimeRequest,getState:()=>s
 const profileUI=createProfileUI({api,getState:()=>state,getVersion:()=>authVersion,icon,escape,setHTML,toast,openAuth,formHandler,refresh});
 const homeUI=createAppHome({desktop,icon,setHTML,smallDialog,toast,renderShell,getState:()=>state});
 const navigationMotion=mountNavigationMotion({rail:$('.room-rail'),sidebar:$('.room-sidebar'),content:$('#main')});
-function renderShell(){navigationMotion.sync();const {room,tab}=route(),selected=room&&!room.closed?room:null,home=isAppHome(location.hash);homeUI.visit(selected?.id);$('.workspace').classList.toggle('home-mode',home);$('#home-entry').classList.toggle('selected',home);$('#home-entry').setAttribute('aria-current',home?'page':'false');
+function renderShell(){inboxUI.update(state);navigationMotion.sync();const {room,tab}=route(),selected=room&&!room.closed?room:null,home=isAppHome(location.hash);homeUI.visit(selected?.id);$('.workspace').classList.toggle('home-mode',home);$('#home-entry').classList.toggle('selected',home);$('#home-entry').setAttribute('aria-current',home?'page':'false');
  setHTML($('#room-icons'),activeRooms().map(r=>`<a class="room-icon ${r.id===selected?.id?'selected':''}" href="#room/${r.id}/chat" title="${escape(r.name)}" aria-label="房间：${escape(r.name)}" ${r.id===selected?.id?'aria-current="page"':''}>${picture(r)}${r.community?.unread?`<span class="room-unread">${r.community.unread>99?'99+':r.community.unread}</span>`:''}</a>`).join(''));
  $('.rail-home').classList.toggle('selected',!selected&&!profileUI.active()&&!home);$('.rail-home').setAttribute('aria-current',!selected&&!profileUI.active()&&!home?'page':'false');socialUI.renderBadge();
  setHTML($('#account-entry'),state.profile?avatarHTML(state.profile):'登录');$('#account-entry').setAttribute('aria-current',profileUI.active()&&profileUI.own()?'page':'false');$('#account-entry').title=state.profile?state.profile.name+' · '+(state.profile.username?'@'+state.profile.username:'访客'):'登录 / 注册';$('#account-entry').setAttribute('aria-label',state.profile?'个人主页':'登录账号');

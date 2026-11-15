@@ -47,7 +47,7 @@ const serverURL=()=>roomPageURL(process.env.BLOCKROOM_SERVER_URL||(app.isPackage
 const unavailableURL=pathToFileURL(path.join(here,'../public/launcher/room-unavailable.html')).href;
 const notificationsURL=pathToFileURL(path.join(here,'../public/launcher/notifications.html')).href;
 let roomWindow, surfaces, launcher, account, clientUpdater, updateNotifications, browserLogin;
-let installationConfirmation=null;
+let installationConfirmation=null,inboxUnread=0;
 const cancelInstallation=()=>{installationConfirmation?.(false);installationConfirmation=null;};
 const library = new Map();
 let prefs = {};
@@ -258,6 +258,9 @@ else {
   const returnHome=input=>returnToHome({showHome:()=>{openRooms();roomWindow.webContents.send('home:show');},remember:value=>launcherHome.remember(value),onSaveError:()=>roomWindow.webContents.send('home:notice','已返回首页，启动设置未保存，请稍后重试。')},input);
   handle('return-home',returnHome);
   handle('rooms',()=>returnHome());
+  handle('open-inbox',()=>{openRooms();roomWindow.webContents.send('inbox:open');return {ok:true};});
+  handle('inbox-state',()=>({unread:inboxUnread}));
+  ipcMain.handle('inbox:count',async(event,count)=>{try{if(!trustedRoomFrame(event,roomWindow,serverURL())||!Number.isSafeInteger(count)||count<0||count>1000000)throw Error('通知计数无效');inboxUnread=count;emit({type:'inbox',unread:count});return {ok:true};}catch(error){return {ok:false,error:error.message};}});
   for(const action of ['list','choose','status','install','open','cancel','progress','retry','publish','install-from-room','export','difference'])ipcMain.handle('packs:'+action,async(event,input)=>{
     try{
       if(!trustedRoomFrame(event,roomWindow,serverURL()))throw Error('无权访问本地整合包');

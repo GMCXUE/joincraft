@@ -25,3 +25,5 @@ contextBridge.exposeInMainWorld('joincraftHome',Object.freeze({version:3,recent:
 
 ipcRenderer.on('home:show',()=>{location.hash='home';});
 ipcRenderer.on('home:notice',(_event,message)=>window.dispatchEvent(new CustomEvent('joincraft-home-notice',{detail:message})));
+
+contextBridge.exposeInMainWorld('joincraftInbox',Object.freeze({publish:async count=>{const result=await ipcRenderer.invoke('inbox:count',count);if(!result.ok)throw Error(result.error);},onOpen:callback=>{const listener=()=>callback();ipcRenderer.on('inbox:open',listener);return()=>ipcRenderer.removeListener('inbox:open',listener);}}));

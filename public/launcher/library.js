@@ -8,10 +8,12 @@ import {mountPackInstaller} from './packs.js';
 import {miningFeedback,animatePage} from '../motion.js';
 let libraryScanMotion=null;
 import {createMemoryControls} from './memory.js';
+import {mountInboxShortcut} from '../inbox.js';
 import {mountDesktopUpdates} from '../desktop-notifications.js';
 const $ = selector => document.querySelector(selector);
 const api = window.blockroomLauncher;
 mountDesktopUpdates();
+mountInboxShortcut();
 let preferences = {};
 try { preferences = JSON.parse(localStorage.getItem('blockroom-launcher-preferences') || '{}'); if (!preferences || typeof preferences !== 'object') preferences = {}; } catch {}
 const state = { instances: [], selected: null, javaPath: null, accountMode: 'offline', account: {}, runs: [], busy: false, operation:null, javaInstallations:[], javaScanning:false, installBusy:false,arch:'x64' };
